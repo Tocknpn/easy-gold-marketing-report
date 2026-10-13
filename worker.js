@@ -207,7 +207,168 @@ export default {
       return response;
     }
 
-    // 2. Serve all other static assets (HTML, CSS, JS, images) via Workers Static Assets
+    // 2. API Route: /api/dashboard/mtd-forecast
+    if (url.pathname === '/api/dashboard/mtd-forecast') {
+      const cacheUrl = new URL(request.url);
+      const cacheKey = new Request(cacheUrl.toString(), request);
+      const cache = caches.default;
+
+      let cachedResponse = await cache.match(cacheKey);
+      if (cachedResponse) {
+        return cachedResponse;
+      }
+
+      let payload = {
+        as_of_date: '2026-10-11',
+        display_as_of_date: '11/10/2026',
+        current_month_label: "Oct'26",
+        current_month_year: 2026,
+        current_month_num: 10,
+        comparison_month_label: "Sep'26",
+        comparison_month_year: 2026,
+        comparison_month_num: 9,
+        elapsed_days: 11,
+        total_days_current_month: 31,
+        elapsed_working_days: 8,
+        total_working_days_current_month: 22,
+        calculation_mode: 'calendar_days',
+        metrics: {
+          buy_weight_g: {
+            id: 'buy_weight_g',
+            label: 'Buy Weight (g)',
+            icon_name: 'shopping-bag',
+            current_mtd: 5091,
+            comp_mtd: 4457,
+            mtd_variance_percent: 14,
+            est_month_end: 14348,
+            full_comp_month: 15048,
+            forecast_variance_percent: -5,
+          },
+          buy_transactions: {
+            id: 'buy_transactions',
+            label: 'Buy Transaction',
+            icon_name: 'shopping-cart',
+            current_mtd: 47948,
+            comp_mtd: 40443,
+            mtd_variance_percent: 19,
+            est_month_end: 135126,
+            full_comp_month: 123977,
+            forecast_variance_percent: 9,
+          },
+          sell_weight_g: {
+            id: 'sell_weight_g',
+            label: 'Sell Weight (g)',
+            icon_name: 'tag',
+            current_mtd: 1937,
+            comp_mtd: 2847,
+            mtd_variance_percent: -32,
+            est_month_end: 5458,
+            full_comp_month: 6566,
+            forecast_variance_percent: -17,
+          },
+          sell_transactions: {
+            id: 'sell_transactions',
+            label: 'Sell Transaction',
+            icon_name: 'scale',
+            current_mtd: 17234,
+            comp_mtd: 17016,
+            mtd_variance_percent: 1,
+            est_month_end: 48569,
+            full_comp_month: 47724,
+            forecast_variance_percent: 2,
+          },
+          withdraw_15g: {
+            id: 'withdraw_15g',
+            label: 'Withdraw (15g)',
+            icon_name: 'layers',
+            current_mtd: 1140,
+            comp_mtd: 1187,
+            mtd_variance_percent: -4,
+            est_month_end: 3212,
+            full_comp_month: 3582,
+            forecast_variance_percent: -10,
+          },
+          new_customers: {
+            id: 'new_customers',
+            label: 'New Customer',
+            icon_name: 'user-plus',
+            current_mtd: 833,
+            comp_mtd: 1255,
+            mtd_variance_percent: -34,
+            est_month_end: 2348,
+            full_comp_month: 2946,
+            forecast_variance_percent: -20,
+          },
+          total_transactions: {
+            id: 'total_transactions',
+            label: 'Total Transaction',
+            icon_name: 'arrow-left-right',
+            current_mtd: 66652,
+            comp_mtd: 59196,
+            mtd_variance_percent: 13,
+            est_month_end: 187837,
+            full_comp_month: 175923,
+            forecast_variance_percent: 7,
+          },
+        },
+        available_months: [
+          { label: "Sep'26", year: 2026, month: 9 },
+          { label: "Aug'26", year: 2026, month: 8 },
+          { label: "Jul'26", year: 2026, month: 7 },
+        ],
+      };
+
+      const supabaseUrl = env.NEXT_PUBLIC_SUPABASE_URL;
+      const supabaseKey = env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+      if (supabaseUrl && supabaseKey && !supabaseUrl.includes('placeholder')) {
+        try {
+          const rpcUrl = `${supabaseUrl}/rest/v1/rpc/get_mtd_forecast_report`;
+          const asOfDate = url.searchParams.get('as_of_date') || '2026-10-11';
+          const mode = url.searchParams.get('mode') || 'calendar_days';
+          const compMonth = parseInt(url.searchParams.get('comp_month') || '9', 10);
+          const compYear = parseInt(url.searchParams.get('comp_year') || '2026', 10);
+
+          const res = await fetch(rpcUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              apikey: supabaseKey,
+              Authorization: `Bearer ${supabaseKey}`,
+            },
+            body: JSON.stringify({
+              p_as_of_date: asOfDate,
+              p_comp_year: compYear,
+              p_comp_month: compMonth,
+              p_mode: mode,
+            }),
+          });
+
+          if (res.ok) {
+            const data = await res.json();
+            if (data && data.metrics) {
+              payload = data;
+            }
+          }
+        } catch (err) {
+          console.error('Worker Supabase MTD fetch error:', err);
+        }
+      }
+
+      const response = new Response(JSON.stringify(payload), {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+          'Cache-Control': 'public, max-age=120, s-maxage=120, stale-while-revalidate=600',
+        },
+      });
+
+      ctx.waitUntil(cache.put(cacheKey, response.clone()));
+      return response;
+    }
+
+    // 3. Serve all other static assets (HTML, CSS, JS, images) via Workers Static Assets
     if (env.ASSETS) {
       return env.ASSETS.fetch(request);
     }
