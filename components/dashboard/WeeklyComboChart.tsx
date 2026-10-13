@@ -12,16 +12,22 @@ interface WeeklyComboChartProps {
   data: ChartPoint[];
   themeColor: ThemeSectionColor;
   isDecimal?: boolean;
+  selectedWeek?: string;
 }
 
-export function WeeklyComboChart({ data, themeColor, isDecimal = false }: WeeklyComboChartProps) {
+export function WeeklyComboChart({
+  data,
+  themeColor,
+  isDecimal = false,
+  selectedWeek,
+}: WeeklyComboChartProps) {
   if (!data || data.length === 0) {
     return <div className="h-full flex items-center justify-center text-xs text-slate-400">No data</div>;
   }
 
   // Dimensions
   const width = 300;
-  const height = 140;
+  const height = 135;
   const paddingBottom = 26;
   const paddingTop = 26;
   const paddingX = 24;
@@ -64,13 +70,14 @@ export function WeeklyComboChart({ data, themeColor, isDecimal = false }: Weekly
     const normalizedY = (d.value - minVal) / (maxVal - minVal);
     const y = height - paddingBottom - normalizedY * chartHeight;
     const barHeight = Math.max(normalizedY * chartHeight, 4);
+    const isSelected = selectedWeek ? d.week === selectedWeek : index === data.length - 1;
     return {
       x,
       y,
       barHeight,
       week: d.week,
       value: d.value,
-      isLast: index === data.length - 1,
+      isSelected,
     };
   });
 
@@ -104,7 +111,7 @@ export function WeeklyComboChart({ data, themeColor, isDecimal = false }: Weekly
               y={height - paddingBottom - p.barHeight}
               width={barWidth}
               height={p.barHeight}
-              fill={p.isLast ? colors.activeBar : '#d1d5db'}
+              fill={p.isSelected ? colors.activeBar : '#d1d5db'}
               rx="1.5"
             />
 

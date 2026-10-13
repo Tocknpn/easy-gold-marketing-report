@@ -1,34 +1,33 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { PlatformOverviewSection } from '@/components/dashboard/PlatformOverviewSection';
 import { BuyActivitySection } from '@/components/dashboard/BuyActivitySection';
 import { SellActivitySection } from '@/components/dashboard/SellActivitySection';
-import { ExecutiveDashboardData } from '@/lib/types/dashboard.types';
+import { ExecutiveDashboardData, WeeklyMetricRow, MetricVariances } from '@/lib/types/dashboard.types';
 import { 
-  BarChart3, 
   Calendar, 
-  Database, 
-  Download, 
-  Layers, 
   RefreshCw, 
-  ShieldCheck, 
-  SlidersHorizontal,
-  Users
+  ChevronDown
 } from 'lucide-react';
 
 export default function DashboardPage() {
   const [data, setData] = useState<ExecutiveDashboardData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'overview' | 'adhoc' | 'branch' | 'export'>('overview');
+  const [selectedWeekLabel, setSelectedWeekLabel] = useState<string>('W41');
 
+  // Fetch summary from API (Supabase RPC with Edge Caching)
   const fetchSummary = async () => {
     setLoading(true);
     try {
       const res = await fetch('/api/dashboard/summary');
       if (res.ok) {
-        const json = await res.json();
+        const json: ExecutiveDashboardData = await res.json();
         setData(json);
+        // Default to latest week if available
+        if (json.current_week?.week_label) {
+          setSelectedWeekLabel(json.current_week.week_label);
+        }
       }
     } catch (err) {
       console.error('Failed to load dashboard summary', err);
@@ -41,327 +40,200 @@ export default function DashboardPage() {
     fetchSummary();
   }, []);
 
+  // Sorted list of all weeks available in history
+  const sortedHistory = useMemo(() => {
+    if (!data?.history || data.history.length === 0) return [];
+    return [...data.history].sort((a, b) => a.year_week.localeCompare(b.year_week));
+  }, [data]);
+
+  // Compute Active Week, Previous Week, and Dynamic Variances
+  const activeMetrics = useMemo(() => {
+    if (!data) return null;
+
+    const history = sortedHistory;
+    const activeIndex = history.findIndex((w) => w.week_label === selectedWeekLabel);
+    const currentWeek: WeeklyMetricRow =
+      activeIndex >= 0 ? history[activeIndex] : data.current_week;
+    const previousWeek: WeeklyMetricRow | undefined =
+      activeIndex > 0 ? history[activeIndex - 1] : undefined;
+
+    // Helper to calculate % variance: ((current - previous) / previous) * 100
+    const calcVariance = (curr: number, prev: number | undefined): number => {
+      if (prev === undefined || prev === 0) return 0;
+      return Math.round(((curr - prev) / prev) * 100);
+    };
+
+    const variances: MetricVariances = {
+      all_transactions: calcVariance(currentWeek.all_transactions, previousWeek?.all_transactions),
+      active_users: calcVariance(currentWeek.active_users, previousWeek?.active_users),
+      new_registers: calcVariance(currentWeek.new_registers, previousWeek?.new_registers),
+      withdraw_gold_grams: calcVariance(
+        Number(currentWeek.withdraw_gold_grams),
+        previousWeek ? Number(previousWeek.withdraw_gold_grams) : undefined
+      ),
+      buy_weight_15g: calcVariance(
+        Number(currentWeek.buy_weight_15g),
+        previousWeek ? Number(previousWeek.buy_weight_15g) : undefined
+      ),
+      buy_transactions: calcVariance(currentWeek.buy_transactions, previousWeek?.buy_transactions),
+      buy_ticket_size_g: calcVariance(
+        Number(currentWeek.buy_ticket_size_g),
+        previousWeek ? Number(previousWeek.buy_ticket_size_g) : undefined
+      ),
+      sell_weight_15g: calcVariance(
+        Number(currentWeek.sell_weight_15g),
+        previousWeek ? Number(previousWeek.sell_weight_15g) : undefined
+      ),
+      sell_transactions: calcVariance(currentWeek.sell_transactions, previousWeek?.sell_transactions),
+      sell_ticket_size_g: calcVariance(
+        Number(currentWeek.sell_ticket_size_g),
+        previousWeek ? Number(previousWeek.sell_ticket_size_g) : undefined
+      ),
+    };
+
+    return {
+      currentWeek,
+      previousWeek,
+      variances,
+      history,
+    };
+  }, [data, sortedHistory, selectedWeekLabel]);
+
+  // Format date to DD/MM/YYYY
+  const formatDisplayDate = (dateStr?: string) => {
+    if (!dateStr) return '10/10/2026';
+    const parts = dateStr.split('-');
+    if (parts.length === 3) {
+      return `${parts[2]}/${parts[1]}/${parts[0]}`;
+    }
+    return dateStr;
+  };
+
   return (
-    <div className="min-h-screen bg-[#f1f5f9] text-slate-900 pb-16">
-      {/* Top Executive Header Bar */}
-      <header className="bg-white border-b border-slate-200/80 sticky top-0 z-30 shadow-xs">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-amber-700 flex items-center justify-center text-white shadow-sm font-black text-lg">
-              EG
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">
-                  EASY GOLD MARKETING REPORT
-                </h1>
-                <span className="bg-emerald-100 text-emerald-800 text-[11px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 border border-emerald-300">
-                  <ShieldCheck className="w-3 h-3" /> Supabase Free Tier (1.4M Rows)
-                </span>
-              </div>
-              <p className="text-xs text-slate-500 flex items-center gap-2">
-                <span>Executive BI & Performance Analytics</span>
-                <span>•</span>
-                <span className="text-blue-600 font-medium">Cloudflare Edge Cached</span>
-              </p>
-            </div>
-          </div>
+    <div className="min-h-screen bg-[#f3f5f9] text-slate-900 flex flex-row select-none">
+      {/* 1. Left Signature Blue Brand Sidebar */}
+      <aside className="w-12 sm:w-16 md:w-20 bg-[#0c4ca3] shrink-0 flex flex-col items-center justify-center border-r border-[#093c83] shadow-md z-20">
+        <div className="flex flex-col items-center justify-center text-white font-black tracking-tight leading-none gap-1 sm:gap-1.5 py-6">
+          <span className="text-xl sm:text-2xl md:text-3xl">Easy</span>
+          <span className="text-xl sm:text-2xl md:text-3xl">Gold</span>
+        </div>
+      </aside>
 
-          {/* Quick Actions & Period Badge */}
-          <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
-            <div className="flex items-center gap-2 bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-semibold text-slate-700">
-              <Calendar className="w-4 h-4 text-slate-500" />
-              <span>Current: 2026-W41 (Oct 06 - Oct 12)</span>
-            </div>
-
-            <button
-              onClick={fetchSummary}
-              disabled={loading}
-              className="p-2 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 transition-colors disabled:opacity-50"
-              title="Refresh Metrics"
-            >
-              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-            </button>
-
-            <div className="flex items-center gap-2 pl-2 border-l border-slate-200">
-              <span className="text-xs font-bold text-slate-600 bg-amber-50 text-amber-900 px-2.5 py-1 rounded-md border border-amber-200">
-                Admin
+      {/* 2. Main Executive Report Content Area */}
+      <div className="flex-1 flex flex-col p-3 sm:p-5 lg:p-6 overflow-x-hidden min-w-0">
+        {/* Top Header Row matching mockup */}
+        <header className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4 pb-2 border-b border-slate-200/80">
+          {/* Left Title & Date */}
+          <div>
+            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black text-[#0c4ca3] tracking-tight flex items-center gap-3">
+              <span>Overall performance Week over Week -</span>
+              <span className="text-[#0c4ca3] underline decoration-[#0c4ca3]/40 underline-offset-4">
+                {activeMetrics?.currentWeek.week_label || selectedWeekLabel}
+              </span>
+            </h1>
+            <div className="mt-1 flex items-center gap-3">
+              <span className="text-xs sm:text-sm font-bold text-[#1d63b8] underline underline-offset-2">
+                Data up to date {formatDisplayDate(activeMetrics?.currentWeek.end_date)}
+              </span>
+              <span className="text-slate-300">•</span>
+              <span className="text-xs text-slate-500 font-medium">
+                Period: {activeMetrics?.currentWeek.start_date} to {activeMetrics?.currentWeek.end_date}
               </span>
             </div>
           </div>
-        </div>
 
-        {/* Module Navigation Tabs */}
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center gap-2 overflow-x-auto border-t border-slate-100 py-1.5">
-          <button
-            onClick={() => setActiveTab('overview')}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all ${
-              activeTab === 'overview'
-                ? 'bg-blue-600 text-white shadow-xs'
-                : 'text-slate-600 hover:bg-slate-100'
-            }`}
-          >
-            <BarChart3 className="w-3.5 h-3.5" />
-            Module 1: Executive Overview
-          </button>
-
-          <button
-            onClick={() => setActiveTab('adhoc')}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all ${
-              activeTab === 'adhoc'
-                ? 'bg-blue-600 text-white shadow-xs'
-                : 'text-slate-600 hover:bg-slate-100'
-            }`}
-          >
-            <SlidersHorizontal className="w-3.5 h-3.5" />
-            Module 2: Dynamic Ad-Hoc Filters
-          </button>
-
-          <button
-            onClick={() => setActiveTab('branch')}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all ${
-              activeTab === 'branch'
-                ? 'bg-blue-600 text-white shadow-xs'
-                : 'text-slate-600 hover:bg-slate-100'
-            }`}
-          >
-            <Users className="w-3.5 h-3.5" />
-            Module 3: Customer & Branch Analytics
-          </button>
-
-          <button
-            onClick={() => setActiveTab('export')}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all ${
-              activeTab === 'export'
-                ? 'bg-blue-600 text-white shadow-xs'
-                : 'text-slate-600 hover:bg-slate-100'
-            }`}
-          >
-            <Download className="w-3.5 h-3.5" />
-            Module 4: Export & Schedule
-          </button>
-        </div>
-      </header>
-
-      {/* Main Content Area */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
-        {loading && !data ? (
-          <div className="h-96 flex flex-col items-center justify-center gap-3 text-slate-500">
-            <RefreshCw className="w-8 h-8 animate-spin text-blue-600" />
-            <p className="font-semibold text-sm">Aggregating weekly executive metrics...</p>
-          </div>
-        ) : data ? (
-          <>
-            {activeTab === 'overview' && (
-              <div className="space-y-6">
-                {/* Section 1: Platform Overview (Blue) */}
-                <PlatformOverviewSection
-                  currentWeek={data.current_week}
-                  history={data.history}
-                  variances={data.variances}
-                />
-
-                {/* Section 2: Buy Activity (Forest Green) */}
-                <BuyActivitySection
-                  currentWeek={data.current_week}
-                  history={data.history}
-                  variances={data.variances}
-                />
-
-                {/* Section 3: Sell Activity (Burgundy) */}
-                <SellActivitySection
-                  currentWeek={data.current_week}
-                  history={data.history}
-                  variances={data.variances}
-                />
-              </div>
-            )}
-
-            {activeTab === 'adhoc' && (
-              <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
-                <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
-                  <div>
-                    <h2 className="text-lg font-extrabold text-slate-900">
-                      Module 2: Dynamic Ad-Hoc Cross-Filtering Engine
-                    </h2>
-                    <p className="text-xs text-slate-500">
-                      High-speed filtered aggregation powered by PostgreSQL composite index scans.
-                    </p>
-                  </div>
-                  <span className="text-xs bg-blue-50 text-blue-700 px-3 py-1 rounded-full font-bold border border-blue-200">
-                    RPC: get_adhoc_filtered_metrics()
-                  </span>
-                </div>
-
-                {/* Filter controls UI preview */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">Bank Filter</label>
-                    <select className="w-full text-xs rounded-lg border border-slate-300 p-2 bg-slate-50 font-medium">
-                      <option>All Banks (BCEL, LDB, JDB...)</option>
-                      <option>BCEL</option>
-                      <option>LDB</option>
-                      <option>JDB</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">Transaction Type</label>
-                    <select className="w-full text-xs rounded-lg border border-slate-300 p-2 bg-slate-50 font-medium">
-                      <option>All Types</option>
-                      <option>BUY_GOLD</option>
-                      <option>SALE_GOLD</option>
-                      <option>OPEN_ACCOUNT</option>
-                      <option>WITHDRAW_GOLD</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">Gold Weight Bracket</label>
-                    <select className="w-full text-xs rounded-lg border border-slate-300 p-2 bg-slate-50 font-medium">
-                      <option>All Brackets</option>
-                      <option>Micro: 0.01g - 1g</option>
-                      <option>Medium: 1g - 15g</option>
-                      <option>Executive: 15g - 800g</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">Status</label>
-                    <select className="w-full text-xs rounded-lg border border-slate-300 p-2 bg-slate-50 font-medium">
-                      <option>Completed (ສໍາເລັດ)</option>
-                      <option>Failed / Rejected (ປະຕິເສດ)</option>
-                    </select>
-                  </div>
-                </div>
-
-                {/* Performance stats banner */}
-                <div className="bg-slate-50 rounded-xl p-4 border border-slate-200 flex flex-col md:flex-row items-center justify-between gap-4">
-                  <div className="flex items-center gap-3">
-                    <Database className="w-5 h-5 text-emerald-600" />
-                    <div>
-                      <div className="text-xs font-bold text-slate-800">
-                        Zero Sequential Scan Guarantee
-                      </div>
-                      <div className="text-[11px] text-slate-500">
-                        Query plans use composite index <code>idx_monthly_data_perf_composite</code> with sub-80ms target response on 1.4M rows.
-                      </div>
-                    </div>
-                  </div>
-                  <button className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition-colors">
-                    Execute Query
+          {/* Right Branding & Interactive Week Selector */}
+          <div className="flex items-center gap-4 sm:gap-6 flex-wrap justify-between md:justify-end">
+            {/* Week Selector Controls */}
+            <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-xl border border-slate-300/80 shadow-xs">
+              <Calendar className="w-4 h-4 text-[#0c4ca3]" />
+              <span className="text-xs font-bold text-slate-600 hidden sm:inline">Select Week:</span>
+              
+              {/* Quick Week Pill Switcher */}
+              <div className="flex items-center gap-1">
+                {sortedHistory.map((w) => (
+                  <button
+                    key={w.week_label}
+                    onClick={() => setSelectedWeekLabel(w.week_label)}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-black transition-all ${
+                      selectedWeekLabel === w.week_label
+                        ? 'bg-[#0c4ca3] text-white shadow-xs scale-105'
+                        : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                    }`}
+                    title={`${w.week_label} (${w.start_date} to ${w.end_date})`}
+                  >
+                    {w.week_label}
                   </button>
-                </div>
+                ))}
               </div>
-            )}
 
-            {activeTab === 'branch' && (
-              <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
-                <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
-                  <div>
-                    <h2 className="text-lg font-extrabold text-slate-900">
-                      Module 3: Customer & Branch Analytics
-                    </h2>
-                    <p className="text-xs text-slate-500">
-                      Breakdown across physical branch locations and top purchasing customers.
-                    </p>
-                  </div>
-                  <span className="text-xs bg-emerald-50 text-emerald-700 px-3 py-1 rounded-full font-bold border border-emerald-200">
-                    RPC: get_branch_and_customer_analytics()
-                  </span>
-                </div>
+              {/* Refresh button */}
+              <button
+                onClick={fetchSummary}
+                disabled={loading}
+                className="p-1.5 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors disabled:opacity-50 ml-1 border-l border-slate-200 pl-2"
+                title="Refresh from Supabase"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+              </button>
+            </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* Top Branches */}
-                  <div className="border border-slate-200 rounded-xl p-4">
-                    <h3 className="font-bold text-sm text-slate-800 mb-3 flex items-center gap-2">
-                      <Layers className="w-4 h-4 text-blue-600" /> Top Performing Branches
-                    </h3>
-                    <div className="space-y-2 text-xs">
-                      <div className="flex items-center justify-between p-2 rounded-lg bg-slate-50">
-                        <span className="font-semibold text-slate-700">ຮ້ານຄຳພູວົງ ສາຂາ ຕະຫຼາດວັງທອງ</span>
-                        <span className="font-bold text-slate-900">3,420 Tx</span>
-                      </div>
-                      <div className="flex items-center justify-between p-2 rounded-lg bg-slate-50">
-                        <span className="font-semibold text-slate-700">ຮ້ານຄຳພູວົງ ສາຂາ ຕະຫຼາດເຊົ້າ</span>
-                        <span className="font-bold text-slate-900">2,890 Tx</span>
-                      </div>
-                      <div className="flex items-center justify-between p-2 rounded-lg bg-slate-50">
-                        <span className="font-semibold text-slate-700">ຮ້ານຄຳພູນທະວີ ( ທ່າງ່ອນ )</span>
-                        <span className="font-bold text-slate-900">1,940 Tx</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Top Customer Profiles */}
-                  <div className="border border-slate-200 rounded-xl p-4">
-                    <h3 className="font-bold text-sm text-slate-800 mb-3 flex items-center gap-2">
-                      <Users className="w-4 h-4 text-emerald-600" /> High-Volume Customer Tiers
-                    </h3>
-                    <div className="space-y-2 text-xs">
-                      <div className="flex items-center justify-between p-2 rounded-lg bg-slate-50">
-                        <div>
-                          <div className="font-semibold text-slate-800">VIP Customer Tier (15g - 150g)</div>
-                          <div className="text-[10px] text-slate-500">Recurring Gold Investors</div>
-                        </div>
-                        <span className="font-bold text-emerald-700">28.4% Vol</span>
-                      </div>
-                      <div className="flex items-center justify-between p-2 rounded-lg bg-slate-50">
-                        <div>
-                          <div className="font-semibold text-slate-800">Retail Tier (&lt; 15g)</div>
-                          <div className="text-[10px] text-slate-500">Daily Micro-Traders</div>
-                        </div>
-                        <span className="font-bold text-blue-700">71.6% Vol</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+            {/* Logo: EASY GOLD by KHAMPHOUVONG */}
+            <div className="text-right select-none">
+              <div className="flex items-baseline justify-end gap-1 font-black leading-none">
+                <span className="text-xl sm:text-2xl text-[#e5a812] tracking-wider">EASY</span>
+                <span className="text-xl sm:text-2xl text-[#0c4ca3] tracking-wider">GOLD</span>
               </div>
-            )}
-
-            {activeTab === 'export' && (
-              <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
-                <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
-                  <div>
-                    <h2 className="text-lg font-extrabold text-slate-900">
-                      Module 4: Export & Scheduled Executive Reports
-                    </h2>
-                    <p className="text-xs text-slate-500">
-                      Generate PDF executive briefs, Excel raw rollups, or trigger recurring reports.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="border border-slate-200 rounded-xl p-4 text-center">
-                    <div className="text-xs font-bold text-slate-700 mb-1">Executive Summary PDF</div>
-                    <p className="text-[11px] text-slate-500 mb-4">Formatted presentation for Board review</p>
-                    <button className="w-full py-2 bg-slate-900 text-white rounded-lg text-xs font-bold hover:bg-slate-800">
-                      Download PDF
-                    </button>
-                  </div>
-
-                  <div className="border border-slate-200 rounded-xl p-4 text-center">
-                    <div className="text-xs font-bold text-slate-700 mb-1">Weekly Rollup Excel (.xlsx)</div>
-                    <p className="text-[11px] text-slate-500 mb-4">W37-W41 aggregated spreadsheet</p>
-                    <button className="w-full py-2 bg-emerald-700 text-white rounded-lg text-xs font-bold hover:bg-emerald-800">
-                      Export Excel
-                    </button>
-                  </div>
-
-                  <div className="border border-slate-200 rounded-xl p-4 text-center">
-                    <div className="text-xs font-bold text-slate-700 mb-1">Automated Weekly Dispatch</div>
-                    <p className="text-[11px] text-slate-500 mb-4">Monday 08:00 AM Cron Schedule</p>
-                    <button className="w-full py-2 bg-blue-600 text-white rounded-lg text-xs font-bold hover:bg-blue-700">
-                      Configure Schedule
-                    </button>
-                  </div>
-                </div>
+              <div className="text-[10px] sm:text-[11px] font-bold text-slate-400 tracking-wider mt-0.5">
+                by KHAMPHOUVONG
               </div>
-            )}
-          </>
+            </div>
+          </div>
+        </header>
+
+        {/* 3 Focus Areas in 1 Page Scale */}
+        {loading && !activeMetrics ? (
+          <div className="flex-1 flex flex-col items-center justify-center gap-3 py-20 text-slate-500">
+            <RefreshCw className="w-8 h-8 animate-spin text-[#0c4ca3]" />
+            <p className="font-semibold text-sm">Loading Executive Performance Report...</p>
+          </div>
+        ) : activeMetrics ? (
+          <main className="flex-1 flex flex-col gap-3 sm:gap-4 justify-between">
+            {/* Area 1: PLATFORM OVERVIEW (Top Full Width, 4 Cards) */}
+            <section className="w-full">
+              <PlatformOverviewSection
+                currentWeek={activeMetrics.currentWeek}
+                history={activeMetrics.history}
+                variances={activeMetrics.variances}
+                selectedWeek={selectedWeekLabel}
+              />
+            </section>
+
+            {/* Area 2 & Area 3: Side-by-Side (50% BUY ACTIVITY / 50% SELL ACTIVITY) */}
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-3 sm:gap-4 w-full">
+              {/* Area 2: BUY ACTIVITY (Forest Green, 3 Cards) */}
+              <section className="w-full">
+                <BuyActivitySection
+                  currentWeek={activeMetrics.currentWeek}
+                  history={activeMetrics.history}
+                  variances={activeMetrics.variances}
+                  selectedWeek={selectedWeekLabel}
+                />
+              </section>
+
+              {/* Area 3: SELL ACTIVITY (Burgundy, 3 Cards) */}
+              <section className="w-full">
+                <SellActivitySection
+                  currentWeek={activeMetrics.currentWeek}
+                  history={activeMetrics.history}
+                  variances={activeMetrics.variances}
+                  selectedWeek={selectedWeekLabel}
+                />
+              </section>
+            </div>
+          </main>
         ) : null}
-      </main>
+      </div>
     </div>
   );
 }

@@ -8,12 +8,14 @@ interface PlatformOverviewSectionProps {
   currentWeek: WeeklyMetricRow;
   history: WeeklyMetricRow[];
   variances: MetricVariances;
+  selectedWeek?: string;
 }
 
 export function PlatformOverviewSection({
   currentWeek,
   history,
   variances,
+  selectedWeek,
 }: PlatformOverviewSectionProps) {
   // Extract historical trend series
   const allTxData = history.map((w) => ({ week: w.week_label, value: w.all_transactions }));
@@ -22,17 +24,17 @@ export function PlatformOverviewSection({
   const withdrawData = history.map((w) => ({ week: w.week_label, value: Number(w.withdraw_gold_grams) }));
 
   return (
-    <div className="border-[2.5px] border-dotted border-[#1e56a0] rounded-2xl p-3 sm:p-4 bg-[#f8faff] shadow-sm">
+    <div className="border-[2px] border-dotted border-[#1e56a0] rounded-xl p-2.5 sm:p-3 bg-[#f8faff] shadow-xs">
       {/* Blue Header Banner */}
-      <div className="bg-[#1e56a0] text-white font-black text-xl sm:text-2xl tracking-wide px-6 py-3 rounded-xl uppercase mb-4 shadow-sm flex items-center justify-between">
+      <div className="bg-[#1e56a0] text-white font-black text-sm sm:text-base tracking-wider px-4 py-1.5 rounded-lg uppercase mb-2.5 shadow-xs flex items-center justify-between">
         <span>Platform Overview</span>
-        <span className="text-xs sm:text-sm font-normal text-blue-100 normal-case tracking-normal">
+        <span className="text-[11px] sm:text-xs font-semibold text-blue-100 normal-case tracking-normal">
           Active Week: {currentWeek.week_label}
         </span>
       </div>
 
       {/* 4 Cards Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
         {/* Card 1: All Transaction */}
         <MetricKpiCard
           title="All Transaction"
@@ -40,6 +42,7 @@ export function PlatformOverviewSection({
           variancePercent={variances.all_transactions}
           historyData={allTxData}
           themeColor="blue"
+          selectedWeek={selectedWeek || currentWeek.week_label}
         />
 
         {/* Card 2: User Participate */}
@@ -49,6 +52,7 @@ export function PlatformOverviewSection({
           variancePercent={variances.active_users}
           historyData={userPartData}
           themeColor="blue"
+          selectedWeek={selectedWeek || currentWeek.week_label}
         />
 
         {/* Card 3: New Register */}
@@ -58,6 +62,7 @@ export function PlatformOverviewSection({
           variancePercent={variances.new_registers}
           historyData={newRegData}
           themeColor="blue"
+          selectedWeek={selectedWeek || currentWeek.week_label}
         />
 
         {/* Card 4: Gold Withdraw (g) */}
@@ -67,6 +72,7 @@ export function PlatformOverviewSection({
           variancePercent={variances.withdraw_gold_grams}
           historyData={withdrawData}
           themeColor="blue"
+          selectedWeek={selectedWeek || currentWeek.week_label}
         />
       </div>
     </div>

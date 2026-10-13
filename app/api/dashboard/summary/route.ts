@@ -156,7 +156,7 @@ export async function GET() {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     if (supabaseUrl && !supabaseUrl.includes('placeholder')) {
       const supabase = createServerSupabaseClient();
-      const { data, error } = await supabase.rpc('get_executive_weekly_dashboard', { p_limit: 5 });
+      const { data, error } = await supabase.rpc('get_executive_weekly_dashboard', { p_limit: 20 });
 
       if (!error && data && data.current_week) {
         responseData = data;

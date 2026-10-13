@@ -11,6 +11,7 @@ interface MetricKpiCardProps {
   historyData: Array<{ week: string; value: number }>;
   themeColor: ThemeSectionColor;
   isDecimal?: boolean;
+  selectedWeek?: string;
 }
 
 export function MetricKpiCard({
@@ -20,6 +21,7 @@ export function MetricKpiCard({
   historyData,
   themeColor,
   isDecimal = false,
+  selectedWeek,
 }: MetricKpiCardProps) {
   const isPositive = variancePercent > 0;
   const isNegative = variancePercent < 0;
@@ -69,11 +71,12 @@ export function MetricKpiCard({
       </div>
 
       {/* Embedded 5-Week Trend Combo Chart */}
-      <div className="w-full h-44 mt-auto">
+      <div className="w-full h-36 lg:h-40 mt-auto">
         <WeeklyComboChart
           data={historyData}
           themeColor={themeColor}
           isDecimal={isDecimal}
+          selectedWeek={selectedWeek}
         />
       </div>
     </div>

@@ -179,7 +179,7 @@ export default {
               apikey: supabaseKey,
               Authorization: `Bearer ${supabaseKey}`,
             },
-            body: JSON.stringify({ p_limit: 5 }),
+            body: JSON.stringify({ p_limit: 20 }),
           });
 
           if (res.ok) {
