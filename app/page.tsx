@@ -5,24 +5,26 @@ import { PlatformOverviewSection } from '@/components/dashboard/PlatformOverview
 import { BuyActivitySection } from '@/components/dashboard/BuyActivitySection';
 import { SellActivitySection } from '@/components/dashboard/SellActivitySection';
 import { MtdReportView } from '@/components/dashboard/mtd/MtdReportView';
+import { DynamicReportView } from '@/components/dashboard/dynamic/DynamicReportView';
 import { ExecutiveDashboardData, WeeklyMetricRow, MetricVariances } from '@/lib/types/dashboard.types';
 import { MtdReportPayload } from '@/lib/types/mtd.types';
 import { 
   Calendar, 
   RefreshCw, 
-  ChevronLeft,
-  ChevronRight,
-  Database,
-  TrendingUp,
-  BarChart3
+  ChevronLeft, 
+  ChevronRight, 
+  Database, 
+  TrendingUp, 
+  BarChart3,
+  SlidersHorizontal
 } from 'lucide-react';
 
 import { DEFAULT_MTD_PAYLOAD } from '@/lib/constants/mtdData';
 import { DEFAULT_WEEKLY_FALLBACK_DATA } from '@/lib/constants/weeklyData';
 
 export default function DashboardPage() {
-  // View toggle: 'mtd' for the new MTD & Forecast report, 'weekly' for WoW Combo Charts
-  const [activeReportTab, setActiveReportTab] = useState<'mtd' | 'weekly'>('mtd');
+  // View toggle: 'dynamic' for Dynamic BI & DAX Explorer, 'mtd' for MTD & Forecast, 'weekly' for WoW Combo Charts
+  const [activeReportTab, setActiveReportTab] = useState<'dynamic' | 'mtd' | 'weekly'>('dynamic');
 
   // Weekly data state initialized with default data
   const [weeklyData, setWeeklyData] = useState<ExecutiveDashboardData>(DEFAULT_WEEKLY_FALLBACK_DATA);
@@ -183,6 +185,19 @@ export default function DashboardPage() {
         {/* Vertical Navigation Icons */}
         <div className="flex flex-col items-center gap-3 w-full px-2">
           <button
+            onClick={() => setActiveReportTab('dynamic')}
+            className={`w-full aspect-square rounded-xl flex flex-col items-center justify-center gap-1 transition-all ${
+              activeReportTab === 'dynamic'
+                ? 'bg-white text-[#0c4ca3] shadow-md font-bold'
+                : 'text-white/70 hover:text-white hover:bg-white/10'
+            }`}
+            title="Dynamic BI Performance & DAX Measures Explorer"
+          >
+            <SlidersHorizontal className="w-5 h-5" />
+            <span className="text-[9px] font-black tracking-tighter">BI</span>
+          </button>
+
+          <button
             onClick={() => setActiveReportTab('mtd')}
             className={`w-full aspect-square rounded-xl flex flex-col items-center justify-center gap-1 transition-all ${
               activeReportTab === 'mtd'
@@ -221,6 +236,17 @@ export default function DashboardPage() {
           {/* Executive View Tabs */}
           <div className="flex items-center bg-white p-1 rounded-xl border border-slate-300/80 shadow-xs">
             <button
+              onClick={() => setActiveReportTab('dynamic')}
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-black transition-all ${
+                activeReportTab === 'dynamic'
+                  ? 'bg-[#0c4ca3] text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+              }`}
+            >
+              <SlidersHorizontal className="w-4 h-4" />
+              <span>Dynamic BI Report</span>
+            </button>
+            <button
               onClick={() => setActiveReportTab('mtd')}
               className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-black transition-all ${
                 activeReportTab === 'mtd'
@@ -255,6 +281,11 @@ export default function DashboardPage() {
             </div>
           </div>
         </div>
+
+        {/* TAB: DYNAMIC BI PERFORMANCE & DAX MEASURES EXPLORER */}
+        {activeReportTab === 'dynamic' && (
+          <DynamicReportView />
+        )}
 
         {/* TAB 1: MTD & FORECAST REPORT (Requested by user) */}
         {activeReportTab === 'mtd' && (
