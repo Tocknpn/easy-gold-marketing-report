@@ -35,6 +35,7 @@ export function DynamicReportView() {
       const params = new URLSearchParams();
       if (currentFilters.startDate) params.set('start_date', currentFilters.startDate);
       if (currentFilters.endDate) params.set('end_date', currentFilters.endDate);
+      if (currentFilters.quickPreset) params.set('quick_preset', currentFilters.quickPreset);
       if (currentFilters.selectedBanks.length > 0) params.set('banks', currentFilters.selectedBanks.join(','));
       if (currentFilters.selectedBranches.length > 0) params.set('branches', currentFilters.selectedBranches.join(','));
       if (currentFilters.selectedTxTypes.length > 0) params.set('tx_types', currentFilters.selectedTxTypes.join(','));

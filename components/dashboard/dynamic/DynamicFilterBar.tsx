@@ -74,6 +74,9 @@ export function DynamicFilterBar({
     } else if (preset === 'last_month') {
       start = '2026-09-01';
       end = '2026-09-30';
+    } else if (preset === 'aug_month') {
+      start = '2026-08-01';
+      end = '2026-08-31';
     } else if (preset === 'q3') {
       start = '2026-07-01';
       end = '2026-09-30';
@@ -127,6 +130,7 @@ export function DynamicFilterBar({
           {[
             { id: 'this_month', label: "Oct'26 (This Month)" },
             { id: 'last_month', label: "Sep'26 (Last Month)" },
+            { id: 'aug_month', label: "Aug'26" },
             { id: 'last7d', label: 'Last 7 Days' },
             { id: 'last30d', label: 'Last 30 Days' },
             { id: 'q3', label: 'Q3 (Jul-Sep)' },

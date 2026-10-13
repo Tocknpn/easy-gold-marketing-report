@@ -368,7 +368,96 @@ export default {
       return response;
     }
 
-    // 3. Serve all other static assets (HTML, CSS, JS, images) via Workers Static Assets
+    // 3. API Route: /api/dashboard/dynamic-report
+    if (url.pathname === '/api/dashboard/dynamic-report') {
+      const cacheUrl = new URL(request.url);
+      const cacheKey = new Request(cacheUrl.toString(), request);
+      const cache = caches.default;
+
+      let cachedResponse = await cache.match(cacheKey);
+      if (cachedResponse) {
+        return cachedResponse;
+      }
+
+      const startDate = url.searchParams.get('start_date') || '2026-10-01';
+      const endDate = url.searchParams.get('end_date') || '2026-10-12';
+      const quickPreset = url.searchParams.get('quick_preset') || 'custom';
+
+      const supabaseUrl = env.NEXT_PUBLIC_SUPABASE_URL;
+      const supabaseKey = env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+      let payload = null;
+
+      if (supabaseUrl && supabaseKey && !supabaseUrl.includes('placeholder')) {
+        try {
+          const rpcUrl = `${supabaseUrl}/rest/v1/rpc/get_dynamic_bi_report`;
+          const banks = url.searchParams.get('banks') ? url.searchParams.get('banks').split(',') : null;
+          const branches = url.searchParams.get('branches') ? url.searchParams.get('branches').split(',') : null;
+          const txTypes = url.searchParams.get('tx_types') ? url.searchParams.get('tx_types').split(',') : null;
+          const minWeight = url.searchParams.get('min_weight') ? parseFloat(url.searchParams.get('min_weight')) : null;
+          const maxWeight = url.searchParams.get('max_weight') ? parseFloat(url.searchParams.get('max_weight')) : null;
+          const minAmount = url.searchParams.get('min_amount') ? parseFloat(url.searchParams.get('min_amount')) : null;
+          const maxAmount = url.searchParams.get('max_amount') ? parseFloat(url.searchParams.get('max_amount')) : null;
+          const startHour = url.searchParams.get('start_hour') ? parseInt(url.searchParams.get('start_hour'), 10) : null;
+          const endHour = url.searchParams.get('end_hour') ? parseInt(url.searchParams.get('end_hour'), 10) : null;
+          const status = url.searchParams.get('status') || 'ສໍາເລັດ';
+
+          const res = await fetch(rpcUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              apikey: supabaseKey,
+              Authorization: `Bearer ${supabaseKey}`,
+            },
+            body: JSON.stringify({
+              p_start_date: startDate ? `${startDate}T00:00:00Z` : null,
+              p_end_date: endDate ? `${endDate}T23:59:59Z` : null,
+              p_banks: banks,
+              p_branches: branches,
+              p_tx_types: txTypes,
+              p_min_weight: minWeight,
+              p_max_weight: maxWeight,
+              p_min_amount: minAmount,
+              p_max_amount: maxAmount,
+              p_start_hour: startHour,
+              p_end_hour: endHour,
+              p_status: status === 'all' ? null : status,
+            }),
+          });
+
+          if (res.ok) {
+            const data = await res.json();
+            if (data && data.dax_measures) {
+              payload = data;
+            }
+          }
+        } catch (err) {
+          console.error('Worker Supabase dynamic report error:', err);
+        }
+      }
+
+      if (!payload) {
+        // Fallback to static asset request or return date-appropriate response
+        return new Response(JSON.stringify({ error: 'Supabase unavailable, using client computation' }), {
+          status: 404,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+
+      const response = new Response(JSON.stringify(payload), {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+          'Cache-Control': 'public, max-age=60, s-maxage=60, stale-while-revalidate=300',
+        },
+      });
+
+      ctx.waitUntil(cache.put(cacheKey, response.clone()));
+      return response;
+    }
+
+    // 4. Serve all other static assets (HTML, CSS, JS, images) via Workers Static Assets
     if (env.ASSETS) {
       return env.ASSETS.fetch(request);
     }

@@ -10,7 +10,7 @@ import {
 export const runtime = 'edge';
 
 export async function GET(request: NextRequest) {
-  let responseData: DynamicReportPayload = DEFAULT_DYNAMIC_REPORT_PAYLOAD;
+  let responseData: DynamicReportPayload | null = null;
 
   try {
     const { searchParams } = new URL(request.url);
@@ -38,10 +38,12 @@ export async function GET(request: NextRequest) {
     const startHour = startHourParam !== null && startHourParam !== '' ? parseInt(startHourParam, 10) : null;
     const endHour = endHourParam !== null && endHourParam !== '' ? parseInt(endHourParam, 10) : null;
 
+    const quickPresetParam = searchParams.get('quick_preset') || 'custom';
+
     const filterState: DynamicFilterState = {
       startDate,
       endDate,
-      quickPreset: 'custom',
+      quickPreset: quickPresetParam,
       selectedBanks: banks,
       selectedBranches: branches,
       selectedTxTypes: txTypes,
@@ -75,7 +77,6 @@ export async function GET(request: NextRequest) {
       if (!error && data && data.dax_measures) {
         responseData = data;
       } else {
-        console.warn('Supabase dynamic report RPC returned empty/error, using computed fallback:', error);
         responseData = calculateFilteredReport(filterState);
       }
     } else {
@@ -84,7 +85,11 @@ export async function GET(request: NextRequest) {
     }
   } catch (err) {
     console.error('Error generating dynamic report:', err);
-    responseData = DEFAULT_DYNAMIC_REPORT_PAYLOAD;
+    responseData = calculateFilteredReport({
+      ...DEFAULT_FILTER_STATE,
+      startDate: new URL(request.url).searchParams.get('start_date') || DEFAULT_FILTER_STATE.startDate,
+      endDate: new URL(request.url).searchParams.get('end_date') || DEFAULT_FILTER_STATE.endDate,
+    });
   }
 
   return NextResponse.json(responseData, {
