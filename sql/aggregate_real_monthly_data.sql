@@ -1,19 +1,51 @@
 -- ============================================================================
--- EASY GOLD - REAL DATA AGGREGATION SCRIPT
+-- EASY GOLD - REAL DATA AGGREGATION SCRIPT (FIXED FOR TEXT DATES)
 -- File: aggregate_real_monthly_data.sql
 -- Run this in Supabase SQL Editor to compute real weekly metrics from monthly_data
 -- ============================================================================
 
--- FIRST: Quick Check on your real data in monthly_data
+-- STEP 1: Safe Date Parser for TEXT dates like '01/09/2026, 23:59' or '2026-09-01'
+CREATE OR REPLACE FUNCTION public.parse_tx_date(val TEXT)
+RETURNS TIMESTAMPTZ
+LANGUAGE plpgsql
+IMMUTABLE
+AS $$
+BEGIN
+    IF val IS NULL OR trim(val) = '' THEN
+        RETURN NULL;
+    END IF;
+    
+    -- Format A: 'DD/MM/YYYY, HH24:MI' or 'DD/MM/YYYY HH24:MI'
+    IF val ~ '^[0-9]{1,2}/[0-9]{1,2}/[0-9]{4}' THEN
+        BEGIN
+            RETURN to_timestamp(val, 'DD/MM/YYYY, HH24:MI:SS');
+        EXCEPTION WHEN OTHERS THEN
+            RETURN to_date(split_part(split_part(val, ',', 1), ' ', 1), 'DD/MM/YYYY')::timestamptz;
+        END;
+    -- Format B: ISO 'YYYY-MM-DD...'
+    ELSIF val ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}' THEN
+        RETURN val::timestamptz;
+    ELSE
+        -- Fallback: extract date before comma or space
+        RETURN to_date(split_part(split_part(val, ',', 1), ' ', 1), 'DD/MM/YYYY')::timestamptz;
+    END IF;
+EXCEPTION WHEN OTHERS THEN
+    RETURN NULL;
+END;
+$$;
+
+
+-- STEP 2: Quick Check on your real data range in monthly_data
 SELECT 
     COUNT(*) AS total_real_transactions,
-    MIN(created_at) AS earliest_transaction_date,
-    MAX(created_at) AS latest_transaction_date,
-    COUNT(DISTINCT date_trunc('week', created_at)) AS total_distinct_weeks
-FROM public.monthly_data;
+    MIN(public.parse_tx_date(created_at)) AS earliest_transaction_date,
+    MAX(public.parse_tx_date(created_at)) AS latest_transaction_date,
+    COUNT(DISTINCT to_char(public.parse_tx_date(created_at), 'IYYY-"W"IW')) AS total_distinct_weeks
+FROM public.monthly_data
+WHERE public.parse_tx_date(created_at) IS NOT NULL;
 
 
--- SECOND: Update RPC Function to fetch up to 52 weeks (1 full year)
+-- STEP 3: Update RPC Function to fetch up to 52 weeks (1 full year)
 CREATE OR REPLACE FUNCTION public.get_executive_weekly_dashboard(
     p_limit INT DEFAULT 52
 )
@@ -104,7 +136,7 @@ END;
 $$;
 
 
--- THIRD: Aggregate ALL real data from monthly_data into summary_weekly_metrics
+-- STEP 4: AGGREGATE REAL DATA directly from monthly_data into summary_weekly_metrics
 INSERT INTO public.summary_weekly_metrics (
     year_week,
     week_label,
@@ -125,12 +157,12 @@ INSERT INTO public.summary_weekly_metrics (
     updated_at
 )
 SELECT
-    to_char(date_trunc('week', created_at), 'IYYY-"W"IW') AS year_week,
-    'W' || EXTRACT(week FROM date_trunc('week', created_at))::int AS week_label,
-    EXTRACT(week FROM date_trunc('week', created_at))::int AS week_number,
-    EXTRACT(isoyear FROM date_trunc('week', created_at))::int AS year,
-    date_trunc('week', created_at)::date AS start_date,
-    (date_trunc('week', created_at) + interval '6 days')::date AS end_date,
+    to_char(date_trunc('week', public.parse_tx_date(created_at)), 'IYYY-"W"IW') AS year_week,
+    'W' || EXTRACT(week FROM date_trunc('week', public.parse_tx_date(created_at)))::int AS week_label,
+    EXTRACT(week FROM date_trunc('week', public.parse_tx_date(created_at)))::int AS week_number,
+    EXTRACT(isoyear FROM date_trunc('week', public.parse_tx_date(created_at)))::int AS year,
+    date_trunc('week', public.parse_tx_date(created_at))::date AS start_date,
+    (date_trunc('week', public.parse_tx_date(created_at)) + interval '6 days')::date AS end_date,
     
     -- 1. All Transactions (completed)
     COUNT(*) FILTER (WHERE status = 'ສໍາເລັດ' OR status ILIKE '%success%' OR status ILIKE '%complete%') AS all_transactions,
@@ -141,7 +173,7 @@ SELECT
     -- 3. New Register
     COUNT(*) FILTER (WHERE transaction_type ILIKE '%OPEN_ACCOUNT%' OR transaction_type ILIKE '%REGISTER%') AS new_registers,
     
-    -- 4. Gold Withdraw in grams
+    -- 4. Gold Withdraw (in grams)
     COALESCE(SUM(gold_weight) FILTER (
         WHERE transaction_type IN ('WITHDRAW_GOLD', 'MARKETHUB_WITHDRAW') 
           AND (status = 'ສໍາເລັດ' OR status ILIKE '%success%' OR status ILIKE '%complete%')
@@ -191,8 +223,8 @@ SELECT
     
     now() AS updated_at
 FROM public.monthly_data
-WHERE created_at IS NOT NULL
-GROUP BY date_trunc('week', created_at)
+WHERE public.parse_tx_date(created_at) IS NOT NULL
+GROUP BY date_trunc('week', public.parse_tx_date(created_at))
 ON CONFLICT (year_week) DO UPDATE SET
     all_transactions = EXCLUDED.all_transactions,
     active_users = EXCLUDED.active_users,
@@ -207,15 +239,15 @@ ON CONFLICT (year_week) DO UPDATE SET
     updated_at = now();
 
 
--- FOURTH: Confirmation of all loaded weeks in summary table
+-- STEP 5: View the aggregated real weekly rows
 SELECT 
     year_week, 
     week_label, 
     start_date, 
     end_date, 
     all_transactions, 
-    active_users,
-    buy_transactions,
-    sell_transactions
-FROM public.summary_weekly_metrics
+    active_users, 
+    buy_transactions, 
+    sell_transactions 
+FROM public.summary_weekly_metrics 
 ORDER BY year_week DESC;
