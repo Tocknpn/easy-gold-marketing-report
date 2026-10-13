@@ -1,0 +1,33 @@
+# Dependencies
+/node_modules
+/.pnp
+.pnp.js
+
+# Testing
+/coverage
+
+# Next.js build output
+/.next/
+/out/
+/.vercel
+
+# Production build artifacts
+/build
+
+# Misc
+.DS_Store
+*.pem
+
+# Local env files (NEVER commit secrets!)
+.env*.local
+.env
+
+# Vercel
+.vercel
+
+# TypeScript
+*.tsbuildinfo
+next-env.d.ts
+
+# Large raw excel datasets (optional to ignore or track - usually keep data Sample if small, but ignore temp files)
+~$*.xlsx
