@@ -342,10 +342,10 @@ BEGIN
             'max_weight_g', COALESCE(v_summary.max_weight_g, 0),
             'median_weight_g', COALESCE(v_summary.median_weight_g, 0)
         ),
-        'hourly': COALESCE(v_hourly, '[]'::jsonb),
-        'banks': COALESCE(v_banks, '[]'::jsonb),
-        'branches': COALESCE(v_branches, '[]'::jsonb),
-        'weight_brackets': COALESCE(v_weight_brackets, '[]'::jsonb)
+        'hourly', COALESCE(v_hourly, '[]'::jsonb),
+        'banks', COALESCE(v_banks, '[]'::jsonb),
+        'branches', COALESCE(v_branches, '[]'::jsonb),
+        'weight_brackets', COALESCE(v_weight_brackets, '[]'::jsonb)
     );
 
     RETURN v_result;
