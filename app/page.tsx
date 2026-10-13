@@ -8,7 +8,9 @@ import { ExecutiveDashboardData, WeeklyMetricRow, MetricVariances } from '@/lib/
 import { 
   Calendar, 
   RefreshCw, 
-  ChevronDown
+  ChevronLeft,
+  ChevronRight,
+  Database
 } from 'lucide-react';
 
 export default function DashboardPage() {
@@ -40,13 +42,13 @@ export default function DashboardPage() {
     fetchSummary();
   }, []);
 
-  // Sorted list of all weeks available in history
+  // Sorted list of all weeks available in history (oldest to newest: W14 ... W41)
   const sortedHistory = useMemo(() => {
     if (!data?.history || data.history.length === 0) return [];
     return [...data.history].sort((a, b) => a.year_week.localeCompare(b.year_week));
   }, [data]);
 
-  // Compute Active Week, Previous Week, and Dynamic Variances
+  // Compute Active Week, Previous Week, Dynamic Variances, and Rolling 5-Week Chart Window
   const activeMetrics = useMemo(() => {
     if (!data) return null;
 
@@ -91,11 +93,18 @@ export default function DashboardPage() {
       ),
     };
 
+    // Rolling 5-week window ending at activeIndex for clean, uncluttered combo charts
+    const effectiveIndex = activeIndex >= 0 ? activeIndex : history.length - 1;
+    const windowStart = Math.max(0, effectiveIndex - 4);
+    const chartHistory = history.slice(windowStart, effectiveIndex + 1);
+
     return {
       currentWeek,
       previousWeek,
       variances,
       history,
+      chartHistory,
+      activeIndex: effectiveIndex,
     };
   }, [data, sortedHistory, selectedWeekLabel]);
 
@@ -108,6 +117,30 @@ export default function DashboardPage() {
     }
     return dateStr;
   };
+
+  // Step backward to older week
+  const handlePrevWeek = () => {
+    if (!activeMetrics || activeMetrics.activeIndex <= 0) return;
+    const prevWeek = sortedHistory[activeMetrics.activeIndex - 1];
+    if (prevWeek) {
+      setSelectedWeekLabel(prevWeek.week_label);
+    }
+  };
+
+  // Step forward to newer week
+  const handleNextWeek = () => {
+    if (!activeMetrics || activeMetrics.activeIndex >= sortedHistory.length - 1) return;
+    const nextWeek = sortedHistory[activeMetrics.activeIndex + 1];
+    if (nextWeek) {
+      setSelectedWeekLabel(nextWeek.week_label);
+    }
+  };
+
+  // Quick recent pills (latest 5 weeks)
+  const recentPills = useMemo(() => {
+    if (sortedHistory.length <= 5) return sortedHistory;
+    return sortedHistory.slice(-5);
+  }, [sortedHistory]);
 
   return (
     <div className="min-h-screen bg-[#f3f5f9] text-slate-900 flex flex-row select-none">
@@ -122,7 +155,7 @@ export default function DashboardPage() {
       {/* 2. Main Executive Report Content Area */}
       <div className="flex-1 flex flex-col p-3 sm:p-5 lg:p-6 overflow-x-hidden min-w-0">
         {/* Top Header Row matching mockup */}
-        <header className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4 pb-2 border-b border-slate-200/80">
+        <header className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4 mb-4 pb-2 border-b border-slate-200/80">
           {/* Left Title & Date */}
           <div>
             <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black text-[#0c4ca3] tracking-tight flex items-center gap-3">
@@ -131,7 +164,7 @@ export default function DashboardPage() {
                 {activeMetrics?.currentWeek.week_label || selectedWeekLabel}
               </span>
             </h1>
-            <div className="mt-1 flex items-center gap-3">
+            <div className="mt-1 flex items-center gap-2 sm:gap-3 flex-wrap">
               <span className="text-xs sm:text-sm font-bold text-[#1d63b8] underline underline-offset-2">
                 Data up to date {formatDisplayDate(activeMetrics?.currentWeek.end_date)}
               </span>
@@ -139,23 +172,64 @@ export default function DashboardPage() {
               <span className="text-xs text-slate-500 font-medium">
                 Period: {activeMetrics?.currentWeek.start_date} to {activeMetrics?.currentWeek.end_date}
               </span>
+              <span className="text-slate-300">•</span>
+              <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 flex items-center gap-1">
+                <Database className="w-3 h-3" />
+                {sortedHistory.length} Weeks Available in Supabase
+              </span>
             </div>
           </div>
 
           {/* Right Branding & Interactive Week Selector */}
-          <div className="flex items-center gap-4 sm:gap-6 flex-wrap justify-between md:justify-end">
+          <div className="flex items-center gap-3 sm:gap-4 flex-wrap justify-between xl:justify-end">
             {/* Week Selector Controls */}
-            <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-xl border border-slate-300/80 shadow-xs">
-              <Calendar className="w-4 h-4 text-[#0c4ca3]" />
-              <span className="text-xs font-bold text-slate-600 hidden sm:inline">Select Week:</span>
-              
-              {/* Quick Week Pill Switcher */}
+            <div className="flex items-center gap-1.5 sm:gap-2 bg-white px-2.5 sm:px-3 py-1.5 rounded-xl border border-slate-300/80 shadow-xs flex-wrap">
               <div className="flex items-center gap-1">
-                {sortedHistory.map((w) => (
+                {/* Prev Week Button */}
+                <button
+                  onClick={handlePrevWeek}
+                  disabled={!activeMetrics || activeMetrics.activeIndex <= 0}
+                  className="p-1 rounded-md text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent"
+                  title="Previous Week (Older)"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+
+                {/* Dropdown Select Menu (Access ANY historical week back to April) */}
+                <div className="relative flex items-center">
+                  <Calendar className="w-3.5 h-3.5 text-[#0c4ca3] absolute left-2 pointer-events-none" />
+                  <select
+                    value={selectedWeekLabel}
+                    onChange={(e) => setSelectedWeekLabel(e.target.value)}
+                    className="text-xs font-black text-slate-800 bg-slate-50 border border-slate-300 rounded-lg pl-7 pr-3 py-1 hover:bg-slate-100 transition-colors cursor-pointer focus:outline-none focus:ring-1 focus:ring-[#0c4ca3]"
+                    title="Select Any Week from Supabase"
+                  >
+                    {[...sortedHistory].reverse().map((w) => (
+                      <option key={w.year_week} value={w.week_label}>
+                        {w.week_label} ({w.start_date.substring(5)} to {w.end_date.substring(5)})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Next Week Button */}
+                <button
+                  onClick={handleNextWeek}
+                  disabled={!activeMetrics || activeMetrics.activeIndex >= sortedHistory.length - 1}
+                  className="p-1 rounded-md text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent"
+                  title="Next Week (Newer)"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Quick Pills for Recent Weeks */}
+              <div className="hidden sm:flex items-center gap-1 border-l border-slate-200 pl-2">
+                {recentPills.map((w) => (
                   <button
                     key={w.week_label}
                     onClick={() => setSelectedWeekLabel(w.week_label)}
-                    className={`px-2.5 py-1 rounded-lg text-xs font-black transition-all ${
+                    className={`px-2 py-0.5 rounded-md text-[11px] font-black transition-all ${
                       selectedWeekLabel === w.week_label
                         ? 'bg-[#0c4ca3] text-white shadow-xs scale-105'
                         : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
@@ -171,7 +245,7 @@ export default function DashboardPage() {
               <button
                 onClick={fetchSummary}
                 disabled={loading}
-                className="p-1.5 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors disabled:opacity-50 ml-1 border-l border-slate-200 pl-2"
+                className="p-1 rounded-md text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors disabled:opacity-50 border-l border-slate-200 pl-1.5"
                 title="Refresh from Supabase"
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
@@ -179,7 +253,7 @@ export default function DashboardPage() {
             </div>
 
             {/* Logo: EASY GOLD by KHAMPHOUVONG */}
-            <div className="text-right select-none">
+            <div className="text-right select-none pl-2">
               <div className="flex items-baseline justify-end gap-1 font-black leading-none">
                 <span className="text-xl sm:text-2xl text-[#e5a812] tracking-wider">EASY</span>
                 <span className="text-xl sm:text-2xl text-[#0c4ca3] tracking-wider">GOLD</span>
@@ -203,7 +277,7 @@ export default function DashboardPage() {
             <section className="w-full">
               <PlatformOverviewSection
                 currentWeek={activeMetrics.currentWeek}
-                history={activeMetrics.history}
+                history={activeMetrics.chartHistory}
                 variances={activeMetrics.variances}
                 selectedWeek={selectedWeekLabel}
               />
@@ -215,7 +289,7 @@ export default function DashboardPage() {
               <section className="w-full">
                 <BuyActivitySection
                   currentWeek={activeMetrics.currentWeek}
-                  history={activeMetrics.history}
+                  history={activeMetrics.chartHistory}
                   variances={activeMetrics.variances}
                   selectedWeek={selectedWeekLabel}
                 />
@@ -225,7 +299,7 @@ export default function DashboardPage() {
               <section className="w-full">
                 <SellActivitySection
                   currentWeek={activeMetrics.currentWeek}
-                  history={activeMetrics.history}
+                  history={activeMetrics.chartHistory}
                   variances={activeMetrics.variances}
                   selectedWeek={selectedWeekLabel}
                 />

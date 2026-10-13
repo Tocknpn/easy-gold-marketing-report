@@ -10,7 +10,7 @@
 -- Execution time: < 5ms (reads from summary_weekly_metrics)
 -- ============================================================================
 CREATE OR REPLACE FUNCTION public.get_executive_weekly_dashboard(
-    p_limit INT DEFAULT 5
+    p_limit INT DEFAULT 52
 )
 RETURNS JSONB
 LANGUAGE plpgsql
