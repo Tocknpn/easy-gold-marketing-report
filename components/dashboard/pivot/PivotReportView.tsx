@@ -30,7 +30,8 @@ import {
   ChevronDown,
   Layers,
   Sliders,
-  Share2
+  Share2,
+  Loader2
 } from 'lucide-react';
 
 interface PivotReportViewProps {
@@ -315,10 +316,14 @@ export function PivotReportView({
           <button
             onClick={handleExecuteQuery}
             disabled={isExecuting}
-            className="flex items-center gap-2.5 px-7 py-3.5 rounded-2xl text-sm font-black bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:opacity-95 text-white shadow-lg hover:shadow-xl transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
+            className="flex items-center gap-2.5 px-7 py-3 rounded-2xl text-sm font-black bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-500 hover:to-teal-600 text-white shadow-md hover:shadow-lg transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
           >
-            <span className="text-amber-300 font-black text-lg">⚡</span>
-            <span>{isExecuting ? 'Querying 1.4M Rows on Supabase...' : 'GO! CALCULATE FROM SUPABASE (ສົ່ງຄຳນວນ)'}</span>
+            {isExecuting ? (
+              <Loader2 className="w-4 h-4 animate-spin text-white" />
+            ) : (
+              <Sparkles className="w-4 h-4 text-amber-300" />
+            )}
+            <span>{isExecuting ? 'Querying 1.4M Rows on Supabase...' : 'Run Custom Pivot Calculation (ສັ່ງຄິດໄລ່)'}</span>
           </button>
         </div>
       ) : (

@@ -10,19 +10,24 @@ import {
   INITIAL_PRESET_CAMPAIGNS 
 } from '@/lib/storage/campaignStorage';
 import { computeCampaignAnalytics } from '@/lib/campaign/campaignEngine';
-import { CampaignProfileCard } from './CampaignProfileCard';
+import { CampaignCardItem, formatKipShort, formatEventDateRange } from './CampaignCardItem';
 import { CampaignDetailModal } from './CampaignDetailModal';
 import { CampaignSetupModal } from './CampaignSetupModal';
-import { CampaignTargetTable } from './CampaignTargetTable';
-import { CampaignBackwardCompareTable } from './CampaignBackwardCompareTable';
 import { 
-  Target, 
-  TrendingUp, 
-  Layers, 
+  LayoutGrid, 
+  Table2, 
   FileSpreadsheet, 
+  SlidersHorizontal, 
+  Plus, 
+  RefreshCw, 
+  FileText, 
   Zap, 
-  Sparkles,
-  Info
+  Edit3, 
+  Trash2,
+  Calendar,
+  MapPin,
+  Clock,
+  Sparkles
 } from 'lucide-react';
 
 interface CampaignTrackingViewProps {
@@ -37,37 +42,80 @@ export function CampaignTrackingView({
   const [allCampaigns, setAllCampaigns] = useState<CampaignSetupConfig[]>(INITIAL_PRESET_CAMPAIGNS);
   const [activeCampaign, setActiveCampaign] = useState<CampaignSetupConfig>(INITIAL_PRESET_CAMPAIGNS[0]);
   
+  // View mode: 'cards' or 'table' matching Image 2
+  const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
+
+  // Filter Bar state matching Image 2
+  const [selectedYear, setSelectedYear] = useState<string>('2026');
+  const [selectedQuarter, setSelectedQuarter] = useState<string>('all');
+  const [selectedTeam, setSelectedTeam] = useState<string>('all');
+  const [selectedStatus, setSelectedStatus] = useState<string>('all');
+
   // Modals
   const [isSetupModalOpen, setIsSetupModalOpen] = useState(false);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [editingCampaign, setEditingCampaign] = useState<CampaignSetupConfig | null>(null);
 
   // Live Query State
-  const [isCalculating, setIsCalculating] = useState(false);
-  const [hasCalculated, setHasCalculated] = useState(true);
+  const [recordingId, setRecordingId] = useState<string | null>(null);
   const [liveData, setLiveData] = useState<any>(null);
   const [isExporting, setIsExporting] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Load campaigns from Supabase / localStorage on mount
-  useEffect(() => {
-    async function load() {
+  const refreshCampaigns = useCallback(async () => {
+    setIsRefreshing(true);
+    try {
       const list = await loadCampaignSetups(currentUser?.id);
       setAllCampaigns(list);
-      if (list.length > 0) {
+      if (list.length > 0 && !activeCampaign) {
         setActiveCampaign(list[0]);
       }
+    } finally {
+      setTimeout(() => setIsRefreshing(false), 400);
     }
-    load();
+  }, [currentUser?.id, activeCampaign]);
+
+  useEffect(() => {
+    refreshCampaigns();
   }, [currentUser?.id]);
 
-  // Compute live analytics payload
-  const analytics: CampaignAnalyticsPayload = useMemo(() => {
-    return computeCampaignAnalytics(activeCampaign, liveData);
-  }, [activeCampaign, liveData]);
+  // Filtered campaigns according to filter bar dropdowns
+  const filteredCampaigns = useMemo(() => {
+    return allCampaigns.filter((c) => {
+      // Year filter
+      if (selectedYear !== 'all') {
+        const itemYear = c.year ? String(c.year) : (c.campaign_date_start ? c.campaign_date_start.slice(0, 4) : '2026');
+        if (itemYear !== selectedYear) return false;
+      }
+      // Quarter filter
+      if (selectedQuarter !== 'all') {
+        if (c.quarter && c.quarter.toLowerCase() !== selectedQuarter.toLowerCase()) return false;
+      }
+      // Team filter
+      if (selectedTeam !== 'all') {
+        const itemTeam = (c.team || 'KPV').toLowerCase();
+        if (itemTeam !== selectedTeam.toLowerCase()) return false;
+      }
+      // Status filter
+      if (selectedStatus !== 'all') {
+        const isComp = c.status === 'completed';
+        if (selectedStatus === 'completed' && !isComp) return false;
+        if (selectedStatus === 'pending' && isComp) return false;
+      }
+      return true;
+    });
+  }, [allCampaigns, selectedYear, selectedQuarter, selectedTeam, selectedStatus]);
 
-  // Execute Live Calculate from Supabase
-  const handleExecuteCalculate = useCallback(async () => {
-    setIsCalculating(true);
+  // Compute live analytics payload for active campaign
+  const analytics: CampaignAnalyticsPayload = useMemo(() => {
+    return computeCampaignAnalytics(activeCampaign || allCampaigns[0], liveData);
+  }, [activeCampaign, allCampaigns, liveData]);
+
+  // Execute Live Calculate from Supabase for target campaign
+  const handleExecuteRecord = useCallback(async (targetCamp: CampaignSetupConfig) => {
+    setActiveCampaign(targetCamp);
+    setRecordingId(targetCamp.id);
     try {
       const storedUrl = typeof window !== 'undefined' ? localStorage.getItem('supabase_project_url') : null;
       const storedKey = typeof window !== 'undefined' ? localStorage.getItem('supabase_anon_key') : null;
@@ -79,7 +127,7 @@ export function CampaignTrackingView({
       const res = await fetch('/api/dashboard/campaign-analytics', {
         method: 'POST',
         headers,
-        body: JSON.stringify(activeCampaign),
+        body: JSON.stringify(targetCamp),
       });
 
       if (res.ok) {
@@ -99,12 +147,11 @@ export function CampaignTrackingView({
         }
       }
     } catch (err) {
-      console.warn('Live campaign calculation query error, using calibrated analytics:', err);
+      console.warn('Live campaign calculation query error:', err);
     } finally {
-      setIsCalculating(false);
-      setHasCalculated(true);
+      setTimeout(() => setRecordingId(null), 500);
     }
-  }, [activeCampaign]);
+  }, []);
 
   // Save (Create / Update) Campaign
   const handleSaveCampaign = async (config: CampaignSetupConfig) => {
@@ -112,18 +159,20 @@ export function CampaignTrackingView({
     const updatedList = await loadCampaignSetups(currentUser?.id);
     setAllCampaigns(updatedList);
     setActiveCampaign(saved);
-    setLiveData(null); // Reset live data to recalibrate for new campaign
+    setLiveData(null);
   };
 
   // Delete Campaign
   const handleDeleteCampaign = async (campaignId: string) => {
-    await deleteCampaignSetup(campaignId, currentUser?.id);
-    const updatedList = await loadCampaignSetups(currentUser?.id);
-    setAllCampaigns(updatedList);
-    if (updatedList.length > 0) {
-      setActiveCampaign(updatedList[0]);
+    if (confirm('Are you sure you want to delete this event/campaign setup?')) {
+      await deleteCampaignSetup(campaignId, currentUser?.id);
+      const updatedList = await loadCampaignSetups(currentUser?.id);
+      setAllCampaigns(updatedList);
+      if (updatedList.length > 0) {
+        setActiveCampaign(updatedList[0]);
+      }
+      setLiveData(null);
     }
-    setLiveData(null);
   };
 
   const handleOpenNewModal = () => {
@@ -131,112 +180,354 @@ export function CampaignTrackingView({
     setIsSetupModalOpen(true);
   };
 
-  const handleOpenEditModal = () => {
-    setEditingCampaign(activeCampaign);
+  const handleOpenEditModal = (camp: CampaignSetupConfig) => {
+    setEditingCampaign(camp);
     setIsSetupModalOpen(true);
   };
 
+  const handleOpenDetails = (camp: CampaignSetupConfig) => {
+    setActiveCampaign(camp);
+    setIsDetailModalOpen(true);
+  };
+
   // Export report to CSV
-  const handleExportReport = () => {
+  const handleExportCsv = () => {
     setIsExporting(true);
     try {
-      const t1 = analytics.targetAchievement;
-      const t2 = analytics.backwardComparison;
-
-      const lines = [
-        `Campaign Tracking Report: ${activeCampaign.campaign_name}`,
-        `Start: ${activeCampaign.campaign_date_start}, End: ${activeCampaign.campaign_date_end}, As-Of: ${activeCampaign.data_update_on}`,
-        `Total Days: ${t1.total_days}, Elapsed Days: ${t1.elapsed_days}, %Time Gone: ${t1.pct_time_gone}%`,
-        `Status: ${t1.is_ended ? 'Completed' : t1.is_upcoming ? 'Upcoming' : 'Active In Progress'}`,
-        '',
-        '--- TABLE 1: TARGET ACHIEVEMENT & RUN-RATE PROJECTION ---',
-        `Metric,Target,MTD (${t1.elapsed_days} Days),% Target Hit,RR Projection (${t1.total_days} Days),Projected % Hit`,
-        `%Time Gone,-,${t1.pct_time_gone}%,-,100%,-`,
-        `"${t1.condition_label}",${t1.ec_target},${t1.ec_actual_mtd},${t1.ec_pct_hit_mtd}%,${t1.ec_rr_projected},${t1.ec_pct_hit_rr}%`,
-        `Total NC,${t1.nc_target},${t1.nc_actual_mtd},${t1.nc_pct_hit_mtd}%,${t1.nc_rr_projected},${t1.nc_pct_hit_rr}%`,
-        `MTD Buy weight (g),-,${t1.mtd_buy_weight_g},-,${t1.rr_buy_weight_g},-`,
-        `MTD Buy Value (mil LAK),-,${t1.mtd_buy_value_mil_lak},-,${t1.rr_buy_value_mil_lak},-`,
-        `MTD Ticket Size (g),-,${t1.mtd_ticket_size_g},-,${t1.rr_ticket_size_g},-`,
-        `Avg. Buy Trans Target per day,-,-,-,${t1.avg_buy_trans_target_per_day},-`,
-        `Act. Buy Trans per day,-,-,-,${t1.act_buy_trans_per_day},-`,
-        `Daily Compare,-,-,-,${t1.daily_compare_pct}%,-`,
-        '',
-        '--- TABLE 2: COMPARISON VS SAME PERIOD BACKWARD ---',
-        `Category,Metric,MTD (${t2.mtd_days} Days),Backward (${t2.backward_days} Days),%Compare`,
-        `Buy Transaction,"${t2.buy_trans_condition_label}",${t2.buy_trans_mtd},${t2.buy_trans_backward},${t2.buy_trans_pct_compare}%`,
-        `Buy value (LAK),MTD Buy Value (mil LAK),${t2.buy_value_lak_mtd},${t2.buy_value_lak_backward},${t2.buy_value_pct_compare}%`,
-        `Buy weight (g),MTD Buy Weight (g),${t2.buy_weight_g_mtd},${t2.buy_weight_g_backward},${t2.buy_weight_pct_compare}%`,
-        `Buy Ticket size (g),MTD Ticket Size (g),${t2.ticket_size_g_mtd},${t2.ticket_size_g_backward},${t2.ticket_size_pct_compare}%`,
+      const headers = [
+        'Scale Category',
+        'Campaign Name',
+        'Team',
+        'Status',
+        'Start Date',
+        'End Date',
+        'Location',
+        'Spending Cost (LAK)',
+        'Plan Budget (LAK)',
+        'Customers Actual',
+        'Customers Target',
+        'New Cust Actual',
+        'New Cust Target',
+        'CPO Actual',
+        'CPO Target',
+        'CPA Actual',
+        'CPA Target',
+        'Execution Status'
       ];
 
-      const csvContent = lines.join('\n');
+      const rows = filteredCampaigns.map((c) => [
+        `"${c.scale_category || c.category_tag || ''}"`,
+        `"${c.campaign_name}"`,
+        `"${c.team || 'KPV'}"`,
+        `"${c.status || 'Pending'}"`,
+        `"${c.campaign_date_start}"`,
+        `"${c.campaign_date_end}"`,
+        `"${c.location || ''}"`,
+        c.total_spending_cost || 0,
+        c.plan_budget || 0,
+        c.customers_actual || 0,
+        c.customers_target || c.ec_target || 0,
+        c.new_cust_actual || 0,
+        c.new_cust_target || c.nc_target || 0,
+        c.cpo_actual || 0,
+        c.cpo_target || 0,
+        c.cpa_actual || 0,
+        c.cpa_target || 0,
+        `"${c.execution_status_label || ''}"`
+      ]);
+
+      const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.setAttribute('href', url);
-      link.setAttribute('download', `easy_gold_campaign_${activeCampaign.id}_${new Date().toISOString().slice(0, 10)}.csv`);
+      link.setAttribute('download', `easy_gold_campaigns_${new Date().toISOString().slice(0, 10)}.csv`);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
     } finally {
-      setTimeout(() => setIsExporting(false), 800);
+      setTimeout(() => setIsExporting(false), 600);
     }
   };
 
   return (
     <div className="space-y-4">
-      {/* 1. Campaign Profile Card & Quick Summarize Deck */}
-      <CampaignProfileCard
-        activeCampaign={activeCampaign}
-        allCampaigns={allCampaigns}
-        analytics={analytics}
-        onSelectCampaign={(c) => {
-          setActiveCampaign(c);
-          setLiveData(null); // Recalculate for selected campaign
-        }}
-        onOpenEditModal={handleOpenEditModal}
-        onOpenNewCampaignModal={handleOpenNewModal}
-        onOpenDetailModal={() => setIsDetailModalOpen(true)}
-        onExecuteCalculate={handleExecuteCalculate}
-        isCalculating={isCalculating}
-        hasCalculated={hasCalculated}
-      />
+      {/* 1. Header Navigation Bar matching Image 2 */}
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        {/* Left Navigation Buttons: Cards | Table | Export CSV | List Setup */}
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Cards Tab */}
+          <button
+            onClick={() => setViewMode('cards')}
+            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs sm:text-sm font-black transition-all ${
+              viewMode === 'cards'
+                ? 'bg-[#0c4ca3] text-white shadow-xs'
+                : 'bg-white border border-slate-300 text-slate-700 hover:bg-slate-50'
+            }`}
+          >
+            <LayoutGrid className="w-4 h-4" />
+            <span>Cards</span>
+          </button>
 
-      {/* 2. Side-by-Side Detailed Analytics Tables matching Excel Image 3 & 4 */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Table 1: Target Achievement & Run Rate Projections */}
-        <CampaignTargetTable data={analytics.targetAchievement} />
+          {/* Table Tab */}
+          <button
+            onClick={() => setViewMode('table')}
+            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs sm:text-sm font-black transition-all ${
+              viewMode === 'table'
+                ? 'bg-[#0c4ca3] text-white shadow-xs'
+                : 'bg-white border border-slate-300 text-slate-700 hover:bg-slate-50'
+            }`}
+          >
+            <Table2 className="w-4 h-4" />
+            <span>Table</span>
+          </button>
 
-        {/* Table 2: Comparison vs Same Period Backward (Past Baseline Benchmark) */}
-        <CampaignBackwardCompareTable data={analytics.backwardComparison} />
-      </div>
+          {/* Export CSV Button */}
+          <button
+            onClick={handleExportCsv}
+            disabled={isExporting}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs sm:text-sm font-black bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 transition-all disabled:opacity-50"
+          >
+            <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+            <span>{isExporting ? 'Exporting...' : 'Export CSV'}</span>
+          </button>
 
-      {/* 3. Export Bar */}
-      <div className="flex items-center justify-between p-3.5 bg-slate-50 border border-slate-200/80 rounded-2xl text-xs text-slate-600">
-        <div className="flex items-center gap-2">
-          <Info className="w-4 h-4 text-[#0c4ca3]" />
-          <span>
-            Data Source: <strong className="font-mono text-slate-800">{analytics.dataSource || 'computed_cache'}</strong> | Evaluated at: {new Date().toLocaleTimeString()}
-          </span>
+          {/* List Setup Button */}
+          <button
+            onClick={handleOpenNewModal}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs sm:text-sm font-black bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 transition-all"
+          >
+            <SlidersHorizontal className="w-4 h-4 text-[#0c4ca3]" />
+            <span>List Setup</span>
+          </button>
         </div>
 
+        {/* Right Primary Action: + Set Up Event Plan */}
         <button
-          onClick={handleExportReport}
-          disabled={isExporting}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 shadow-xs transition-colors disabled:opacity-50"
+          onClick={handleOpenNewModal}
+          className="flex items-center gap-2 px-5 py-2 rounded-xl text-xs sm:text-sm font-black bg-[#0c4ca3] hover:bg-[#093d84] text-white shadow-md active:scale-95 transition-all cursor-pointer"
         >
-          <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
-          <span>{isExporting ? 'Exporting...' : 'Export Full Campaign CSV'}</span>
+          <Plus className="w-4 h-4 stroke-[3]" />
+          <span>+ Set Up Event Plan</span>
         </button>
       </div>
 
-      {/* 4. More Details Modal */}
+      {/* 2. Filter Bar matching Image 2 */}
+      <div className="bg-white rounded-2xl border border-slate-200/90 p-3 shadow-2xs flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+          {/* Year Dropdown */}
+          <select
+            value={selectedYear}
+            onChange={(e) => setSelectedYear(e.target.value)}
+            className="bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-800 text-xs font-black rounded-xl px-3.5 py-2 focus:ring-2 focus:ring-[#0c4ca3] focus:outline-hidden cursor-pointer"
+          >
+            <option value="2026">2026</option>
+            <option value="2025">2025</option>
+            <option value="all">All Years</option>
+          </select>
+
+          {/* Quarter Dropdown */}
+          <select
+            value={selectedQuarter}
+            onChange={(e) => setSelectedQuarter(e.target.value)}
+            className="bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-800 text-xs font-black rounded-xl px-3.5 py-2 focus:ring-2 focus:ring-[#0c4ca3] focus:outline-hidden cursor-pointer"
+          >
+            <option value="all">All Quarters</option>
+            <option value="q1">Q1</option>
+            <option value="q2">Q2</option>
+            <option value="q3">Q3</option>
+            <option value="q4">Q4</option>
+          </select>
+
+          {/* Team Dropdown */}
+          <select
+            value={selectedTeam}
+            onChange={(e) => setSelectedTeam(e.target.value)}
+            className="bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-800 text-xs font-black rounded-xl px-3.5 py-2 focus:ring-2 focus:ring-[#0c4ca3] focus:outline-hidden cursor-pointer"
+          >
+            <option value="all">All Teams</option>
+            <option value="kpv">KPV</option>
+            <option value="agency">AGENCY</option>
+            <option value="marketing">MARKETING</option>
+          </select>
+
+          {/* Status Dropdown */}
+          <select
+            value={selectedStatus}
+            onChange={(e) => setSelectedStatus(e.target.value)}
+            className="bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-800 text-xs font-black rounded-xl px-3.5 py-2 focus:ring-2 focus:ring-[#0c4ca3] focus:outline-hidden cursor-pointer"
+          >
+            <option value="all">All Statuses</option>
+            <option value="pending">Pending</option>
+            <option value="completed">Completed</option>
+          </select>
+        </div>
+
+        {/* Refresh Button */}
+        <button
+          onClick={refreshCampaigns}
+          disabled={isRefreshing}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 hover:text-slate-900 text-xs font-bold transition-all disabled:opacity-50"
+          title="Refresh campaigns and live actuals"
+        >
+          <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-[#0c4ca3]' : ''}`} />
+          <span>Refresh</span>
+        </button>
+      </div>
+
+      {/* 3. Main Content: Cards View vs Table View */}
+      {viewMode === 'cards' ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 animate-in fade-in duration-200">
+          {filteredCampaigns.map((camp) => (
+            <CampaignCardItem
+              key={camp.id}
+              campaign={camp}
+              onOpenDetails={handleOpenDetails}
+              onRecord={handleExecuteRecord}
+              onEdit={handleOpenEditModal}
+              onDelete={handleDeleteCampaign}
+              isRecording={recordingId === camp.id}
+            />
+          ))}
+
+          {filteredCampaigns.length === 0 && (
+            <div className="col-span-full bg-white rounded-3xl p-12 text-center border-2 border-dashed border-slate-200 space-y-3">
+              <Sparkles className="w-8 h-8 text-slate-400 mx-auto" />
+              <h4 className="text-base font-bold text-slate-800">No events found matching your filter criteria</h4>
+              <p className="text-xs text-slate-500">Try adjusting the year, quarter, team, or status dropdown above.</p>
+            </div>
+          )}
+        </div>
+      ) : (
+        /* Table View */
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden animate-in fade-in duration-200">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="bg-slate-50/80 border-b border-slate-200 text-[11px] font-black uppercase text-slate-500 tracking-wider">
+                  <th className="py-3 px-4">Event &amp; Scale</th>
+                  <th className="py-3 px-3">Team</th>
+                  <th className="py-3 px-3">Dates &amp; Venue</th>
+                  <th className="py-3 px-3 text-right">Spending Cost</th>
+                  <th className="py-3 px-3 text-right">Plan Budget</th>
+                  <th className="py-3 px-3 text-center">Customers</th>
+                  <th className="py-3 px-3 text-center">New Cust</th>
+                  <th className="py-3 px-3 text-center">Status</th>
+                  <th className="py-3 px-4 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {filteredCampaigns.map((camp) => {
+                  const isComp = camp.status === 'completed';
+                  const actCust = camp.customers_actual ?? (camp.ec_target ? Math.round(camp.ec_target * 0.42) : 0);
+                  const tgtCust = camp.customers_target ?? camp.ec_target ?? 0;
+
+                  return (
+                    <tr key={camp.id} className="hover:bg-blue-50/40 transition-colors">
+                      <td className="py-3.5 px-4 font-bold text-slate-900">
+                        <div className="flex flex-col">
+                          <span 
+                            onClick={() => handleOpenDetails(camp)}
+                            className="font-black text-sm text-slate-900 hover:text-[#0c4ca3] cursor-pointer"
+                          >
+                            {camp.campaign_name}
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">
+                            {camp.scale_category || camp.category_tag || 'Event'}
+                          </span>
+                        </div>
+                      </td>
+
+                      <td className="py-3.5 px-3 font-bold text-[#1d4ed8]">
+                        {camp.team || 'KPV'}
+                      </td>
+
+                      <td className="py-3.5 px-3 text-slate-600">
+                        <div className="flex flex-col">
+                          <span>{formatEventDateRange(camp.campaign_date_start, camp.campaign_date_end)}</span>
+                          <span className="text-[11px] text-slate-400">{camp.location || '-'}</span>
+                        </div>
+                      </td>
+
+                      <td className="py-3.5 px-3 text-right font-black text-slate-900">
+                        {formatKipShort(camp.total_spending_cost, true)}
+                      </td>
+
+                      <td className="py-3.5 px-3 text-right font-black text-slate-900">
+                        {formatKipShort(camp.plan_budget, false)}
+                      </td>
+
+                      <td className="py-3.5 px-3 text-center font-bold">
+                        <span className={tgtCust > 0 && actCust >= tgtCust ? 'text-emerald-600 font-black' : 'text-slate-700'}>
+                          {actCust.toLocaleString()} / {tgtCust.toLocaleString()}
+                        </span>
+                      </td>
+
+                      <td className="py-3.5 px-3 text-center text-slate-700">
+                        {(camp.new_cust_actual || 0).toLocaleString()} / {(camp.new_cust_target || camp.nc_target || 0).toLocaleString()}
+                      </td>
+
+                      <td className="py-3.5 px-3 text-center">
+                        <span className={`px-2 py-0.5 rounded-md text-[11px] font-bold ${
+                          isComp ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-sky-50 text-sky-700 border border-sky-200'
+                        }`}>
+                          {isComp ? 'Completed' : 'Pending'}
+                        </span>
+                      </td>
+
+                      <td className="py-3.5 px-4 text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <button
+                            onClick={() => handleOpenDetails(camp)}
+                            className="px-2 py-1 rounded-lg bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold shadow-2xs"
+                            title="Details"
+                          >
+                            Details
+                          </button>
+                          <button
+                            onClick={() => handleExecuteRecord(camp)}
+                            disabled={recordingId === camp.id}
+                            className="px-2.5 py-1 rounded-lg bg-[#0c4ca3] hover:bg-[#093d84] text-white text-xs font-black shadow-xs flex items-center gap-1 disabled:opacity-50"
+                            title="Record live data"
+                          >
+                            <Zap className={`w-3 h-3 text-amber-300 fill-current ${recordingId === camp.id ? 'animate-spin' : ''}`} />
+                            <span>Record</span>
+                          </button>
+                          <button
+                            onClick={() => handleOpenEditModal(camp)}
+                            className="p-1 rounded-lg text-slate-500 hover:text-slate-900"
+                            title="Edit"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteCampaign(camp.id)}
+                            className="p-1 rounded-lg text-rose-500 hover:text-rose-700"
+                            title="Delete"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* 4. More Details Modal (Full Targets & Backward Benchmarks from Handbook) */}
       <CampaignDetailModal
         isOpen={isDetailModalOpen}
         onClose={() => setIsDetailModalOpen(false)}
         campaign={activeCampaign}
         analytics={analytics}
-        onOpenEditModal={handleOpenEditModal}
+        onOpenEditModal={() => {
+          setIsDetailModalOpen(false);
+          handleOpenEditModal(activeCampaign);
+        }}
       />
 
       {/* 5. Campaign Add / Edit / Adjust Modal */}

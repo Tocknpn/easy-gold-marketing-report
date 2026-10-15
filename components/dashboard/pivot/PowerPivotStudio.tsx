@@ -21,6 +21,8 @@ import {
   Database,
   ChevronLeft,
   ChevronRight,
+  Sparkles,
+  Loader2
 } from 'lucide-react';
 import { UserProfile } from '@/lib/types/auth.types';
 import {
@@ -654,10 +656,15 @@ export function PowerPivotStudio({ currentUser }: Props) {
               <button
                 onClick={handleGo}
                 disabled={loading || config.values.length === 0}
-                className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-black bg-gradient-to-r from-emerald-600 to-emerald-500 hover:brightness-110 text-white shadow-md active:scale-95 transition-all disabled:opacity-50"
+                className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-black bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-500 hover:to-teal-600 text-white shadow-md hover:shadow-lg ring-1 ring-emerald-400/30 active:scale-95 transition-all disabled:opacity-50 cursor-pointer"
+                title="Execute pivot calculation on Supabase"
               >
-                <Zap className={`w-4 h-4 fill-current ${loading ? 'animate-spin' : ''}`} />
-                {loading ? 'CALCULATING...' : 'GO! CALCULATE (ສົ່ງຄຳນວນ)'}
+                {loading ? (
+                  <Loader2 className="w-4 h-4 animate-spin text-white" />
+                ) : (
+                  <Sparkles className="w-4 h-4 text-amber-300" />
+                )}
+                <span>{loading ? 'Calculating...' : 'Calculate (ຄຳນວນ)'}</span>
               </button>
             </div>
           </div>

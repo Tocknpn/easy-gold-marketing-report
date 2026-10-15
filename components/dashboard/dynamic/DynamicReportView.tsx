@@ -8,7 +8,8 @@ import {
   Sparkles, 
   Calendar, 
   CheckCircle2,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Loader2
 } from 'lucide-react';
 import { DynamicFilterState, DynamicReportPayload } from '@/lib/types/dynamicReport.types';
 import { 
@@ -103,23 +104,14 @@ export function DynamicReportView() {
 
         {/* Action Controls */}
         <div className="flex items-center gap-2 self-start sm:self-auto">
-          <button
-            onClick={() => fetchReport(filters)}
-            disabled={isLoading}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black bg-gradient-to-r from-emerald-600 to-teal-700 hover:opacity-95 text-white shadow-md transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
-          >
-            <span className="text-amber-300 font-black">⚡</span>
-            <span>{isLoading ? 'Querying Supabase...' : 'GO! CALCULATE (ສົ່ງຄຳນວນ)'}</span>
-          </button>
-
           {hasExecuted && (
             <button
               onClick={handleExportCsv}
               disabled={isExporting}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-black bg-[#e5a812] hover:bg-[#d4970b] text-slate-950 shadow-sm transition-all"
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-black bg-[#e5a812] hover:bg-[#d4970b] text-slate-950 shadow-sm transition-all"
             >
               <FileSpreadsheet className="w-4 h-4 text-slate-950" />
-              <span>{isExporting ? 'Exporting...' : 'Export'}</span>
+              <span>{isExporting ? 'Exporting...' : 'Export CSV'}</span>
             </button>
           )}
         </div>
@@ -149,17 +141,21 @@ export function DynamicReportView() {
               Ready to Run Dynamic BI Analysis
             </h3>
             <p className="text-xs text-slate-500 font-medium leading-relaxed">
-              No metrics are pre-loaded to ensure 100% data integrity with Supabase. Choose your date range, banks, branches, and filters above, then click <strong>GO!</strong> to calculate.
+              No metrics are pre-loaded to ensure 100% data integrity with Supabase. Choose your date range, banks, branches, and filters above, then click <strong>Calculate</strong> to run.
             </p>
           </div>
 
           <button
             onClick={() => fetchReport(filters)}
             disabled={isLoading}
-            className="flex items-center gap-2.5 px-7 py-3.5 rounded-2xl text-sm font-black bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:opacity-95 text-white shadow-lg hover:shadow-xl transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
+            className="flex items-center gap-2.5 px-7 py-3 rounded-2xl text-sm font-black bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-500 hover:to-teal-600 text-white shadow-md hover:shadow-lg transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
           >
-            <span className="text-amber-300 font-black text-lg">⚡</span>
-            <span>{isLoading ? 'Querying 1.4M Rows on Supabase...' : 'GO! RUN DYNAMIC ANALYSIS (ສົ່ງຄຳນວນ)'}</span>
+            {isLoading ? (
+              <Loader2 className="w-4 h-4 animate-spin text-white" />
+            ) : (
+              <Sparkles className="w-4 h-4 text-amber-300" />
+            )}
+            <span>{isLoading ? 'Querying 1.4M Rows on Supabase...' : 'Run Dynamic BI Analysis (ສັ່ງຄິດໄລ່)'}</span>
           </button>
         </div>
       ) : (

@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { PivotSlicerState } from '@/lib/types/pivotReport.types';
-import { Filter, RotateCcw } from 'lucide-react';
+import { Filter, RotateCcw, Sparkles, Loader2 } from 'lucide-react';
 
 interface PivotSlicerBarProps {
   slicers: PivotSlicerState;
@@ -44,10 +44,15 @@ export function PivotSlicerBar({ slicers, onChange, onReset, onExecuteQuery, isC
             <button
               onClick={onExecuteQuery}
               disabled={isCalculating}
-              className="flex items-center gap-2 px-4 py-1.5 rounded-xl text-xs font-black bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white shadow-md transition-all active:scale-95 disabled:opacity-50"
+              className="flex items-center gap-2 px-4 py-1.5 rounded-xl text-xs font-black bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-500 hover:to-teal-600 text-white shadow-sm hover:shadow-md ring-1 ring-emerald-400/30 transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
+              title="Execute pivot calculation on Supabase"
             >
-              <span className="text-amber-300 font-black text-sm">⚡</span>
-              <span>{isCalculating ? 'Querying Supabase...' : 'GO! CALCULATE (ສົ່ງຄຳນວນ)'}</span>
+              {isCalculating ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />
+              ) : (
+                <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+              )}
+              <span>{isCalculating ? 'Calculating...' : 'Calculate Pivot (ຄຳນວນ)'}</span>
             </button>
           )}
         </div>

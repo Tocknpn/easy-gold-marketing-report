@@ -18,7 +18,9 @@ import {
   Users,
   CalendarDays,
   ShieldCheck,
-  Search
+  Search,
+  Sparkles,
+  Loader2
 } from 'lucide-react';
 import { DynamicFilterState } from '@/lib/types/dynamicReport.types';
 import { 
@@ -181,10 +183,15 @@ export function DynamicFilterBar({
             <button
               onClick={onExecuteQuery}
               disabled={isLoading}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-black bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white shadow-sm transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
+              className="flex items-center gap-2 px-4 py-1.5 rounded-xl text-xs font-black bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-500 hover:to-teal-600 text-white shadow-sm hover:shadow-md ring-1 ring-emerald-400/30 active:scale-95 transition-all disabled:opacity-50 cursor-pointer"
+              title="Execute live calculations on Supabase"
             >
-              <span className="text-amber-300 font-black">⚡</span>
-              <span>{isLoading ? 'Querying...' : 'GO! CALCULATE (ສົ່ງຄຳນວນ)'}</span>
+              {isLoading ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />
+              ) : (
+                <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+              )}
+              <span>{isLoading ? 'Calculating...' : 'Calculate (ຄຳນວນ)'}</span>
             </button>
           )}
 

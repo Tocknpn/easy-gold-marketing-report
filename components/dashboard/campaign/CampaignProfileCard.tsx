@@ -17,7 +17,9 @@ import {
   Award,
   BarChart3,
   Flame,
-  ChevronRight
+  ChevronRight,
+  Sparkles,
+  Loader2
 } from 'lucide-react';
 
 interface CampaignProfileCardProps {
@@ -172,14 +174,19 @@ export function CampaignProfileCard({
               <span>+ New</span>
             </button>
 
-            {/* GO! Calculate Button */}
+            {/* Calculate Button */}
             <button
               onClick={onExecuteCalculate}
               disabled={isCalculating}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black bg-gradient-to-r from-amber-400 to-[#e5a812] text-slate-950 shadow-md hover:brightness-110 active:scale-95 transition-all disabled:opacity-50"
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-500 hover:to-teal-600 text-white shadow-md hover:shadow-lg ring-1 ring-emerald-400/30 active:scale-95 transition-all disabled:opacity-50 cursor-pointer"
+              title="Execute live campaign calculations on Supabase"
             >
-              <Zap className={`w-4 h-4 text-slate-950 fill-current ${isCalculating ? 'animate-spin' : ''}`} />
-              <span>{isCalculating ? 'CALCULATING...' : '⚡ GO! CALCULATE'}</span>
+              {isCalculating ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />
+              ) : (
+                <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+              )}
+              <span>{isCalculating ? 'Calculating...' : 'Calculate (ຄຳນວນ)'}</span>
             </button>
           </div>
         </div>

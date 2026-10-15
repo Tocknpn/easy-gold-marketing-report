@@ -73,6 +73,24 @@ export function CampaignSetupModal({
   const [isSaving, setIsSaving] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Event Plan & Scale Tracking (Image 2 style)
+  const [scaleCategory, setScaleCategory] = useState('MEDIUM — H2H BOOTH');
+  const [team, setTeam] = useState('KPV');
+  const [location, setLocation] = useState('');
+  const [planBudget, setPlanBudget] = useState<number>(0);
+  const [totalSpendingCost, setTotalSpendingCost] = useState<number>(0);
+  const [customersActual, setCustomersActual] = useState<number>(0);
+  const [customersTarget, setCustomersTarget] = useState<number>(0);
+  const [newCustActual, setNewCustActual] = useState<number>(0);
+  const [newCustTarget, setNewCustTarget] = useState<number>(0);
+  const [cpoActual, setCpoActual] = useState<number>(0);
+  const [cpoTarget, setCpoTarget] = useState<number>(0);
+  const [cpaActual, setCpaActual] = useState<number>(0);
+  const [cpaTarget, setCpaTarget] = useState<number>(0);
+  const [executionStatusLabel, setExecutionStatusLabel] = useState('');
+  const [year, setYear] = useState<number>(2026);
+  const [quarter, setQuarter] = useState<string>('Q4');
+
   // Load existing campaign data or defaults
   useEffect(() => {
     if (campaignToEdit) {
@@ -96,14 +114,30 @@ export function CampaignSetupModal({
       setRevenueTarget(campaignToEdit.revenue_target_mil || 2876304.2);
       setGoldWeightTarget(campaignToEdit.gold_weight_target_g || 913509.7);
       setBaselineDailyRr(campaignToEdit.baseline_daily_rr);
+      setScaleCategory(campaignToEdit.scale_category || 'MEDIUM — H2H BOOTH');
+      setTeam(campaignToEdit.team || 'KPV');
+      setLocation(campaignToEdit.location || '');
+      setPlanBudget(campaignToEdit.plan_budget || 0);
+      setTotalSpendingCost(campaignToEdit.total_spending_cost || 0);
+      setCustomersActual(campaignToEdit.customers_actual || 0);
+      setCustomersTarget(campaignToEdit.customers_target || campaignToEdit.ec_target || 0);
+      setNewCustActual(campaignToEdit.new_cust_actual || 0);
+      setNewCustTarget(campaignToEdit.new_cust_target || campaignToEdit.nc_target || 0);
+      setCpoActual(campaignToEdit.cpo_actual || 0);
+      setCpoTarget(campaignToEdit.cpo_target || 0);
+      setCpaActual(campaignToEdit.cpa_actual || 0);
+      setCpaTarget(campaignToEdit.cpa_target || 0);
+      setExecutionStatusLabel(campaignToEdit.execution_status_label || '');
+      setYear(campaignToEdit.year || 2026);
+      setQuarter(campaignToEdit.quarter || 'Q4');
     } else {
       // New campaign template
-      setName('New Marketing Campaign');
-      setDescription('Target volume incentive campaign');
-      setCategoryTag('Volume Driver');
+      setName('New Marketing Event / Campaign');
+      setDescription('Customer activation and booth event');
+      setCategoryTag('Event');
       setImageUrl('https://images.unsplash.com/photo-1610375461246-83df859d849d?w=150&auto=format&fit=crop&q=80');
-      setStartDate('2026-08-24');
-      setEndDate('2026-12-25');
+      setStartDate('2026-10-21');
+      setEndDate('2026-10-27');
       setAsOfDate('2026-10-14');
       setAutoSyncMaxDate(true);
       setConditionType('amount_gte');
@@ -112,12 +146,28 @@ export function CampaignSetupModal({
       setConditionMaxValue(2000000);
       setConditionLabel('Buy trans >= 500k');
       setTxType('BUY_GOLD');
-      setSelectedTargets(['ec', 'nc', 'revenue', 'weight']);
-      setEcTarget(307500);
-      setNcTarget(17220);
+      setSelectedTargets(['ec', 'nc']);
+      setEcTarget(1731);
+      setNcTarget(200);
       setRevenueTarget(2876304.2);
       setGoldWeightTarget(913509.7);
       setBaselineDailyRr(79.0);
+      setScaleCategory('MEDIUM — H2H BOOTH');
+      setTeam('KPV');
+      setLocation('Watchan');
+      setPlanBudget(395700000);
+      setTotalSpendingCost(0);
+      setCustomersActual(1731);
+      setCustomersTarget(1731);
+      setNewCustActual(0);
+      setNewCustTarget(0);
+      setCpoActual(0);
+      setCpoTarget(0);
+      setCpaActual(0);
+      setCpaTarget(0);
+      setExecutionStatusLabel('100% Plan Execution (Auto-Default)');
+      setYear(2026);
+      setQuarter('Q4');
     }
   }, [campaignToEdit, isOpen]);
 
@@ -213,6 +263,22 @@ export function CampaignSetupModal({
         gold_weight_target_g: selectedTargets.includes('weight') ? Number(goldWeightTarget) : undefined,
         baseline_daily_rr: baselineDailyRr ? Number(baselineDailyRr) : undefined,
         status: isEnded ? 'completed' : isUpcoming ? 'upcoming' : 'active',
+        scale_category: scaleCategory,
+        team: team,
+        location: location.trim(),
+        plan_budget: Number(planBudget),
+        total_spending_cost: Number(totalSpendingCost),
+        customers_actual: Number(customersActual),
+        customers_target: Number(customersTarget),
+        new_cust_actual: Number(newCustActual),
+        new_cust_target: Number(newCustTarget),
+        cpo_actual: Number(cpoActual),
+        cpo_target: Number(cpoTarget),
+        cpa_actual: Number(cpaActual),
+        cpa_target: Number(cpaTarget),
+        execution_status_label: executionStatusLabel.trim(),
+        year: Number(year),
+        quarter: quarter,
       };
 
       await onSave(config);
@@ -349,6 +415,109 @@ export function CampaignSetupModal({
                     onChange={(e) => setDescription(e.target.value)}
                     placeholder="e.g. Volume driver incentivizing transactions of 500,000 LAK and above"
                     className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-[#0c4ca3] focus:outline-hidden"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Event Scale, Team & Venue Details (Image 2 style) */}
+            <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200/90 grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                  Scale Category
+                </label>
+                <select
+                  value={scaleCategory}
+                  onChange={(e) => setScaleCategory(e.target.value)}
+                  className="w-full px-2.5 py-1.5 text-xs font-bold border border-slate-300 rounded-xl bg-white"
+                >
+                  <option value="MEDIUM — H2H BOOTH">MEDIUM — H2H BOOTH</option>
+                  <option value="NATIONAL — H2H BOOTH">NATIONAL — H2H BOOTH</option>
+                  <option value="LARGE — EVENT (OUTDOOR)">LARGE — EVENT (OUTDOOR)</option>
+                  <option value="MED/LARGE BOUNDARY — COMMUNITY/PANEL">MED/LARGE BOUNDARY — COMMUNITY/PANEL</option>
+                  <option value="SMALL — SPONSORSHIP">SMALL — SPONSORSHIP</option>
+                  <option value="MEDIUM — COMMUNITY/PANEL">MEDIUM — COMMUNITY/PANEL</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                  Host Team
+                </label>
+                <select
+                  value={team}
+                  onChange={(e) => setTeam(e.target.value)}
+                  className="w-full px-2.5 py-1.5 text-xs font-bold border border-slate-300 rounded-xl bg-white"
+                >
+                  <option value="KPV">KPV</option>
+                  <option value="AGENCY">AGENCY</option>
+                  <option value="MARKETING">MARKETING</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                  Event Venue / Location
+                </label>
+                <input
+                  type="text"
+                  value={location}
+                  onChange={(e) => setLocation(e.target.value)}
+                  placeholder="e.g. Watchan or Landmark Hotel"
+                  className="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-xl bg-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                  Plan Budget (LAK)
+                </label>
+                <input
+                  type="number"
+                  value={planBudget || ''}
+                  onChange={(e) => setPlanBudget(Number(e.target.value))}
+                  placeholder="e.g. 395700000"
+                  className="w-full px-2.5 py-1.5 text-xs font-bold border border-slate-300 rounded-xl bg-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                  Total Spending Cost (LAK)
+                </label>
+                <input
+                  type="number"
+                  value={totalSpendingCost || ''}
+                  onChange={(e) => setTotalSpendingCost(Number(e.target.value))}
+                  placeholder="e.g. 72800000 or 0"
+                  className="w-full px-2.5 py-1.5 text-xs font-bold border border-slate-300 rounded-xl bg-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                  Target Customers vs Actual
+                </label>
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="number"
+                    value={customersActual || ''}
+                    onChange={(e) => setCustomersActual(Number(e.target.value))}
+                    placeholder="Act (e.g. 1731)"
+                    className="w-1/2 px-2 py-1.5 text-xs border border-slate-300 rounded-xl bg-white"
+                    title="Actual Customers"
+                  />
+                  <span>/</span>
+                  <input
+                    type="number"
+                    value={customersTarget || ''}
+                    onChange={(e) => {
+                      setCustomersTarget(Number(e.target.value));
+                      setEcTarget(Number(e.target.value));
+                    }}
+                    placeholder="Tgt (e.g. 1731)"
+                    className="w-1/2 px-2 py-1.5 text-xs border border-slate-300 rounded-xl bg-white"
+                    title="Target Customers"
                   />
                 </div>
               </div>

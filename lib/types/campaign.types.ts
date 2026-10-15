@@ -34,6 +34,24 @@ export interface CampaignSetupConfig {
   revenue_target_mil?: number;        // Revenue Target in Million LAK
   gold_weight_target_g?: number;      // Gold Weight Target in Grams
   baseline_daily_rr?: number;         // e.g. 79.0 (Avg Normal RR per Day baseline)
+
+  // Event Plan & Scale Tracking (matching Image 2)
+  scale_category?: string;            // 'MEDIUM — H2H BOOTH' | 'NATIONAL — H2H BOOTH' | 'LARGE — EVENT (OUTDOOR)' | 'MED/LARGE BOUNDARY — COMMUNITY/PANEL' | 'SMALL — SPONSORSHIP' | 'MEDIUM — COMMUNITY/PANEL'
+  team?: string;                      // 'KPV' | 'AGENCY' | 'MARKETING'
+  location?: string;                  // e.g. 'Watchan', 'Landmark Riverside Hotel', 'ຈິ່ນາຍໂມ້'
+  total_spending_cost?: number;       // Spending Cost in LAK (e.g. 72800000)
+  plan_budget?: number;               // Plan Budget in LAK (e.g. 395700000)
+  customers_actual?: number;          // Actual Customers (e.g. 1731)
+  customers_target?: number;          // Target Customers (e.g. 1731)
+  new_cust_actual?: number;           // Actual New Customers
+  new_cust_target?: number;           // Target New Customers
+  cpo_actual?: number;                // Actual Cost Per Order
+  cpo_target?: number;                // Target Cost Per Order
+  cpa_actual?: number;                // Actual Cost Per Acquisition
+  cpa_target?: number;                // Target Cost Per Acquisition
+  execution_status_label?: string;    // '100% Plan Execution (Auto-Default)' | 'Plan Pending (No Targets Set)'
+  year?: number;                      // 2026
+  quarter?: string;                   // 'Q1' | 'Q2' | 'Q3' | 'Q4'
 }
 
 export interface CampaignTargetAchievementPayload {

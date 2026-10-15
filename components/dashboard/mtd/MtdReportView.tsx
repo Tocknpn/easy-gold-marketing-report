@@ -18,7 +18,8 @@ import {
   Landmark,
   ChevronDown,
   ChevronUp,
-  RotateCcw
+  RotateCcw,
+  Loader2
 } from 'lucide-react';
 
 interface MtdReportViewProps {
@@ -307,15 +308,19 @@ export function MtdReportView({ initialData, onRefresh, loading = false }: MtdRe
             {isSlicersExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
           </button>
 
-          {/* ⚡ GO! Execute MTD Report Button */}
+          {/* Calculate MTD Report Button */}
           <button
             onClick={handleExecuteMtd}
             disabled={isExecuting || loading}
-            className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white text-xs font-black shadow-md transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
+            className="flex items-center gap-2 px-4 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-500 hover:to-teal-600 text-white text-xs font-black shadow-sm hover:shadow-md ring-1 ring-emerald-400/30 transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
             title="Execute MTD report on Supabase"
           >
-            <span className="text-amber-300 font-black">⚡</span>
-            <span>{isExecuting || loading ? 'Querying...' : 'GO! CALCULATE (ສົ່ງຄຳນວນ)'}</span>
+            {isExecuting || loading ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />
+            ) : (
+              <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+            )}
+            <span>{isExecuting || loading ? 'Calculating...' : 'Calculate (ຄຳນວນ)'}</span>
           </button>
 
           {/* Export to CSV Button */}
@@ -495,10 +500,14 @@ export function MtdReportView({ initialData, onRefresh, loading = false }: MtdRe
           <button
             onClick={handleExecuteMtd}
             disabled={isExecuting || loading}
-            className="flex items-center gap-2.5 px-7 py-3.5 rounded-2xl text-sm font-black bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:opacity-95 text-white shadow-lg hover:shadow-xl transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
+            className="flex items-center gap-2.5 px-7 py-3 rounded-2xl text-sm font-black bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-500 hover:to-teal-600 text-white shadow-md hover:shadow-lg transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
           >
-            <span className="text-amber-300 font-black text-lg">⚡</span>
-            <span>{isExecuting || loading ? 'Querying Supabase...' : 'GO! CALCULATE MTD FORECAST (ສົ່ງຄຳນວນ)'}</span>
+            {isExecuting || loading ? (
+              <Loader2 className="w-4 h-4 animate-spin text-white" />
+            ) : (
+              <Sparkles className="w-4 h-4 text-amber-300" />
+            )}
+            <span>{isExecuting || loading ? 'Querying Supabase...' : 'Run MTD & Forecast Calculation (ສັ່ງຄິດໄລ່)'}</span>
           </button>
         </div>
       ) : (
