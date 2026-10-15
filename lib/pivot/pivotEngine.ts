@@ -87,35 +87,113 @@ export function computePivotReport(
       };
     }).filter(Boolean) as PivotRowData[];
   } else if (dimension === 'bank') {
-    const banks = [
-      { name: 'BCEL One (Banque Pour Le Commerce Exterieur Lao)', share: 0.58, weightShare: 0.56 },
-      { name: 'LDB Trust (Lao Development Bank)', share: 0.22, weightShare: 0.24 },
-      { name: 'JDB Yes (Joint Development Bank)', share: 0.12, weightShare: 0.11 },
-      { name: 'u-money (Unitel Star Fintech)', share: 0.05, weightShare: 0.05 },
-      { name: 'M-Money (Lao Telecom)', share: 0.03, weightShare: 0.04 },
+    // REAL DATA from Supabase public.monthly_data (1.4M rows total / 926,927 BUY_GOLD)
+    const realBanks = [
+      {
+        name: 'BCEL One (Banque Pour Le Commerce Exterieur Lao)',
+        trans: 714461,
+        users: 89094,
+        revMil: 4649333.04,
+        weightG: 1438543.15,
+        nc: 1781,
+      },
+      {
+        name: 'LDB Trust (Lao Development Bank)',
+        trans: 180330,
+        users: 27107,
+        revMil: 910640.42,
+        weightG: 282023.46,
+        nc: 542,
+      },
+      {
+        name: 'JDB Yes (Joint Development Bank)',
+        trans: 9949,
+        users: 2721,
+        revMil: 73590.83,
+        weightG: 22796.39,
+        nc: 54,
+      },
+      {
+        name: 'APB (Agricultural Promotion Bank)',
+        trans: 5600,
+        users: 1579,
+        revMil: 47561.00,
+        weightG: 14772.11,
+        nc: 31,
+      },
+      {
+        name: 'PSVB (Phongsavanh Bank)',
+        trans: 4056,
+        users: 1107,
+        revMil: 17699.94,
+        weightG: 5492.32,
+        nc: 22,
+      },
+      {
+        name: 'ACLEDA Bank Lao',
+        trans: 3618,
+        users: 1022,
+        revMil: 15210.95,
+        weightG: 4811.40,
+        nc: 20,
+      },
+      {
+        name: 'LVB (Lao-Viet Bank)',
+        trans: 2697,
+        users: 665,
+        revMil: 17926.01,
+        weightG: 5587.44,
+        nc: 13,
+      },
+      {
+        name: 'STB (ST Bank)',
+        trans: 2063,
+        users: 628,
+        revMil: 14401.83,
+        weightG: 4436.75,
+        nc: 12,
+      },
+      {
+        name: 'M-Money (Lao Telecom)',
+        trans: 1827,
+        users: 249,
+        revMil: 1029.28,
+        weightG: 317.75,
+        nc: 4,
+      },
+      {
+        name: 'ADMIN (Direct Counter)',
+        trans: 1600,
+        users: 757,
+        revMil: 4913.79,
+        weightG: 1469.63,
+        nc: 15,
+      },
+      {
+        name: 'u-money (Unitel Star Fintech)',
+        trans: 726,
+        users: 245,
+        revMil: 1385.04,
+        weightG: 447.38,
+        nc: 4,
+      },
     ];
 
-    const baseTrans = 123142;
-    const baseRevMil = 1206192.1;
-    const baseWeightG = 383084.7;
-
-    rows = banks.map((b) => {
-      const bTrans = Math.round(baseTrans * b.share);
-      const bRevMil = Number((baseRevMil * b.share).toFixed(2));
-      const bWeight = Number((baseWeightG * b.weightShare).toFixed(2));
+    rows = realBanks.map((b) => {
+      const ticketSize = b.trans > 0 ? Number((b.weightG / b.trans).toFixed(1)) : 0;
       return {
         key: b.name,
         label: b.name,
         metrics: {
-          total_buy_transac: bTrans,
-          total_unique_user: Math.round(bTrans * 0.72),
-          revenue_buy_mil_lak: bRevMil,
-          revenue_buy_lak: Math.round(bRevMil * 1000000),
-          gold_weight_buy_g: bWeight,
-          gold_buy_size_g: Number((bWeight / bTrans).toFixed(1)),
-          total_nc: Math.round(2486 * b.share),
-          sum_gold_weight: bWeight,
-          sum_amount_lak: Math.round(bRevMil * 1000000),
+          total_buy_transac: b.trans,
+          total_unique_user: b.users,
+          revenue_buy_mil_lak: b.revMil,
+          revenue_buy_lak: Math.round(b.revMil * 1000000),
+          gold_weight_buy_g: b.weightG,
+          gold_buy_size_g: ticketSize,
+          total_nc: b.nc,
+          sum_gold_weight: b.weightG,
+          sum_amount_lak: Math.round(b.revMil * 1000000),
         },
       };
     });

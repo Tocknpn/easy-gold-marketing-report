@@ -41,9 +41,15 @@ WITH normalized_tx AS (
         -- Standardize bank names to match the web label display
         CASE 
             WHEN bank ILIKE '%BCEL%' THEN 'BCEL One (Banque Pour Le Commerce Exterieur Lao)'
-            WHEN bank ILIKE '%JDB%' THEN 'JDB Yes (Joint Development Bank)'
             WHEN bank ILIKE '%LDB%' THEN 'LDB Trust (Lao Development Bank)'
+            WHEN bank ILIKE '%JDB%' THEN 'JDB Yes (Joint Development Bank)'
+            WHEN bank ILIKE '%APB%' THEN 'APB (Agricultural Promotion Bank)'
+            WHEN bank ILIKE '%PSVB%' THEN 'PSVB (Phongsavanh Bank)'
+            WHEN bank ILIKE '%ACLEDA%' THEN 'ACLEDA Bank Lao'
+            WHEN bank ILIKE '%LVB%' THEN 'LVB (Lao-Viet Bank)'
+            WHEN bank ILIKE '%STB%' THEN 'STB (ST Bank)'
             WHEN bank ILIKE '%M-Money%' OR bank ILIKE '%MMONEY%' OR bank ILIKE '%Telecom%' THEN 'M-Money (Lao Telecom)'
+            WHEN bank ILIKE '%ADMIN%' THEN 'ADMIN (Direct Counter)'
             WHEN bank ILIKE '%u-money%' OR bank ILIKE '%UMONEY%' OR bank ILIKE '%Star Fintech%' THEN 'u-money (Unitel Star Fintech)'
             ELSE COALESCE(NULLIF(bank, ''), 'Other Banking Gateway')
         END AS bank_name,
@@ -57,11 +63,9 @@ WITH normalized_tx AS (
     WHERE 
         -- Slicer: ຮູບແບບທຸລະກຳ = BUY_GOLD
         transaction_type = 'BUY_GOLD'
-        -- If status slicer is 'All Status', we do not filter status.
-        -- If status slicer is 'ສໍາເລັດ', uncomment: AND status = 'ສໍາເລັດ'
 )
 SELECT 
-    COALESCE(bank_name, 'GRAND TOTAL (5 ROWS)') AS "ROW LABELS (BANK)",
+    COALESCE(bank_name, 'GRAND TOTAL (11 ROWS)') AS "ROW LABELS (BANK)",
     
     -- Metric 1: TOTAL BUY TRANSAC
     -- Formula: COUNT(*)
