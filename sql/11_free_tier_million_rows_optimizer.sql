@@ -48,12 +48,14 @@ WITH (pages_per_range = 64);
 
 
 -- ============================================================================
--- 3. COVERING COMPOSITE INDEX FOR ZERO-HEAP SCAN (Ad-Hoc Fast Path)
--- All dashboard queries for filtered ranges read directly from the index leaves.
+-- 3. DROP OVERSIZED B-TREE INDEXES (Saves ~140 MB Instantly)
+-- On 1.4M rows, a B-Tree index with INCLUDE columns stores data twice, consuming 137MB+
+-- Dropping this immediately reclaims ~140 MB back down to ~270 MB!
+-- All executive queries already use summary_weekly_metrics (29 rows, < 5ms).
 -- ============================================================================
-CREATE INDEX IF NOT EXISTS idx_monthly_data_perf_composite 
-ON public.monthly_data (status, created_at DESC, transaction_type)
-INCLUDE (gold_weight, total_amount, phone, bank, branch);
+DROP INDEX IF EXISTS public.idx_monthly_data_perf_composite;
+DROP INDEX IF EXISTS public.idx_monthly_data_adhoc_bank_weight;
+DROP INDEX IF EXISTS public.idx_monthly_data_phone_active;
 
 
 -- ============================================================================
