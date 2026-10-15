@@ -14,7 +14,11 @@ import {
   ChevronDown, 
   ChevronUp, 
   X,
-  Check
+  Check,
+  Users,
+  CalendarDays,
+  ShieldCheck,
+  Search
 } from 'lucide-react';
 import { DynamicFilterState } from '@/lib/types/dynamicReport.types';
 import { 
@@ -49,6 +53,9 @@ export function DynamicFilterBar({
     filters.minWeight !== null || filters.maxWeight !== null ? 1 : 0,
     filters.minAmount !== null || filters.maxAmount !== null ? 1 : 0,
     filters.startHour !== null || filters.endHour !== null ? 1 : 0,
+    filters.customerSegment && filters.customerSegment !== 'all' ? 1 : 0,
+    filters.dayOfWeek && filters.dayOfWeek !== 'all' ? 1 : 0,
+    filters.searchKeyword && filters.searchKeyword.trim() !== '' ? 1 : 0,
   ].reduce((a, b) => a + b, 0);
 
   // Quick preset handlers
@@ -371,6 +378,99 @@ export function DynamicFilterBar({
                   &gt; 5M LAK
                 </button>
               </div>
+            </div>
+          </div>
+
+          {/* 5-8: Customer Segment, Day of Week, Status & Search Keyword */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 pt-1">
+            {/* 5. Customer Segment */}
+            <div className="bg-white p-3 rounded-xl border border-slate-200">
+              <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                <Users className="w-3.5 h-3.5 text-[#0c4ca3]" />
+                Customer Volume Tier
+              </div>
+              <select
+                value={filters.customerSegment || 'all'}
+                onChange={(e) => onFilterChange({ ...filters, customerSegment: e.target.value })}
+                className="w-full text-xs font-semibold p-1.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0c4ca3]"
+              >
+                <option value="all">All Customers (ທຸກກຸ່ມລູກຄ້າ)</option>
+                <option value="vip_15g">VIP Wholesaler (&gt;= 15g / 1 Baht)</option>
+                <option value="medium_2_15g">Medium Investor (2.0g - 15.0g)</option>
+                <option value="micro_2g">Retail &amp; Micro Saver (&lt; 2.0g)</option>
+              </select>
+            </div>
+
+            {/* 6. Day of Week */}
+            <div className="bg-white p-3 rounded-xl border border-slate-200">
+              <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                <CalendarDays className="w-3.5 h-3.5 text-[#0c4ca3]" />
+                Day of Week
+              </div>
+              <div className="flex items-center gap-1 flex-wrap">
+                <button
+                  onClick={() => onFilterChange({ ...filters, dayOfWeek: 'all' })}
+                  className={`px-2 py-1 text-[11px] font-bold rounded ${
+                    filters.dayOfWeek === 'all' || !filters.dayOfWeek
+                      ? 'bg-[#0c4ca3] text-white'
+                      : 'bg-slate-100 text-slate-650 hover:bg-slate-200'
+                  }`}
+                >
+                  All 7 Days
+                </button>
+                <button
+                  onClick={() => onFilterChange({ ...filters, dayOfWeek: 'weekdays' })}
+                  className={`px-2 py-1 text-[11px] font-bold rounded ${
+                    filters.dayOfWeek === 'weekdays'
+                      ? 'bg-[#0c4ca3] text-white'
+                      : 'bg-slate-100 text-slate-650 hover:bg-slate-200'
+                  }`}
+                >
+                  Weekdays (Mon-Fri)
+                </button>
+                <button
+                  onClick={() => onFilterChange({ ...filters, dayOfWeek: 'weekends' })}
+                  className={`px-2 py-1 text-[11px] font-bold rounded ${
+                    filters.dayOfWeek === 'weekends'
+                      ? 'bg-[#0c4ca3] text-white'
+                      : 'bg-slate-100 text-slate-650 hover:bg-slate-200'
+                  }`}
+                >
+                  Weekends (Sat-Sun)
+                </button>
+              </div>
+            </div>
+
+            {/* 7. Status Filter */}
+            <div className="bg-white p-3 rounded-xl border border-slate-200">
+              <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                <ShieldCheck className="w-3.5 h-3.5 text-[#0c4ca3]" />
+                Transaction Status
+              </div>
+              <select
+                value={filters.status}
+                onChange={(e) => onFilterChange({ ...filters, status: e.target.value })}
+                className="w-full text-xs font-semibold p-1.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0c4ca3]"
+              >
+                <option value="all">All Status (ທັງໝົດ)</option>
+                <option value="ສໍາເລັດ">ສໍາເລັດ (Completed Only)</option>
+                <option value="ປະຕິເສດ">ປະຕິເສດ (Rejected Only)</option>
+              </select>
+            </div>
+
+            {/* 8. Search Keyword */}
+            <div className="bg-white p-3 rounded-xl border border-slate-200">
+              <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                <Search className="w-3.5 h-3.5 text-[#0c4ca3]" />
+                Search Keyword
+              </div>
+              <input
+                type="text"
+                placeholder="Phone or Name..."
+                value={filters.searchKeyword || ''}
+                onChange={(e) => onFilterChange({ ...filters, searchKeyword: e.target.value })}
+                className="w-full text-xs font-semibold p-1.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0c4ca3]"
+              />
             </div>
           </div>
 

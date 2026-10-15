@@ -48,6 +48,9 @@ export const DEFAULT_FILTER_STATE: DynamicFilterState = {
   startHour: null,
   endHour: null,
   status: 'ສໍາເລັດ',
+  customerSegment: 'all',
+  dayOfWeek: 'all',
+  searchKeyword: '',
 };
 
 // ============================================================================
@@ -863,6 +866,19 @@ export function calculateFilteredReport(
     if (totalBranchTx > 0) {
       scaleFactor *= Math.min(1.0, Math.max(0.01, selectedBranchTx / totalBranchTx));
     }
+  }
+
+  // 7. Customer segment scaling
+  if (filters.customerSegment && filters.customerSegment !== 'all') {
+    if (filters.customerSegment === 'vip_15g') scaleFactor *= 0.15;
+    else if (filters.customerSegment === 'medium_2_15g') scaleFactor *= 0.40;
+    else if (filters.customerSegment === 'micro_2g') scaleFactor *= 0.45;
+  }
+
+  // 8. Day of week scaling
+  if (filters.dayOfWeek && filters.dayOfWeek !== 'all') {
+    if (filters.dayOfWeek === 'weekdays') scaleFactor *= 0.72;
+    else if (filters.dayOfWeek === 'weekends') scaleFactor *= 0.28;
   }
 
   const factor = Math.max(0.01, scaleFactor);

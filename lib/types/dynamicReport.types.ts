@@ -12,6 +12,9 @@ export interface DynamicFilterState {
   startHour: number | null; // 0-23
   endHour: number | null; // 0-23
   status: string; // 'all' | 'ສໍາເລັດ' (Completed) | 'ປະຕິເສດ' (Failed)
+  customerSegment?: string; // 'all' | 'vip_15g' | 'medium_2_15g' | 'micro_2g'
+  dayOfWeek?: string; // 'all' | 'weekdays' | 'weekends'
+  searchKeyword?: string;
 }
 
 export interface DaxMeasuresPayload {

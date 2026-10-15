@@ -9,6 +9,7 @@ import { DynamicReportView } from '@/components/dashboard/dynamic/DynamicReportV
 import { PivotReportView } from '@/components/dashboard/pivot/PivotReportView';
 import { CampaignTrackingView } from '@/components/dashboard/campaign/CampaignTrackingView';
 import { UserAuthModal } from '@/components/dashboard/auth/UserAuthModal';
+import { SystemCheckAndValidationModal } from '@/components/dashboard/audit/SystemCheckAndValidationModal';
 import { ExecutiveDashboardData, WeeklyMetricRow, MetricVariances } from '@/lib/types/dashboard.types';
 import { MtdReportPayload } from '@/lib/types/mtd.types';
 import { UserProfile } from '@/lib/types/auth.types';
@@ -20,13 +21,14 @@ import {
   ChevronRight, 
   Database, 
   TrendingUp, 
-  BarChart3,
-  SlidersHorizontal,
-  Table2,
-  Target,
-  UserCircle2,
-  Lock,
-  Sparkles
+  BarChart3, 
+  SlidersHorizontal, 
+  Table2, 
+  Target, 
+  UserCircle2, 
+  Lock, 
+  Sparkles,
+  ShieldCheck
 } from 'lucide-react';
 
 import { DEFAULT_MTD_PAYLOAD } from '@/lib/constants/mtdData';
@@ -39,11 +41,12 @@ export default function DashboardPage() {
   // User authentication state
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
+  const [isValidatorModalOpen, setIsValidatorModalOpen] = useState<boolean>(false);
 
   // Weekly data state initialized with default data
   const [weeklyData, setWeeklyData] = useState<ExecutiveDashboardData>(DEFAULT_WEEKLY_FALLBACK_DATA);
   const [weeklyLoading, setWeeklyLoading] = useState(false);
-  const [selectedWeekLabel, setSelectedWeekLabel] = useState<string>('W41');
+  const [selectedWeekLabel, setSelectedWeekLabel] = useState<string>('W42');
 
   // MTD data state initialized with default values for instant render
   const [mtdData, setMtdData] = useState<MtdReportPayload>(DEFAULT_MTD_PAYLOAD);
@@ -333,8 +336,19 @@ export default function DashboardPage() {
             </button>
           </div>
 
-          {/* Right Header: User Account Profile + EASY GOLD Brand Logo */}
-          <div className="flex items-center gap-3">
+          {/* Right Header: System Audit + User Profile + EASY GOLD Brand Logo */}
+          <div className="flex items-center gap-2.5 sm:gap-3 flex-wrap justify-end">
+            {/* System Health, Calculation & Free Plan Audit Button */}
+            <button
+              onClick={() => setIsValidatorModalOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 text-emerald-900 shadow-xs transition-all font-bold text-xs"
+              title="System Integrity & Free Plan Audit"
+            >
+              <ShieldCheck className="w-4 h-4 text-emerald-600" />
+              <span className="hidden sm:inline">Audit &amp; Sync Check</span>
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+            </button>
+
             {/* User Account / Profile Badge button */}
             <button
               onClick={() => setIsAuthModalOpen(true)}
@@ -548,6 +562,12 @@ export default function DashboardPage() {
         onClose={() => setIsAuthModalOpen(false)}
         currentUser={currentUser}
         onAuthChange={setCurrentUser}
+      />
+
+      {/* System Integrity, Calculation & Free Plan Audit Modal */}
+      <SystemCheckAndValidationModal
+        isOpen={isValidatorModalOpen}
+        onClose={() => setIsValidatorModalOpen(false)}
       />
     </div>
   );
