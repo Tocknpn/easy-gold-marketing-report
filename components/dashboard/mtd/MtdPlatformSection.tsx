@@ -8,12 +8,16 @@ interface MtdPlatformSectionProps {
   newCustomers: MtdMetricItem;
   totalTransactions: MtdMetricItem;
   comparisonMonthLabel: string;
+  elapsedDays?: number;
+  totalDays?: number;
 }
 
 export function MtdPlatformSection({
   newCustomers,
   totalTransactions,
   comparisonMonthLabel,
+  elapsedDays = 11,
+  totalDays = 31,
 }: MtdPlatformSectionProps) {
   return (
     <div className="border-[2px] border-dotted border-[#0c4ca3] rounded-2xl p-2.5 sm:p-3 bg-[#f5f8fd] flex flex-col h-full shadow-xs">
@@ -27,10 +31,14 @@ export function MtdPlatformSection({
         <MtdMetricCard
           metric={newCustomers}
           comparisonMonthLabel={comparisonMonthLabel}
+          elapsedDays={elapsedDays}
+          totalDays={totalDays}
         />
         <MtdMetricCard
           metric={totalTransactions}
           comparisonMonthLabel={comparisonMonthLabel}
+          elapsedDays={elapsedDays}
+          totalDays={totalDays}
         />
       </div>
     </div>

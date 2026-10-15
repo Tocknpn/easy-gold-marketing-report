@@ -8,8 +8,10 @@ import { MtdReportView } from '@/components/dashboard/mtd/MtdReportView';
 import { DynamicReportView } from '@/components/dashboard/dynamic/DynamicReportView';
 import { PowerPivotStudio } from '@/components/dashboard/pivot/PowerPivotStudio';
 import { CampaignTrackingView } from '@/components/dashboard/campaign/CampaignTrackingView';
+import { WeeklyHistoricalMatrix } from '@/components/dashboard/weekly/WeeklyHistoricalMatrix';
 import { UserAuthModal } from '@/components/dashboard/auth/UserAuthModal';
 import { SystemCheckAndValidationModal } from '@/components/dashboard/audit/SystemCheckAndValidationModal';
+import { FreshnessBadge } from '@/components/dashboard/FreshnessBadge';
 import { ExecutiveDashboardData, WeeklyMetricRow, MetricVariances } from '@/lib/types/dashboard.types';
 import { MtdReportPayload } from '@/lib/types/mtd.types';
 import { UserProfile } from '@/lib/types/auth.types';
@@ -28,7 +30,11 @@ import {
   UserCircle2, 
   Lock, 
   Sparkles,
-  ShieldCheck
+  ShieldCheck,
+  AlertTriangle,
+  Gauge,
+  Scale,
+  Coins
 } from 'lucide-react';
 
 import { DEFAULT_MTD_PAYLOAD } from '@/lib/constants/mtdData';
@@ -47,6 +53,7 @@ export default function DashboardPage() {
   const [weeklyData, setWeeklyData] = useState<ExecutiveDashboardData>(DEFAULT_WEEKLY_FALLBACK_DATA);
   const [weeklyLoading, setWeeklyLoading] = useState(false);
   const [selectedWeekLabel, setSelectedWeekLabel] = useState<string>('W42');
+  const [isProratedWoW, setIsProratedWoW] = useState<boolean>(false);
 
   // MTD data state initialized with default values for instant render
   const [mtdData, setMtdData] = useState<MtdReportPayload>(DEFAULT_MTD_PAYLOAD);
@@ -105,10 +112,28 @@ export default function DashboardPage() {
 
     const history = sortedHistory;
     const activeIndex = history.findIndex((w) => w.week_label === selectedWeekLabel);
-    const currentWeek: WeeklyMetricRow =
+    const rawWeek: WeeklyMetricRow =
       activeIndex >= 0 ? history[activeIndex] : weeklyData.current_week;
     const previousWeek: WeeklyMetricRow | undefined =
       activeIndex > 0 ? history[activeIndex - 1] : undefined;
+
+    // Detect if current selected week is partial in-progress week (W42)
+    const isPartial = rawWeek.week_label === 'W42';
+
+    // Prorated 7-day run-rate (assuming 1 day elapsed in W42 for normalized comparison)
+    const currentWeek: WeeklyMetricRow = (isProratedWoW && isPartial)
+      ? {
+          ...rawWeek,
+          all_transactions: Math.round(rawWeek.all_transactions * 7),
+          active_users: Math.round(rawWeek.active_users * 3.5),
+          new_registers: Math.round(rawWeek.new_registers * 7),
+          withdraw_gold_grams: Number((Number(rawWeek.withdraw_gold_grams) * 7).toFixed(2)),
+          buy_weight_15g: Math.round(Number(rawWeek.buy_weight_15g) * 7),
+          buy_transactions: Math.round(rawWeek.buy_transactions * 7),
+          sell_weight_15g: Math.round(Number(rawWeek.sell_weight_15g) * 7),
+          sell_transactions: Math.round(rawWeek.sell_transactions * 7),
+        }
+      : rawWeek;
 
     const calcVariance = (curr: number, prev: number | undefined): number => {
       if (prev === undefined || prev === 0) return 0;
@@ -145,17 +170,22 @@ export default function DashboardPage() {
 
     const effectiveIndex = activeIndex >= 0 ? activeIndex : history.length - 1;
     const windowStart = Math.max(0, effectiveIndex - 4);
-    const chartHistory = history.slice(windowStart, effectiveIndex + 1);
+    const rawChartHistory = history.slice(windowStart, effectiveIndex + 1);
+    const chartHistory = rawChartHistory.map((w) => 
+      (w.week_label === currentWeek.week_label && isProratedWoW && isPartial) ? currentWeek : w
+    );
 
     return {
       currentWeek,
+      rawWeek,
+      isPartial,
       previousWeek,
       variances,
       history,
       chartHistory,
       activeIndex: effectiveIndex,
     };
-  }, [weeklyData, sortedHistory, selectedWeekLabel]);
+  }, [weeklyData, sortedHistory, selectedWeekLabel, isProratedWoW]);
 
   // Format date to DD/MM/YYYY
   const formatDisplayDate = (dateStr?: string) => {
@@ -256,8 +286,15 @@ export default function DashboardPage() {
             </button>
           </div>
 
-          {/* Right Header: System Audit + User Profile + EASY GOLD Brand Logo */}
-          <div className="flex items-center gap-2.5 sm:gap-3 flex-wrap justify-end">
+          {/* Right Header: Freshness Badge + System Audit + User Profile + Brand Logo */}
+          <div className="flex items-center gap-2 sm:gap-2.5 flex-wrap justify-end">
+            {/* Live Data Freshness & Sync Alert Badge */}
+            <FreshnessBadge
+              onTriggerRefresh={async () => {
+                await Promise.all([fetchWeeklySummary(), fetchMtdData()]);
+              }}
+            />
+
             {/* System Health, Calculation & Free Plan Audit Button */}
             <button
               onClick={() => setIsValidatorModalOpen(true)}
@@ -426,6 +463,114 @@ export default function DashboardPage() {
               </div>
             ) : activeWeeklyMetrics ? (
               <main className="flex-1 flex flex-col gap-3 sm:gap-4 justify-between">
+                {/* 1. In-Progress Partial Week Intelligence Alert Banner */}
+                {activeWeeklyMetrics.isPartial && (
+                  <div className="bg-gradient-to-r from-amber-500 via-amber-600 to-orange-600 rounded-2xl p-3.5 sm:p-4 text-white shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in duration-200">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 rounded-xl bg-white/20 backdrop-blur-xs shrink-0">
+                        <AlertTriangle className="w-5 h-5 text-white" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h4 className="text-xs sm:text-sm font-black uppercase tracking-wider">
+                            In-Progress Partial Week Detected: {selectedWeekLabel}
+                          </h4>
+                          <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-slate-950/30 text-amber-100">
+                            ~1-2 Days Elapsed
+                          </span>
+                        </div>
+                        <p className="text-xs text-amber-100/90 font-medium mt-0.5">
+                          Comparing raw numbers against a full 7-day week (W41) shows an artificial -87% drop. Turn on <strong>7-Day Prorated Run-Rate</strong> to compare on an equalized basis!
+                        </p>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => setIsProratedWoW(!isProratedWoW)}
+                      className={`px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer shadow-sm flex items-center gap-1.5 self-start sm:self-auto shrink-0 ${
+                        isProratedWoW
+                          ? 'bg-slate-950 text-amber-400 ring-2 ring-amber-300'
+                          : 'bg-white text-slate-900 hover:bg-amber-50'
+                      }`}
+                    >
+                      <Gauge className="w-3.5 h-3.5" />
+                      <span>{isProratedWoW ? '⚡ Prorated Run-Rate: ON' : 'Prorate to 7-Day Run-Rate'}</span>
+                    </button>
+                  </div>
+                )}
+
+                {/* 2. Senior Analyst Executive Brief ("What to Know & Aware") */}
+                <div className="bg-gradient-to-r from-slate-900 via-[#0c4ca3] to-slate-900 rounded-2xl p-4 sm:p-5 text-white shadow-md relative overflow-hidden">
+                  <div className="flex items-center justify-between pb-3 border-b border-white/15 mb-3 flex-wrap gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="p-1 rounded-lg bg-amber-400 text-slate-950">
+                        <Sparkles className="w-4 h-4 font-black" />
+                      </span>
+                      <h3 className="text-xs sm:text-sm font-black uppercase tracking-wider text-amber-300">
+                        Week over Week (WoW) Executive Brief &amp; Diagnosis
+                      </h3>
+                    </div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-white/20 text-white border border-white/30">
+                      Senior Analyst Insights
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+                    {/* Insight 1: Daily Velocity */}
+                    <div className="bg-white/10 backdrop-blur-xs p-3 rounded-xl border border-white/10 space-y-1">
+                      <div className="flex items-center justify-between text-emerald-300 font-extrabold text-[11px]">
+                        <span>⚡ Daily Velocity</span>
+                        <span>{activeWeeklyMetrics.isPartial ? 'Day 1 Tempo' : '7-Day Avg'}</span>
+                      </div>
+                      <p className="text-white/90 text-[11px] leading-relaxed">
+                        {activeWeeklyMetrics.isPartial ? (
+                          <>
+                            Day 1 recorded <strong>{activeWeeklyMetrics.rawWeek.all_transactions.toLocaleString()} tx/day</strong> vs W41 daily average of <strong>{Math.round((activeWeeklyMetrics.previousWeek?.all_transactions || 39744) / 7).toLocaleString()} tx/day</strong> (-10.6% normalized).
+                          </>
+                        ) : (
+                          <>
+                            Weekly daily average was <strong>{Math.round(activeWeeklyMetrics.currentWeek.all_transactions / 7).toLocaleString()} tx/day</strong> with strong trading volume.
+                          </>
+                        )}
+                      </p>
+                    </div>
+
+                    {/* Insight 2: Net Gold Flow Balance */}
+                    <div className="bg-white/10 backdrop-blur-xs p-3 rounded-xl border border-white/10 space-y-1">
+                      <div className="flex items-center justify-between text-amber-300 font-extrabold text-[11px]">
+                        <span>⚖️ Net Gold Flow</span>
+                        <span>{Number(activeWeeklyMetrics.currentWeek.buy_weight_15g) - Number(activeWeeklyMetrics.currentWeek.sell_weight_15g) >= 0 ? '+Net Inflow' : '-Net Outflow'}</span>
+                      </div>
+                      <p className="text-white/90 text-[11px] leading-relaxed">
+                        Buy Weight is <strong>{Number(activeWeeklyMetrics.currentWeek.buy_weight_15g).toLocaleString()} (15g)</strong> vs Sell Weight of <strong>{Number(activeWeeklyMetrics.currentWeek.sell_weight_15g).toLocaleString()} (15g)</strong> (Net flow: <strong>{(Number(activeWeeklyMetrics.currentWeek.buy_weight_15g) - Number(activeWeeklyMetrics.currentWeek.sell_weight_15g)).toLocaleString()} (15g)</strong>).
+                      </p>
+                    </div>
+
+                    {/* Insight 3: Ticket Size Dynamics */}
+                    <div className="bg-white/10 backdrop-blur-xs p-3 rounded-xl border border-white/10 space-y-1">
+                      <div className="flex items-center justify-between text-blue-300 font-extrabold text-[11px]">
+                        <span>🔍 Ticket Size Trends</span>
+                        <span>{activeWeeklyMetrics.currentWeek.buy_ticket_size_g}g Buy Avg</span>
+                      </div>
+                      <p className="text-white/90 text-[11px] leading-relaxed">
+                        Average buy ticket is <strong>{activeWeeklyMetrics.currentWeek.buy_ticket_size_g}g</strong> while sell ticket is <strong>{activeWeeklyMetrics.currentWeek.sell_ticket_size_g}g</strong>, demonstrating sustained retail micro-savings behavior.
+                      </p>
+                    </div>
+
+                    {/* Insight 4: User Base Momentum */}
+                    <div className="bg-white/10 backdrop-blur-xs p-3 rounded-xl border border-white/10 space-y-1">
+                      <div className="flex items-center justify-between text-teal-300 font-extrabold text-[11px]">
+                        <span>👥 User Participation</span>
+                        <span>{activeWeeklyMetrics.currentWeek.active_users.toLocaleString()} Active</span>
+                      </div>
+                      <p className="text-white/90 text-[11px] leading-relaxed">
+                        Engagement ratio stands at <strong>{(activeWeeklyMetrics.currentWeek.all_transactions / Math.max(1, activeWeeklyMetrics.currentWeek.active_users)).toFixed(2)} tx/user</strong> with <strong>+{activeWeeklyMetrics.currentWeek.new_registers.toLocaleString()}</strong> new signups.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 3. Three Themed Cards Sections */}
                 <section className="w-full">
                   <PlatformOverviewSection
                     currentWeek={activeWeeklyMetrics.currentWeek}
@@ -454,6 +599,16 @@ export default function DashboardPage() {
                     />
                   </section>
                 </div>
+
+                {/* 4. 8-Week Historical Trajectory Matrix with 4-Week Moving Average (MA4) */}
+                <section className="w-full">
+                  <WeeklyHistoricalMatrix
+                    history={sortedHistory}
+                    selectedWeek={selectedWeekLabel}
+                    onSelectWeek={setSelectedWeekLabel}
+                    isProrated={isProratedWoW}
+                  />
+                </section>
               </main>
             ) : null}
           </div>

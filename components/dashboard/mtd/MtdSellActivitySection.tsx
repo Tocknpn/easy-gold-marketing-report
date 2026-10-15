@@ -9,6 +9,8 @@ interface MtdSellActivitySectionProps {
   sellTransactions: MtdMetricItem;
   withdraw15g: MtdMetricItem;
   comparisonMonthLabel: string;
+  elapsedDays?: number;
+  totalDays?: number;
 }
 
 export function MtdSellActivitySection({
@@ -16,6 +18,8 @@ export function MtdSellActivitySection({
   sellTransactions,
   withdraw15g,
   comparisonMonthLabel,
+  elapsedDays = 11,
+  totalDays = 31,
 }: MtdSellActivitySectionProps) {
   return (
     <div className="border-[2px] border-dotted border-[#a33333] rounded-2xl p-2.5 sm:p-3 bg-[#fdf7f7] flex flex-col h-full shadow-xs">
@@ -29,14 +33,20 @@ export function MtdSellActivitySection({
         <MtdMetricCard
           metric={sellWeight}
           comparisonMonthLabel={comparisonMonthLabel}
+          elapsedDays={elapsedDays}
+          totalDays={totalDays}
         />
         <MtdMetricCard
           metric={sellTransactions}
           comparisonMonthLabel={comparisonMonthLabel}
+          elapsedDays={elapsedDays}
+          totalDays={totalDays}
         />
         <MtdMetricCard
           metric={withdraw15g}
           comparisonMonthLabel={comparisonMonthLabel}
+          elapsedDays={elapsedDays}
+          totalDays={totalDays}
         />
       </div>
     </div>

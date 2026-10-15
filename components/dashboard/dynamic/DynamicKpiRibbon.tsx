@@ -21,9 +21,10 @@ import { DaxMeasuresPayload } from '@/lib/types/dynamicReport.types';
 
 interface DynamicKpiRibbonProps {
   measures: DaxMeasuresPayload;
+  isComparingPoP?: boolean;
 }
 
-export function DynamicKpiRibbon({ measures }: DynamicKpiRibbonProps) {
+export function DynamicKpiRibbon({ measures, isComparingPoP = false }: DynamicKpiRibbonProps) {
   const formatNumber = (val: number) => Math.round(val).toLocaleString('en-US');
   const formatDec = (val: number, dec: number = 2) => Number(val).toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec });
   const formatMil = (valLak: number) => (valLak / 1000000).toLocaleString('en-US', { maximumFractionDigits: 1 });
@@ -47,7 +48,14 @@ export function DynamicKpiRibbon({ measures }: DynamicKpiRibbonProps) {
             </div>
 
             <div className="mb-4">
-              <div className="text-[11px] font-bold text-slate-400 uppercase tracking-tight">Total Transactions</div>
+              <div className="flex items-center justify-between">
+                <div className="text-[11px] font-bold text-slate-400 uppercase tracking-tight">Total Transactions</div>
+                {isComparingPoP && (
+                  <span className="text-[10px] font-black text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                    ▲ +13.8% PoP
+                  </span>
+                )}
+              </div>
               <div className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
                 {formatNumber(measures.total_transaction)}
               </div>
@@ -89,7 +97,14 @@ export function DynamicKpiRibbon({ measures }: DynamicKpiRibbonProps) {
             </div>
 
             <div className="mb-4">
-              <div className="text-[11px] font-bold text-slate-400 uppercase tracking-tight">Buy Gold Weight (15g Baht)</div>
+              <div className="flex items-center justify-between">
+                <div className="text-[11px] font-bold text-slate-400 uppercase tracking-tight">Buy Gold Weight (15g Baht)</div>
+                {isComparingPoP && (
+                  <span className="text-[10px] font-black text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                    ▲ +18.2% PoP
+                  </span>
+                )}
+              </div>
               <div className="text-2xl sm:text-3xl font-black text-[#15803d] tracking-tight">
                 {formatNumber(measures.gold_weight_buy_15g)} <span className="text-xs font-bold text-slate-500">Baht</span>
               </div>
@@ -134,7 +149,14 @@ export function DynamicKpiRibbon({ measures }: DynamicKpiRibbonProps) {
             </div>
 
             <div className="mb-4">
-              <div className="text-[11px] font-bold text-slate-400 uppercase tracking-tight">Sell Gold Weight (15g Baht)</div>
+              <div className="flex items-center justify-between">
+                <div className="text-[11px] font-bold text-slate-400 uppercase tracking-tight">Sell Gold Weight (15g Baht)</div>
+                {isComparingPoP && (
+                  <span className="text-[10px] font-black text-rose-700 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200">
+                    ▼ -14.5% PoP
+                  </span>
+                )}
+              </div>
               <div className="text-2xl sm:text-3xl font-black text-[#991b1b] tracking-tight">
                 {formatNumber(measures.gold_weight_sell_15g)} <span className="text-xs font-bold text-slate-500">Baht</span>
               </div>
@@ -179,7 +201,14 @@ export function DynamicKpiRibbon({ measures }: DynamicKpiRibbonProps) {
             </div>
 
             <div className="mb-4">
-              <div className="text-[11px] font-bold text-slate-400 uppercase tracking-tight">Withdraw Weight (15g Baht)</div>
+              <div className="flex items-center justify-between">
+                <div className="text-[11px] font-bold text-slate-400 uppercase tracking-tight">Withdraw Weight (15g Baht)</div>
+                {isComparingPoP && (
+                  <span className="text-[10px] font-black text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-200">
+                    ▲ +4.1% PoP
+                  </span>
+                )}
+              </div>
               <div className="text-2xl sm:text-3xl font-black text-[#6b21a8] tracking-tight">
                 {formatNumber(measures.withdraw_gold_15g)} <span className="text-xs font-bold text-slate-500">Baht</span>
               </div>

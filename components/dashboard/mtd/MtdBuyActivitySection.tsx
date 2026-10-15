@@ -8,12 +8,16 @@ interface MtdBuyActivitySectionProps {
   buyWeight: MtdMetricItem;
   buyTransactions: MtdMetricItem;
   comparisonMonthLabel: string;
+  elapsedDays?: number;
+  totalDays?: number;
 }
 
 export function MtdBuyActivitySection({
   buyWeight,
   buyTransactions,
   comparisonMonthLabel,
+  elapsedDays = 11,
+  totalDays = 31,
 }: MtdBuyActivitySectionProps) {
   return (
     <div className="border-[2px] border-dotted border-[#2e7d32] rounded-2xl p-2.5 sm:p-3 bg-[#f5f9f5] flex flex-col h-full shadow-xs">
@@ -27,10 +31,14 @@ export function MtdBuyActivitySection({
         <MtdMetricCard
           metric={buyWeight}
           comparisonMonthLabel={comparisonMonthLabel}
+          elapsedDays={elapsedDays}
+          totalDays={totalDays}
         />
         <MtdMetricCard
           metric={buyTransactions}
           comparisonMonthLabel={comparisonMonthLabel}
+          elapsedDays={elapsedDays}
+          totalDays={totalDays}
         />
       </div>
     </div>

@@ -446,6 +446,23 @@ export function PowerPivotStudio({ currentUser }: Props) {
               <Copy className="w-3.5 h-3.5" /> Save as
             </button>
             <button
+              onClick={() => {
+                if (typeof window !== 'undefined') {
+                  const url = new URL(window.location.href);
+                  url.searchParams.set('tab', 'pivot');
+                  if (activeProfile?.id) {
+                    url.searchParams.set('profile', activeProfile.id);
+                  }
+                  navigator.clipboard.writeText(url.toString());
+                  alert('Report profile link copied to clipboard!');
+                }
+              }}
+              title="Share report layout link"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-white/10 hover:bg-white/20 border border-white/20 text-white"
+            >
+              <Copy className="w-3.5 h-3.5" /> Share
+            </button>
+            <button
               onClick={() => openSave('save')}
               className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-black bg-[#e5a812] hover:bg-[#d4970b] text-slate-950 ${isDirty ? 'ring-2 ring-white/70' : ''}`}
             >
