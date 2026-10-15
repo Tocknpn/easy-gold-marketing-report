@@ -6,8 +6,13 @@ import { BuyActivitySection } from '@/components/dashboard/BuyActivitySection';
 import { SellActivitySection } from '@/components/dashboard/SellActivitySection';
 import { MtdReportView } from '@/components/dashboard/mtd/MtdReportView';
 import { DynamicReportView } from '@/components/dashboard/dynamic/DynamicReportView';
+import { PivotReportView } from '@/components/dashboard/pivot/PivotReportView';
+import { CampaignTrackingView } from '@/components/dashboard/campaign/CampaignTrackingView';
+import { UserAuthModal } from '@/components/dashboard/auth/UserAuthModal';
 import { ExecutiveDashboardData, WeeklyMetricRow, MetricVariances } from '@/lib/types/dashboard.types';
 import { MtdReportPayload } from '@/lib/types/mtd.types';
+import { UserProfile } from '@/lib/types/auth.types';
+import { getCurrentUser } from '@/lib/supabase/authHelper';
 import { 
   Calendar, 
   RefreshCw, 
@@ -16,15 +21,24 @@ import {
   Database, 
   TrendingUp, 
   BarChart3,
-  SlidersHorizontal
+  SlidersHorizontal,
+  Table2,
+  Target,
+  UserCircle2,
+  Lock,
+  Sparkles
 } from 'lucide-react';
 
 import { DEFAULT_MTD_PAYLOAD } from '@/lib/constants/mtdData';
 import { DEFAULT_WEEKLY_FALLBACK_DATA } from '@/lib/constants/weeklyData';
 
 export default function DashboardPage() {
-  // View toggle: 'dynamic' for Dynamic BI & DAX Explorer, 'mtd' for MTD & Forecast, 'weekly' for WoW Combo Charts
-  const [activeReportTab, setActiveReportTab] = useState<'dynamic' | 'mtd' | 'weekly'>('dynamic');
+  // View toggle: 'dynamic', 'mtd', 'weekly', 'pivot', 'campaign'
+  const [activeReportTab, setActiveReportTab] = useState<'dynamic' | 'mtd' | 'weekly' | 'pivot' | 'campaign'>('dynamic');
+
+  // User authentication state
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
 
   // Weekly data state initialized with default data
   const [weeklyData, setWeeklyData] = useState<ExecutiveDashboardData>(DEFAULT_WEEKLY_FALLBACK_DATA);
@@ -71,6 +85,7 @@ export default function DashboardPage() {
   };
 
   useEffect(() => {
+    getCurrentUser().then(setCurrentUser);
     fetchMtdData();
     fetchWeeklySummary();
   }, []);
@@ -183,7 +198,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Vertical Navigation Icons */}
-        <div className="flex flex-col items-center gap-3 w-full px-2">
+        <div className="flex flex-col items-center gap-2.5 w-full px-2">
           <button
             onClick={() => setActiveReportTab('dynamic')}
             className={`w-full aspect-square rounded-xl flex flex-col items-center justify-center gap-1 transition-all ${
@@ -222,6 +237,32 @@ export default function DashboardPage() {
             <BarChart3 className="w-5 h-5" />
             <span className="text-[9px] font-black tracking-tighter">WoW</span>
           </button>
+
+          <button
+            onClick={() => setActiveReportTab('pivot')}
+            className={`w-full aspect-square rounded-xl flex flex-col items-center justify-center gap-1 transition-all ${
+              activeReportTab === 'pivot'
+                ? 'bg-white text-[#0c4ca3] shadow-md font-bold'
+                : 'text-white/70 hover:text-white hover:bg-white/10'
+            }`}
+            title="Custom Reporting Profile (Pivot Studio)"
+          >
+            <Table2 className="w-5 h-5" />
+            <span className="text-[9px] font-black tracking-tighter">PIVOT</span>
+          </button>
+
+          <button
+            onClick={() => setActiveReportTab('campaign')}
+            className={`w-full aspect-square rounded-xl flex flex-col items-center justify-center gap-1 transition-all ${
+              activeReportTab === 'campaign'
+                ? 'bg-white text-[#0c4ca3] shadow-md font-bold'
+                : 'text-white/70 hover:text-white hover:bg-white/10'
+            }`}
+            title="Campaign Tracking & Analytics"
+          >
+            <Target className="w-5 h-5" />
+            <span className="text-[9px] font-black tracking-tighter">CAMP</span>
+          </button>
         </div>
 
         <div className="text-[9px] text-white/40 font-mono tracking-tighter text-center">
@@ -234,50 +275,94 @@ export default function DashboardPage() {
         {/* Navigation Tabs Bar & Branding */}
         <div className="flex items-center justify-between pb-3 mb-2 border-b border-slate-200/80 gap-3 flex-wrap">
           {/* Executive View Tabs */}
-          <div className="flex items-center bg-white p-1 rounded-xl border border-slate-300/80 shadow-xs">
+          <div className="flex items-center bg-white p-1 rounded-xl border border-slate-300/80 shadow-xs flex-wrap gap-1">
             <button
               onClick={() => setActiveReportTab('dynamic')}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-black transition-all ${
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-black transition-all ${
                 activeReportTab === 'dynamic'
                   ? 'bg-[#0c4ca3] text-white shadow-xs'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
               }`}
             >
               <SlidersHorizontal className="w-4 h-4" />
-              <span>Dynamic BI Report</span>
+              <span>Dynamic BI</span>
             </button>
             <button
               onClick={() => setActiveReportTab('mtd')}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-black transition-all ${
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-black transition-all ${
                 activeReportTab === 'mtd'
                   ? 'bg-[#0c4ca3] text-white shadow-xs'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
               }`}
             >
               <TrendingUp className="w-4 h-4" />
-              <span>MTD & Forecast Report</span>
+              <span>MTD Forecast</span>
             </button>
             <button
               onClick={() => setActiveReportTab('weekly')}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-black transition-all ${
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-black transition-all ${
                 activeReportTab === 'weekly'
                   ? 'bg-[#0c4ca3] text-white shadow-xs'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
               }`}
             >
               <BarChart3 className="w-4 h-4" />
-              <span>Week over Week (WoW)</span>
+              <span>WoW Trends</span>
+            </button>
+            <button
+              onClick={() => setActiveReportTab('pivot')}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-black transition-all ${
+                activeReportTab === 'pivot'
+                  ? 'bg-[#0c4ca3] text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+              }`}
+            >
+              <Table2 className="w-4 h-4" />
+              <span>Custom Pivot Profile</span>
+            </button>
+            <button
+              onClick={() => setActiveReportTab('campaign')}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-black transition-all ${
+                activeReportTab === 'campaign'
+                  ? 'bg-[#0c4ca3] text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+              }`}
+            >
+              <Target className="w-4 h-4" />
+              <span>Campaign Tracking</span>
             </button>
           </div>
 
-          {/* Logo: EASY GOLD by KHAMPHOUVONG */}
-          <div className="text-right select-none pl-2">
-            <div className="flex items-baseline justify-end gap-1 font-black leading-none">
-              <span className="text-xl sm:text-2xl text-[#e5a812] tracking-wider">EASY</span>
-              <span className="text-xl sm:text-2xl text-[#0c4ca3] tracking-wider">GOLD</span>
-            </div>
-            <div className="text-[10px] sm:text-[11px] font-bold text-slate-400 tracking-wider mt-0.5">
-              by KHAMPHOUVONG
+          {/* Right Header: User Account Profile + EASY GOLD Brand Logo */}
+          <div className="flex items-center gap-3">
+            {/* User Account / Profile Badge button */}
+            <button
+              onClick={() => setIsAuthModalOpen(true)}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white border border-slate-300 hover:border-slate-400 text-slate-700 shadow-xs transition-all hover:bg-slate-50"
+              title="Manage Account & Reporting Profiles"
+            >
+              <div className="w-6 h-6 rounded-lg bg-[#0c4ca3] text-[#e5a812] font-black text-xs flex items-center justify-center">
+                {currentUser ? currentUser.email.charAt(0).toUpperCase() : 'U'}
+              </div>
+              <div className="text-left hidden sm:block">
+                <span className="block text-[11px] font-bold text-slate-800 leading-tight truncate max-w-[120px]">
+                  {currentUser ? (currentUser.full_name || currentUser.email.split('@')[0]) : 'Sign In'}
+                </span>
+                <span className="block text-[9px] font-bold text-emerald-600 uppercase tracking-tighter leading-tight">
+                  {currentUser ? currentUser.role : 'Guest Mode'}
+                </span>
+              </div>
+            </button>
+
+            {/* Logo: EASY GOLD by KHAMPHOUVONG */}
+            <div className="text-right select-none pl-1">
+              <div className="flex items-baseline justify-end gap-1 font-black leading-none">
+                <span className="text-xl sm:text-2xl text-[#e5a812] tracking-wider">EASY</span>
+                <span className="text-xl sm:text-2xl text-[#0c4ca3] tracking-wider">GOLD</span>
+              </div>
+              <div className="text-[10px] sm:text-[11px] font-bold text-slate-400 tracking-wider mt-0.5">
+                by KHAMPHOUVONG
+              </div>
             </div>
           </div>
         </div>
@@ -439,7 +524,31 @@ export default function DashboardPage() {
             ) : null}
           </div>
         )}
+
+        {/* TAB 3: CUSTOM REPORTING PROFILE (PIVOT STUDIO) */}
+        {activeReportTab === 'pivot' && (
+          <PivotReportView
+            currentUser={currentUser}
+            onOpenAuthModal={() => setIsAuthModalOpen(true)}
+          />
+        )}
+
+        {/* TAB 4: CAMPAIGN TRACKING & TARGET INTELLIGENCE */}
+        {activeReportTab === 'campaign' && (
+          <CampaignTrackingView
+            currentUser={currentUser}
+            onOpenAuthModal={() => setIsAuthModalOpen(true)}
+          />
+        )}
       </div>
+
+      {/* User Login & Password Modal */}
+      <UserAuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+        currentUser={currentUser}
+        onAuthChange={setCurrentUser}
+      />
     </div>
   );
 }
