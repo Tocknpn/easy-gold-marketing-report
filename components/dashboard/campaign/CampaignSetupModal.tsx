@@ -420,38 +420,38 @@ export function CampaignSetupModal({
               </div>
             </div>
 
-            {/* Event Scale, Team & Venue Details (Image 2 style) */}
+            {/* Marketing Scale & Channel Details */}
             <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200/90 grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
                 <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                  Scale Category
+                  Campaign Scale &amp; Type
                 </label>
                 <select
                   value={scaleCategory}
                   onChange={(e) => setScaleCategory(e.target.value)}
                   className="w-full px-2.5 py-1.5 text-xs font-bold border border-slate-300 rounded-xl bg-white"
                 >
-                  <option value="MEDIUM — H2H BOOTH">MEDIUM — H2H BOOTH</option>
-                  <option value="NATIONAL — H2H BOOTH">NATIONAL — H2H BOOTH</option>
-                  <option value="LARGE — EVENT (OUTDOOR)">LARGE — EVENT (OUTDOOR)</option>
-                  <option value="MED/LARGE BOUNDARY — COMMUNITY/PANEL">MED/LARGE BOUNDARY — COMMUNITY/PANEL</option>
-                  <option value="SMALL — SPONSORSHIP">SMALL — SPONSORSHIP</option>
-                  <option value="MEDIUM — COMMUNITY/PANEL">MEDIUM — COMMUNITY/PANEL</option>
+                  <option value="VOLUME DRIVER — TICKET >= 500K">VOLUME DRIVER — TICKET &gt;= 500K</option>
+                  <option value="SPRINT PROMO — WEIGHT >= 2.0G">SPRINT PROMO — WEIGHT &gt;= 2.0G</option>
+                  <option value="VIP RETENTION — WEIGHT >= 15.0G">VIP RETENTION — WEIGHT &gt;= 15.0G</option>
+                  <option value="ACQUISITION — FIRST BUY >= 200K">ACQUISITION — FIRST BUY &gt;= 200K</option>
+                  <option value="SEASONAL FESTIVAL CAMPAIGN">SEASONAL FESTIVAL CAMPAIGN</option>
                 </select>
               </div>
 
               <div>
                 <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                  Host Team
+                  Channel / Desk
                 </label>
                 <select
                   value={team}
                   onChange={(e) => setTeam(e.target.value)}
                   className="w-full px-2.5 py-1.5 text-xs font-bold border border-slate-300 rounded-xl bg-white"
                 >
-                  <option value="KPV">KPV</option>
-                  <option value="AGENCY">AGENCY</option>
-                  <option value="MARKETING">MARKETING</option>
+                  <option value="ALL BRANCHES">ALL BRANCHES</option>
+                  <option value="MOBILE APP">MOBILE APP</option>
+                  <option value="VIP DESK">VIP DESK</option>
+                  <option value="DIGITAL GROWTH">DIGITAL GROWTH</option>
                 </select>
               </div>
 

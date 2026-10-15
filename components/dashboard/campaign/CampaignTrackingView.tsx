@@ -10,24 +10,22 @@ import {
   INITIAL_PRESET_CAMPAIGNS 
 } from '@/lib/storage/campaignStorage';
 import { computeCampaignAnalytics } from '@/lib/campaign/campaignEngine';
-import { CampaignCardItem, formatKipShort, formatEventDateRange } from './CampaignCardItem';
+import { CampaignCardItem, formatKipShort } from './CampaignCardItem';
 import { CampaignDetailModal } from './CampaignDetailModal';
 import { CampaignSetupModal } from './CampaignSetupModal';
+import { CampaignTargetTable } from './CampaignTargetTable';
+import { CampaignBackwardCompareTable } from './CampaignBackwardCompareTable';
 import { 
   LayoutGrid, 
   Table2, 
   FileSpreadsheet, 
-  SlidersHorizontal, 
   Plus, 
   RefreshCw, 
-  FileText, 
-  Zap, 
-  Edit3, 
-  Trash2,
-  Calendar,
-  MapPin,
-  Clock,
-  Sparkles
+  SlidersHorizontal,
+  Info,
+  Sparkles,
+  Target,
+  ArrowRight
 } from 'lucide-react';
 
 interface CampaignTrackingViewProps {
@@ -42,14 +40,9 @@ export function CampaignTrackingView({
   const [allCampaigns, setAllCampaigns] = useState<CampaignSetupConfig[]>(INITIAL_PRESET_CAMPAIGNS);
   const [activeCampaign, setActiveCampaign] = useState<CampaignSetupConfig>(INITIAL_PRESET_CAMPAIGNS[0]);
   
-  // View mode: 'cards' or 'table' matching Image 2
-  const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
-
-  // Filter Bar state matching Image 2
-  const [selectedYear, setSelectedYear] = useState<string>('2026');
-  const [selectedQuarter, setSelectedQuarter] = useState<string>('all');
-  const [selectedTeam, setSelectedTeam] = useState<string>('all');
+  // Filter state (Pic 2 style)
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
 
   // Modals
   const [isSetupModalOpen, setIsSetupModalOpen] = useState(false);
@@ -72,7 +65,7 @@ export function CampaignTrackingView({
         setActiveCampaign(list[0]);
       }
     } finally {
-      setTimeout(() => setIsRefreshing(false), 400);
+      setTimeout(() => setIsRefreshing(false), 300);
     }
   }, [currentUser?.id, activeCampaign]);
 
@@ -80,40 +73,31 @@ export function CampaignTrackingView({
     refreshCampaigns();
   }, [currentUser?.id]);
 
-  // Filtered campaigns according to filter bar dropdowns
+  // Filtered campaigns
   const filteredCampaigns = useMemo(() => {
     return allCampaigns.filter((c) => {
-      // Year filter
-      if (selectedYear !== 'all') {
-        const itemYear = c.year ? String(c.year) : (c.campaign_date_start ? c.campaign_date_start.slice(0, 4) : '2026');
-        if (itemYear !== selectedYear) return false;
-      }
-      // Quarter filter
-      if (selectedQuarter !== 'all') {
-        if (c.quarter && c.quarter.toLowerCase() !== selectedQuarter.toLowerCase()) return false;
-      }
-      // Team filter
-      if (selectedTeam !== 'all') {
-        const itemTeam = (c.team || 'KPV').toLowerCase();
-        if (itemTeam !== selectedTeam.toLowerCase()) return false;
-      }
       // Status filter
       if (selectedStatus !== 'all') {
-        const isComp = c.status === 'completed';
-        if (selectedStatus === 'completed' && !isComp) return false;
-        if (selectedStatus === 'pending' && isComp) return false;
+        const itemStatus = c.status || 'active';
+        if (selectedStatus !== itemStatus) return false;
+      }
+      // Category filter
+      if (selectedCategory !== 'all') {
+        const itemCat = (c.category_tag || '').toLowerCase();
+        if (!itemCat.includes(selectedCategory.toLowerCase())) return false;
       }
       return true;
     });
-  }, [allCampaigns, selectedYear, selectedQuarter, selectedTeam, selectedStatus]);
+  }, [allCampaigns, selectedStatus, selectedCategory]);
 
   // Compute live analytics payload for active campaign
   const analytics: CampaignAnalyticsPayload = useMemo(() => {
-    return computeCampaignAnalytics(activeCampaign || allCampaigns[0], liveData);
+    const target = activeCampaign || allCampaigns[0];
+    return computeCampaignAnalytics(target, liveData);
   }, [activeCampaign, allCampaigns, liveData]);
 
   // Execute Live Calculate from Supabase for target campaign
-  const handleExecuteRecord = useCallback(async (targetCamp: CampaignSetupConfig) => {
+  const handleExecuteCalculate = useCallback(async (targetCamp: CampaignSetupConfig) => {
     setActiveCampaign(targetCamp);
     setRecordingId(targetCamp.id);
     try {
@@ -164,7 +148,7 @@ export function CampaignTrackingView({
 
   // Delete Campaign
   const handleDeleteCampaign = async (campaignId: string) => {
-    if (confirm('Are you sure you want to delete this event/campaign setup?')) {
+    if (confirm('Are you sure you want to delete this campaign setup?')) {
       await deleteCampaignSetup(campaignId, currentUser?.id);
       const updatedList = await loadCampaignSetups(currentUser?.id);
       setAllCampaigns(updatedList);
@@ -194,54 +178,41 @@ export function CampaignTrackingView({
   const handleExportCsv = () => {
     setIsExporting(true);
     try {
-      const headers = [
-        'Scale Category',
-        'Campaign Name',
-        'Team',
-        'Status',
-        'Start Date',
-        'End Date',
-        'Location',
-        'Spending Cost (LAK)',
-        'Plan Budget (LAK)',
-        'Customers Actual',
-        'Customers Target',
-        'New Cust Actual',
-        'New Cust Target',
-        'CPO Actual',
-        'CPO Target',
-        'CPA Actual',
-        'CPA Target',
-        'Execution Status'
+      const t1 = analytics.targetAchievement;
+      const t2 = analytics.backwardComparison;
+
+      const lines = [
+        `Easy Gold Campaign Tracking Report: ${activeCampaign.campaign_name}`,
+        `Start: ${activeCampaign.campaign_date_start}, End: ${activeCampaign.campaign_date_end}, As-Of: ${activeCampaign.data_update_on}`,
+        `Total Days: ${t1.total_days}, Elapsed Days: ${t1.elapsed_days}, %Time Gone: ${t1.pct_time_gone}%`,
+        `Status: ${t1.is_ended ? 'Completed' : t1.is_upcoming ? 'Upcoming' : 'Active In Progress'}`,
+        '',
+        '--- TABLE 1: TARGET ACHIEVEMENT & RUN-RATE PROJECTION ---',
+        `Metric,Target,MTD (${t1.elapsed_days} Days),% Target Hit,RR Projection (${t1.total_days} Days),Projected % Hit`,
+        `%Time Gone,-,${t1.pct_time_gone}%,-,100%,-`,
+        `"${t1.condition_label}",${t1.ec_target},${t1.ec_actual_mtd},${t1.ec_pct_hit_mtd}%,${t1.ec_rr_projected},${t1.ec_pct_hit_rr}%`,
+        `Total NC,${t1.nc_target},${t1.nc_actual_mtd},${t1.nc_pct_hit_mtd}%,${t1.nc_rr_projected},${t1.nc_pct_hit_rr}%`,
+        `MTD Buy weight (g),-,${t1.mtd_buy_weight_g},-,${t1.rr_buy_weight_g},-`,
+        `MTD Buy Value (mil LAK),-,${t1.mtd_buy_value_mil_lak},-,${t1.rr_buy_value_mil_lak},-`,
+        `MTD Ticket Size (g),-,${t1.mtd_ticket_size_g},-,${t1.rr_ticket_size_g},-`,
+        `Avg. Buy Trans Target per day,-,-,-,${t1.avg_buy_trans_target_per_day},-`,
+        `Act. Buy Trans per day,-,-,-,${t1.act_buy_trans_per_day},-`,
+        `Daily Compare,-,-,-,${t1.daily_compare_pct}%,-`,
+        '',
+        '--- TABLE 2: COMPARISON VS SAME PERIOD BACKWARD ---',
+        `Category,Metric,MTD (${t2.mtd_days} Days),Backward (${t2.backward_days} Days),%Compare`,
+        `Buy Transaction,"${t2.buy_trans_condition_label}",${t2.buy_trans_mtd},${t2.buy_trans_backward},${t2.buy_trans_pct_compare}%`,
+        `Buy value (LAK),MTD Buy Value (mil LAK),${t2.buy_value_lak_mtd},${t2.buy_value_lak_backward},${t2.buy_value_pct_compare}%`,
+        `Buy weight (g),MTD Buy Weight (g),${t2.buy_weight_g_mtd},${t2.buy_weight_g_backward},${t2.buy_weight_pct_compare}%`,
+        `Buy Ticket size (g),MTD Ticket Size (g),${t2.ticket_size_g_mtd},${t2.ticket_size_g_backward},${t2.ticket_size_pct_compare}%`,
       ];
 
-      const rows = filteredCampaigns.map((c) => [
-        `"${c.scale_category || c.category_tag || ''}"`,
-        `"${c.campaign_name}"`,
-        `"${c.team || 'KPV'}"`,
-        `"${c.status || 'Pending'}"`,
-        `"${c.campaign_date_start}"`,
-        `"${c.campaign_date_end}"`,
-        `"${c.location || ''}"`,
-        c.total_spending_cost || 0,
-        c.plan_budget || 0,
-        c.customers_actual || 0,
-        c.customers_target || c.ec_target || 0,
-        c.new_cust_actual || 0,
-        c.new_cust_target || c.nc_target || 0,
-        c.cpo_actual || 0,
-        c.cpo_target || 0,
-        c.cpa_actual || 0,
-        c.cpa_target || 0,
-        `"${c.execution_status_label || ''}"`
-      ]);
-
-      const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+      const csvContent = lines.join('\n');
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.setAttribute('href', url);
-      link.setAttribute('download', `easy_gold_campaigns_${new Date().toISOString().slice(0, 10)}.csv`);
+      link.setAttribute('download', `easy_gold_campaign_${activeCampaign.id}_${new Date().toISOString().slice(0, 10)}.csv`);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -251,115 +222,75 @@ export function CampaignTrackingView({
   };
 
   return (
-    <div className="space-y-4">
-      {/* 1. Header Navigation Bar matching Image 2 */}
+    <div className="space-y-6">
+      {/* 1. Header Bar with Actions & Pic 2 Style Controls */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
-        {/* Left Navigation Buttons: Cards | Table | Export CSV | List Setup */}
-        <div className="flex items-center gap-2 flex-wrap">
-          {/* Cards Tab */}
-          <button
-            onClick={() => setViewMode('cards')}
-            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs sm:text-sm font-black transition-all ${
-              viewMode === 'cards'
-                ? 'bg-[#0c4ca3] text-white shadow-xs'
-                : 'bg-white border border-slate-300 text-slate-700 hover:bg-slate-50'
-            }`}
-          >
-            <LayoutGrid className="w-4 h-4" />
-            <span>Cards</span>
-          </button>
+        <div>
+          <div className="flex items-center gap-2">
+            <Target className="w-5 h-5 text-[#0c4ca3]" />
+            <h2 className="text-base sm:text-lg font-black tracking-tight text-slate-900 uppercase">
+              Campaign Tracking &amp; Target Performance
+            </h2>
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-[#0c4ca3] text-white">
+              {allCampaigns.length} Campaigns
+            </span>
+          </div>
+          <p className="text-xs text-slate-500 font-medium mt-0.5">
+            Select any campaign card below to inspect live target pacing, run-rate projections, and same-period backward benchmarks.
+          </p>
+        </div>
 
-          {/* Table Tab */}
-          <button
-            onClick={() => setViewMode('table')}
-            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs sm:text-sm font-black transition-all ${
-              viewMode === 'table'
-                ? 'bg-[#0c4ca3] text-white shadow-xs'
-                : 'bg-white border border-slate-300 text-slate-700 hover:bg-slate-50'
-            }`}
-          >
-            <Table2 className="w-4 h-4" />
-            <span>Table</span>
-          </button>
-
-          {/* Export CSV Button */}
+        {/* Action Buttons */}
+        <div className="flex items-center gap-2">
           <button
             onClick={handleExportCsv}
             disabled={isExporting}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs sm:text-sm font-black bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 transition-all disabled:opacity-50"
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-black bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 shadow-2xs transition-all disabled:opacity-50"
           >
             <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
             <span>{isExporting ? 'Exporting...' : 'Export CSV'}</span>
           </button>
 
-          {/* List Setup Button */}
           <button
             onClick={handleOpenNewModal}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs sm:text-sm font-black bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 transition-all"
+            className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black bg-[#0c4ca3] hover:bg-[#093d84] text-white shadow-md active:scale-95 transition-all cursor-pointer"
           >
-            <SlidersHorizontal className="w-4 h-4 text-[#0c4ca3]" />
-            <span>List Setup</span>
+            <Plus className="w-4 h-4 stroke-[3]" />
+            <span>+ New Campaign</span>
           </button>
         </div>
-
-        {/* Right Primary Action: + Set Up Event Plan */}
-        <button
-          onClick={handleOpenNewModal}
-          className="flex items-center gap-2 px-5 py-2 rounded-xl text-xs sm:text-sm font-black bg-[#0c4ca3] hover:bg-[#093d84] text-white shadow-md active:scale-95 transition-all cursor-pointer"
-        >
-          <Plus className="w-4 h-4 stroke-[3]" />
-          <span>+ Set Up Event Plan</span>
-        </button>
       </div>
 
-      {/* 2. Filter Bar matching Image 2 */}
+      {/* 2. Filter Bar (Pic 2 Clean Filter Style) */}
       <div className="bg-white rounded-2xl border border-slate-200/90 p-3 shadow-2xs flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
-          {/* Year Dropdown */}
-          <select
-            value={selectedYear}
-            onChange={(e) => setSelectedYear(e.target.value)}
-            className="bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-800 text-xs font-black rounded-xl px-3.5 py-2 focus:ring-2 focus:ring-[#0c4ca3] focus:outline-hidden cursor-pointer"
-          >
-            <option value="2026">2026</option>
-            <option value="2025">2025</option>
-            <option value="all">All Years</option>
-          </select>
+          <span className="text-xs font-black uppercase tracking-wider text-slate-400 pl-1">
+            Filter:
+          </span>
 
-          {/* Quarter Dropdown */}
-          <select
-            value={selectedQuarter}
-            onChange={(e) => setSelectedQuarter(e.target.value)}
-            className="bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-800 text-xs font-black rounded-xl px-3.5 py-2 focus:ring-2 focus:ring-[#0c4ca3] focus:outline-hidden cursor-pointer"
-          >
-            <option value="all">All Quarters</option>
-            <option value="q1">Q1</option>
-            <option value="q2">Q2</option>
-            <option value="q3">Q3</option>
-            <option value="q4">Q4</option>
-          </select>
-
-          {/* Team Dropdown */}
-          <select
-            value={selectedTeam}
-            onChange={(e) => setSelectedTeam(e.target.value)}
-            className="bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-800 text-xs font-black rounded-xl px-3.5 py-2 focus:ring-2 focus:ring-[#0c4ca3] focus:outline-hidden cursor-pointer"
-          >
-            <option value="all">All Teams</option>
-            <option value="kpv">KPV</option>
-            <option value="agency">AGENCY</option>
-            <option value="marketing">MARKETING</option>
-          </select>
-
-          {/* Status Dropdown */}
+          {/* Status Filter */}
           <select
             value={selectedStatus}
             onChange={(e) => setSelectedStatus(e.target.value)}
-            className="bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-800 text-xs font-black rounded-xl px-3.5 py-2 focus:ring-2 focus:ring-[#0c4ca3] focus:outline-hidden cursor-pointer"
+            className="bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-800 text-xs font-bold rounded-xl px-3 py-1.5 focus:ring-2 focus:ring-[#0c4ca3] focus:outline-hidden cursor-pointer"
           >
             <option value="all">All Statuses</option>
-            <option value="pending">Pending</option>
+            <option value="active">Active Only</option>
             <option value="completed">Completed</option>
+            <option value="upcoming">Upcoming</option>
+          </select>
+
+          {/* Category Filter */}
+          <select
+            value={selectedCategory}
+            onChange={(e) => setSelectedCategory(e.target.value)}
+            className="bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-800 text-xs font-bold rounded-xl px-3 py-1.5 focus:ring-2 focus:ring-[#0c4ca3] focus:outline-hidden cursor-pointer"
+          >
+            <option value="all">All Categories</option>
+            <option value="volume">Volume Driver</option>
+            <option value="sprint">Sprint Promo</option>
+            <option value="vip">VIP Retention</option>
+            <option value="acquisition">New Acquisition</option>
           </select>
         </div>
 
@@ -368,157 +299,88 @@ export function CampaignTrackingView({
           onClick={refreshCampaigns}
           disabled={isRefreshing}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 hover:text-slate-900 text-xs font-bold transition-all disabled:opacity-50"
-          title="Refresh campaigns and live actuals"
+          title="Reload campaign list"
         >
           <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-[#0c4ca3]' : ''}`} />
           <span>Refresh</span>
         </button>
       </div>
 
-      {/* 3. Main Content: Cards View vs Table View */}
-      {viewMode === 'cards' ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 animate-in fade-in duration-200">
-          {filteredCampaigns.map((camp) => (
-            <CampaignCardItem
-              key={camp.id}
-              campaign={camp}
-              onOpenDetails={handleOpenDetails}
-              onRecord={handleExecuteRecord}
-              onEdit={handleOpenEditModal}
-              onDelete={handleDeleteCampaign}
-              isRecording={recordingId === camp.id}
-            />
-          ))}
+      {/* 3. Executive Campaign Cards Deck (Pic 2 Design Aesthetics for Easy Gold Campaigns) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-4 gap-4 animate-in fade-in duration-200">
+        {filteredCampaigns.map((camp) => (
+          <CampaignCardItem
+            key={camp.id}
+            campaign={camp}
+            isActive={activeCampaign?.id === camp.id}
+            onSelectCampaign={(c) => {
+              setActiveCampaign(c);
+              setLiveData(null); // Recalibrate live data
+            }}
+            onOpenDetails={handleOpenDetails}
+            onRecord={handleExecuteCalculate}
+            onEdit={handleOpenEditModal}
+            onDelete={handleDeleteCampaign}
+            isRecording={recordingId === camp.id}
+          />
+        ))}
 
-          {filteredCampaigns.length === 0 && (
-            <div className="col-span-full bg-white rounded-3xl p-12 text-center border-2 border-dashed border-slate-200 space-y-3">
-              <Sparkles className="w-8 h-8 text-slate-400 mx-auto" />
-              <h4 className="text-base font-bold text-slate-800">No events found matching your filter criteria</h4>
-              <p className="text-xs text-slate-500">Try adjusting the year, quarter, team, or status dropdown above.</p>
-            </div>
-          )}
-        </div>
-      ) : (
-        /* Table View */
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden animate-in fade-in duration-200">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="bg-slate-50/80 border-b border-slate-200 text-[11px] font-black uppercase text-slate-500 tracking-wider">
-                  <th className="py-3 px-4">Event &amp; Scale</th>
-                  <th className="py-3 px-3">Team</th>
-                  <th className="py-3 px-3">Dates &amp; Venue</th>
-                  <th className="py-3 px-3 text-right">Spending Cost</th>
-                  <th className="py-3 px-3 text-right">Plan Budget</th>
-                  <th className="py-3 px-3 text-center">Customers</th>
-                  <th className="py-3 px-3 text-center">New Cust</th>
-                  <th className="py-3 px-3 text-center">Status</th>
-                  <th className="py-3 px-4 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {filteredCampaigns.map((camp) => {
-                  const isComp = camp.status === 'completed';
-                  const actCust = camp.customers_actual ?? (camp.ec_target ? Math.round(camp.ec_target * 0.42) : 0);
-                  const tgtCust = camp.customers_target ?? camp.ec_target ?? 0;
+        {filteredCampaigns.length === 0 && (
+          <div className="col-span-full bg-white rounded-3xl p-12 text-center border-2 border-dashed border-slate-200 space-y-3">
+            <Sparkles className="w-8 h-8 text-slate-400 mx-auto" />
+            <h4 className="text-base font-bold text-slate-800">No campaigns found matching filter</h4>
+            <p className="text-xs text-slate-500">Reset the status or category dropdown to see all campaigns.</p>
+          </div>
+        )}
+      </div>
 
-                  return (
-                    <tr key={camp.id} className="hover:bg-blue-50/40 transition-colors">
-                      <td className="py-3.5 px-4 font-bold text-slate-900">
-                        <div className="flex flex-col">
-                          <span 
-                            onClick={() => handleOpenDetails(camp)}
-                            className="font-black text-sm text-slate-900 hover:text-[#0c4ca3] cursor-pointer"
-                          >
-                            {camp.campaign_name}
-                          </span>
-                          <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">
-                            {camp.scale_category || camp.category_tag || 'Event'}
-                          </span>
-                        </div>
-                      </td>
+      {/* 4. Active Campaign Deep-Dive Analytics (The Essential Easy Gold Handbook Tables!) */}
+      <div className="space-y-4 pt-2">
+        <div className="flex items-center justify-between pb-2 border-b border-slate-200 flex-wrap gap-2">
+          <div className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+            <h3 className="text-sm font-black text-slate-800 uppercase tracking-tight">
+              Selected Campaign Deep-Dive: <span className="text-[#0c4ca3]">{activeCampaign?.campaign_name}</span>
+            </h3>
+          </div>
 
-                      <td className="py-3.5 px-3 font-bold text-[#1d4ed8]">
-                        {camp.team || 'KPV'}
-                      </td>
-
-                      <td className="py-3.5 px-3 text-slate-600">
-                        <div className="flex flex-col">
-                          <span>{formatEventDateRange(camp.campaign_date_start, camp.campaign_date_end)}</span>
-                          <span className="text-[11px] text-slate-400">{camp.location || '-'}</span>
-                        </div>
-                      </td>
-
-                      <td className="py-3.5 px-3 text-right font-black text-slate-900">
-                        {formatKipShort(camp.total_spending_cost, true)}
-                      </td>
-
-                      <td className="py-3.5 px-3 text-right font-black text-slate-900">
-                        {formatKipShort(camp.plan_budget, false)}
-                      </td>
-
-                      <td className="py-3.5 px-3 text-center font-bold">
-                        <span className={tgtCust > 0 && actCust >= tgtCust ? 'text-emerald-600 font-black' : 'text-slate-700'}>
-                          {actCust.toLocaleString()} / {tgtCust.toLocaleString()}
-                        </span>
-                      </td>
-
-                      <td className="py-3.5 px-3 text-center text-slate-700">
-                        {(camp.new_cust_actual || 0).toLocaleString()} / {(camp.new_cust_target || camp.nc_target || 0).toLocaleString()}
-                      </td>
-
-                      <td className="py-3.5 px-3 text-center">
-                        <span className={`px-2 py-0.5 rounded-md text-[11px] font-bold ${
-                          isComp ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-sky-50 text-sky-700 border border-sky-200'
-                        }`}>
-                          {isComp ? 'Completed' : 'Pending'}
-                        </span>
-                      </td>
-
-                      <td className="py-3.5 px-4 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          <button
-                            onClick={() => handleOpenDetails(camp)}
-                            className="px-2 py-1 rounded-lg bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold shadow-2xs"
-                            title="Details"
-                          >
-                            Details
-                          </button>
-                          <button
-                            onClick={() => handleExecuteRecord(camp)}
-                            disabled={recordingId === camp.id}
-                            className="px-2.5 py-1 rounded-lg bg-[#0c4ca3] hover:bg-[#093d84] text-white text-xs font-black shadow-xs flex items-center gap-1 disabled:opacity-50"
-                            title="Record live data"
-                          >
-                            <Zap className={`w-3 h-3 text-amber-300 fill-current ${recordingId === camp.id ? 'animate-spin' : ''}`} />
-                            <span>Record</span>
-                          </button>
-                          <button
-                            onClick={() => handleOpenEditModal(camp)}
-                            className="p-1 rounded-lg text-slate-500 hover:text-slate-900"
-                            title="Edit"
-                          >
-                            <Edit3 className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            onClick={() => handleDeleteCampaign(camp.id)}
-                            className="p-1 rounded-lg text-rose-500 hover:text-rose-700"
-                            title="Delete"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+          <div className="flex items-center gap-2 text-xs text-slate-500">
+            <span>Condition: <strong className="text-slate-800">{activeCampaign?.condition_label}</strong></span>
+            <span>&bull;</span>
+            <span>Timeline: <strong>{activeCampaign?.campaign_date_start} to {activeCampaign?.campaign_date_end}</strong></span>
           </div>
         </div>
-      )}
 
-      {/* 4. More Details Modal (Full Targets & Backward Benchmarks from Handbook) */}
+        {/* Side-by-Side Detailed Analytics Tables matching Excel Image 3 & 4 */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {/* Table 1: Target Achievement & Run Rate Projections */}
+          <CampaignTargetTable data={analytics.targetAchievement} />
+
+          {/* Table 2: Comparison vs Same Period Backward (Past Baseline Benchmark) */}
+          <CampaignBackwardCompareTable data={analytics.backwardComparison} />
+        </div>
+
+        {/* Export and Telemetry Bar */}
+        <div className="flex items-center justify-between p-3.5 bg-slate-50 border border-slate-200/80 rounded-2xl text-xs text-slate-600 flex-wrap gap-2">
+          <div className="flex items-center gap-2">
+            <Info className="w-4 h-4 text-[#0c4ca3]" />
+            <span>
+              Engine: <strong className="font-mono text-slate-800">{analytics.dataSource || 'computed_cache'}</strong> | Evaluated at: {new Date().toLocaleTimeString()}
+            </span>
+          </div>
+
+          <button
+            onClick={handleExportCsv}
+            disabled={isExporting}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 shadow-xs transition-colors disabled:opacity-50 cursor-pointer"
+          >
+            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+            <span>Export Campaign Analysis CSV</span>
+          </button>
+        </div>
+      </div>
+
+      {/* 5. More Details Modal */}
       <CampaignDetailModal
         isOpen={isDetailModalOpen}
         onClose={() => setIsDetailModalOpen(false)}
@@ -530,7 +392,7 @@ export function CampaignTrackingView({
         }}
       />
 
-      {/* 5. Campaign Add / Edit / Adjust Modal */}
+      {/* 6. Campaign Add / Edit / Adjust Modal */}
       <CampaignSetupModal
         isOpen={isSetupModalOpen}
         onClose={() => setIsSetupModalOpen(false)}
