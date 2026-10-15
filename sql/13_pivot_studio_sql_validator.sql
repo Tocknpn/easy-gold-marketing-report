@@ -7,15 +7,54 @@
 
 -- INSTRUCTIONS:
 -- 1. Open Supabase Dashboard -> SQL Editor.
--- 2. Run QUERY 1 below to get the exact table that appears in Picture 1.
--- 3. Run QUERY 2 to test ANY custom filter combination (Month, 500k up, 2.0g, Status).
--- 4. Run QUERY 3 to install the reusable RPC function for automated 100% web-to-db sync.
+-- 2. Run STEP 0 to ensure the safe date parser exists (handles TEXT date strings).
+-- 3. Run QUERY 1 below to get the exact table that appears in Picture 1.
+-- 4. Run QUERY 2 to test ANY custom filter combination (Month, 500k up, 2.0g, Status).
+-- 5. Run QUERY 3 to install the reusable RPC function for automated 100% web-to-db sync.
 -- ============================================================================
+
+
+-- ============================================================================
+-- STEP 0: SAFE DATE PARSER FOR TEXT / TIMESTAMPTZ DATES
+-- Ensures created_at stored as TEXT (e.g. '01/09/2026, 23:59' or ISO) can be safely formatted
+-- ============================================================================
+CREATE OR REPLACE FUNCTION public.parse_tx_date(val TEXT)
+RETURNS TIMESTAMPTZ
+LANGUAGE plpgsql
+IMMUTABLE
+AS $$
+BEGIN
+    IF val IS NULL OR trim(val) = '' THEN
+        RETURN NULL;
+    END IF;
+    
+    -- Format A: 'DD/MM/YYYY, HH24:MI' or 'DD/MM/YYYY HH24:MI' or 'DD/MM/YYYY'
+    IF val ~ '^[0-9]{1,2}/[0-9]{1,2}/[0-9]{4}' THEN
+        BEGIN
+            RETURN to_timestamp(val, 'DD/MM/YYYY, HH24:MI:SS');
+        EXCEPTION WHEN OTHERS THEN
+            BEGIN
+                RETURN to_timestamp(val, 'DD/MM/YYYY HH24:MI');
+            EXCEPTION WHEN OTHERS THEN
+                RETURN to_date(split_part(split_part(val, ',', 1), ' ', 1), 'DD/MM/YYYY')::timestamptz;
+            END;
+        END;
+    -- Format B: ISO 'YYYY-MM-DD...'
+    ELSIF val ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}' THEN
+        RETURN val::timestamptz;
+    ELSE
+        -- Fallback: extract date before comma or space
+        RETURN to_date(split_part(split_part(val, ',', 1), ' ', 1), 'DD/MM/YYYY')::timestamptz;
+    END IF;
+EXCEPTION WHEN OTHERS THEN
+    RETURN NULL;
+END;
+$$;
 
 
 -- ============================================================================
 -- QUERY 1: THE EXACT SQL QUERY MATCHING PICTURE 1
--- Dimension: Banking Gateway (5 Banks)
+-- Dimension: Banking Gateway (11 Banks)
 -- Slicers Applied in Picture 1:
 --   - Month: All Months
 --   - ຮູບແບບທຸລະກຳ (tx_type): BUY_GOLD (ຊື້ຄຳ)
@@ -33,7 +72,7 @@
 --   4. GOLD WEIGHT BUY (G) (grams)
 --   5. GOLD BUY SIZE (G) (ticket_g)
 --   6. TOTAL NC (users)
---   7. GRAND TOTAL (5 ROWS)
+--   7. GRAND TOTAL (11 ROWS)
 -- ============================================================================
 
 WITH normalized_tx AS (
@@ -91,7 +130,6 @@ SELECT
     END AS "GOLD BUY SIZE (G)",
     
     -- Metric 6: TOTAL NC (New Customers)
-    -- Formula: Users whose first-ever transaction or OPEN_ACCOUNT was in this gateway
     COUNT(DISTINCT phone) FILTER (WHERE total_amount > 0 AND gold_weight > 0) / 50 AS "TOTAL NC"
 
 FROM normalized_tx
@@ -147,7 +185,7 @@ filtered_transactions AS (
                     ELSE COALESCE(NULLIF(m.bank, ''), 'Other Banking Gateway')
                 END
             WHEN p.p_dimension = 'branch' THEN COALESCE(NULLIF(m.branch, '-'), 'Digital / App')
-            WHEN p.p_dimension = 'date' THEN to_char(m.created_at, 'MM/DD/YYYY')
+            WHEN p.p_dimension = 'date' THEN to_char(public.parse_tx_date(m.created_at::text), 'MM/DD/YYYY')
             WHEN p.p_dimension = 'customer' THEN m.phone || ' - ' || m.customer_name
             ELSE m.bank
         END AS row_label,
@@ -194,10 +232,10 @@ filtered_transactions AS (
             OR (p.p_is_15g_up = 'no' AND m.gold_weight < 15.0)
         )
         
-        -- 7. Month Slicer
+        -- 7. Month Slicer (using safe date parser)
         AND (
             p.p_month = 'all'
-            OR to_char(m.created_at, 'YYYY-MM') = p.p_month
+            OR to_char(public.parse_tx_date(m.created_at::text), 'YYYY-MM') = p.p_month
         )
 )
 SELECT 
@@ -256,7 +294,7 @@ BEGIN
                         ELSE COALESCE(NULLIF(m.bank, ''), 'Other Gateway')
                     END
                 WHEN p_dimension = 'branch' THEN COALESCE(NULLIF(m.branch, '-'), 'Digital / App')
-                WHEN p_dimension = 'date' THEN to_char(m.created_at, 'MM/DD/YYYY')
+                WHEN p_dimension = 'date' THEN to_char(public.parse_tx_date(m.created_at::text), 'MM/DD/YYYY')
                 WHEN p_dimension = 'customer' THEN m.phone || ' - ' || m.customer_name
                 ELSE m.bank
             END AS row_label,
@@ -272,13 +310,13 @@ BEGIN
           AND (p_is_15g_up = 'all' OR (p_is_15g_up = 'yes' AND m.gold_weight >= 15.0) OR (p_is_15g_up = 'no' AND m.gold_weight < 15.0))
           AND (
             p_month = 'all'
-            OR (p_month IN ('Apr''26', '4', '04', '2026-04') AND m.created_at >= '2026-04-01' AND m.created_at < '2026-05-01')
-            OR (p_month IN ('May''26', '5', '05', '2026-05') AND m.created_at >= '2026-05-01' AND m.created_at < '2026-06-01')
-            OR (p_month IN ('Jul''26', '7', '07', '2026-07') AND m.created_at >= '2026-07-01' AND m.created_at < '2026-08-01')
-            OR (p_month IN ('Aug''26', '8', '08', '2026-08') AND m.created_at >= '2026-08-01' AND m.created_at < '2026-09-01')
-            OR (p_month IN ('Sep''26', '9', '09', '2026-09') AND m.created_at >= '2026-09-01' AND m.created_at < '2026-10-01')
-            OR (p_month IN ('Oct''26', '10', '2026-10') AND m.created_at >= '2026-10-01' AND m.created_at < '2026-11-01')
-            OR to_char(m.created_at, 'YYYY-MM') = p_month
+            OR (p_month IN ('Apr''26', '4', '04', '2026-04') AND public.parse_tx_date(m.created_at::text) >= '2026-04-01'::timestamptz AND public.parse_tx_date(m.created_at::text) < '2026-05-01'::timestamptz)
+            OR (p_month IN ('May''26', '5', '05', '2026-05') AND public.parse_tx_date(m.created_at::text) >= '2026-05-01'::timestamptz AND public.parse_tx_date(m.created_at::text) < '2026-06-01'::timestamptz)
+            OR (p_month IN ('Jul''26', '7', '07', '2026-07') AND public.parse_tx_date(m.created_at::text) >= '2026-07-01'::timestamptz AND public.parse_tx_date(m.created_at::text) < '2026-08-01'::timestamptz)
+            OR (p_month IN ('Aug''26', '8', '08', '2026-08') AND public.parse_tx_date(m.created_at::text) >= '2026-08-01'::timestamptz AND public.parse_tx_date(m.created_at::text) < '2026-09-01'::timestamptz)
+            OR (p_month IN ('Sep''26', '9', '09', '2026-09') AND public.parse_tx_date(m.created_at::text) >= '2026-09-01'::timestamptz AND public.parse_tx_date(m.created_at::text) < '2026-10-01'::timestamptz)
+            OR (p_month IN ('Oct''26', '10', '2026-10') AND public.parse_tx_date(m.created_at::text) >= '2026-10-01'::timestamptz AND public.parse_tx_date(m.created_at::text) < '2026-11-01'::timestamptz)
+            OR to_char(public.parse_tx_date(m.created_at::text), 'YYYY-MM') = p_month
           )
     ),
     aggregated_rows AS (
@@ -313,13 +351,13 @@ BEGIN
           AND (p_is_15g_up = 'all' OR (p_is_15g_up = 'yes' AND m.gold_weight >= 15.0) OR (p_is_15g_up = 'no' AND m.gold_weight < 15.0))
           AND (
             p_month = 'all'
-            OR (p_month IN ('Apr''26', '4', '04', '2026-04') AND m.created_at >= '2026-04-01' AND m.created_at < '2026-05-01')
-            OR (p_month IN ('May''26', '5', '05', '2026-05') AND m.created_at >= '2026-05-01' AND m.created_at < '2026-06-01')
-            OR (p_month IN ('Jul''26', '7', '07', '2026-07') AND m.created_at >= '2026-07-01' AND m.created_at < '2026-08-01')
-            OR (p_month IN ('Aug''26', '8', '08', '2026-08') AND m.created_at >= '2026-08-01' AND m.created_at < '2026-09-01')
-            OR (p_month IN ('Sep''26', '9', '09', '2026-09') AND m.created_at >= '2026-09-01' AND m.created_at < '2026-10-01')
-            OR (p_month IN ('Oct''26', '10', '2026-10') AND m.created_at >= '2026-10-01' AND m.created_at < '2026-11-01')
-            OR to_char(m.created_at, 'YYYY-MM') = p_month
+            OR (p_month IN ('Apr''26', '4', '04', '2026-04') AND public.parse_tx_date(m.created_at::text) >= '2026-04-01'::timestamptz AND public.parse_tx_date(m.created_at::text) < '2026-05-01'::timestamptz)
+            OR (p_month IN ('May''26', '5', '05', '2026-05') AND public.parse_tx_date(m.created_at::text) >= '2026-05-01'::timestamptz AND public.parse_tx_date(m.created_at::text) < '2026-06-01'::timestamptz)
+            OR (p_month IN ('Jul''26', '7', '07', '2026-07') AND public.parse_tx_date(m.created_at::text) >= '2026-07-01'::timestamptz AND public.parse_tx_date(m.created_at::text) < '2026-08-01'::timestamptz)
+            OR (p_month IN ('Aug''26', '8', '08', '2026-08') AND public.parse_tx_date(m.created_at::text) >= '2026-08-01'::timestamptz AND public.parse_tx_date(m.created_at::text) < '2026-09-01'::timestamptz)
+            OR (p_month IN ('Sep''26', '9', '09', '2026-09') AND public.parse_tx_date(m.created_at::text) >= '2026-09-01'::timestamptz AND public.parse_tx_date(m.created_at::text) < '2026-10-01'::timestamptz)
+            OR (p_month IN ('Oct''26', '10', '2026-10') AND public.parse_tx_date(m.created_at::text) >= '2026-10-01'::timestamptz AND public.parse_tx_date(m.created_at::text) < '2026-11-01'::timestamptz)
+            OR to_char(public.parse_tx_date(m.created_at::text), 'YYYY-MM') = p_month
           )
     )
     SELECT json_build_object(

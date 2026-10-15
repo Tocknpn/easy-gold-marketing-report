@@ -6,9 +6,47 @@
 
 -- INSTRUCTIONS:
 -- 1. Open your Supabase Dashboard -> SQL Editor.
--- 2. Run the queries below to verify that the raw transactions in `monthly_data`
+-- 2. Run STEP 0 to ensure the safe date parser exists (handles TEXT date strings).
+-- 3. Run the queries below to verify that the raw transactions in `monthly_data`
 --    calculate to the EXACT same numbers shown on the frontend dashboard.
 -- ============================================================================
+
+
+-- ============================================================================
+-- STEP 0: SAFE DATE PARSER FOR TEXT / TIMESTAMPTZ DATES
+-- ============================================================================
+CREATE OR REPLACE FUNCTION public.parse_tx_date(val TEXT)
+RETURNS TIMESTAMPTZ
+LANGUAGE plpgsql
+IMMUTABLE
+AS $$
+BEGIN
+    IF val IS NULL OR trim(val) = '' THEN
+        RETURN NULL;
+    END IF;
+    
+    -- Format A: 'DD/MM/YYYY, HH24:MI' or 'DD/MM/YYYY HH24:MI' or 'DD/MM/YYYY'
+    IF val ~ '^[0-9]{1,2}/[0-9]{1,2}/[0-9]{4}' THEN
+        BEGIN
+            RETURN to_timestamp(val, 'DD/MM/YYYY, HH24:MI:SS');
+        EXCEPTION WHEN OTHERS THEN
+            BEGIN
+                RETURN to_timestamp(val, 'DD/MM/YYYY HH24:MI');
+            EXCEPTION WHEN OTHERS THEN
+                RETURN to_date(split_part(split_part(val, ',', 1), ' ', 1), 'DD/MM/YYYY')::timestamptz;
+            END;
+        END;
+    -- Format B: ISO 'YYYY-MM-DD...'
+    ELSIF val ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}' THEN
+        RETURN val::timestamptz;
+    ELSE
+        -- Fallback: extract date before comma or space
+        RETURN to_date(split_part(split_part(val, ',', 1), ' ', 1), 'DD/MM/YYYY')::timestamptz;
+    END IF;
+EXCEPTION WHEN OTHERS THEN
+    RETURN NULL;
+END;
+$$;
 
 
 -- ============================================================================
@@ -78,8 +116,8 @@ raw_calculations AS (
 
     FROM week_bounds b
     LEFT JOIN public.monthly_data m 
-        ON m.created_at >= b.start_ts 
-       AND m.created_at < b.end_ts
+        ON public.parse_tx_date(m.created_at::text) >= b.start_ts 
+       AND public.parse_tx_date(m.created_at::text) < b.end_ts
     GROUP BY b.year_week, b.week_label
 ),
 frontend_stored AS (
@@ -136,8 +174,8 @@ CROSS JOIN LATERAL (
 WITH test_date_range AS (
     SELECT 
         -- Default to the most recent month present in monthly_data
-        date_trunc('month', MAX(created_at)) AS start_ts,
-        MAX(created_at) AS end_ts
+        date_trunc('month', MAX(public.parse_tx_date(created_at::text))) AS start_ts,
+        MAX(public.parse_tx_date(created_at::text)) AS end_ts
     FROM public.monthly_data
 ),
 raw_dynamic AS (
@@ -151,8 +189,8 @@ raw_dynamic AS (
         COUNT(*) FILTER (WHERE transaction_type = 'SALE_GOLD') AS raw_sell_tx,
         COALESCE(SUM(gold_weight) FILTER (WHERE transaction_type = 'SALE_GOLD'), 0) AS raw_sell_gold_g
     FROM public.monthly_data m, test_date_range r
-    WHERE m.created_at >= r.start_ts 
-      AND m.created_at <= r.end_ts
+    WHERE public.parse_tx_date(m.created_at::text) >= r.start_ts 
+      AND public.parse_tx_date(m.created_at::text) <= r.end_ts
       AND m.status = 'ສໍາເລັດ'
 ),
 rpc_dynamic AS (
@@ -275,8 +313,8 @@ raw_mtd AS (
         COUNT(*) FILTER (WHERE transaction_type = 'SALE_GOLD' AND status = 'ສໍາເລັດ') AS cur_sell_tx,
         COUNT(*) FILTER (WHERE status = 'ສໍາເລັດ') AS cur_total_tx
     FROM public.monthly_data, mtd_params p
-    WHERE created_at >= date_trunc('month', p.as_of_date)
-      AND created_at <= p.as_of_date + interval '1 day'
+    WHERE public.parse_tx_date(created_at::text) >= date_trunc('month', p.as_of_date)
+      AND public.parse_tx_date(created_at::text) <= (p.as_of_date + interval '1 day')::timestamptz
 ),
 rpc_mtd AS (
     SELECT 
@@ -330,6 +368,5 @@ SELECT
     branch,
     created_at
 FROM public.monthly_data
-ORDER BY created_at DESC
+ORDER BY public.parse_tx_date(created_at::text) DESC NULLS LAST
 LIMIT 10;
-
