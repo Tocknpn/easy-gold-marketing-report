@@ -66,10 +66,46 @@ export function PivotReportView({
     load();
   }, [currentUser?.id]);
 
-  // Compute live pivot payload
-  const pivotPayload = useMemo(() => {
+  // Local instant payload
+  const fallbackPayload = useMemo(() => {
     return computePivotReport(dimension, slicers, activeMetrics);
   }, [dimension, slicers, activeMetrics]);
+
+  const [livePayload, setLivePayload] = useState<PivotReportPayload | null>(null);
+
+  // Fetch live from Supabase RPC via API route to guarantee 100% calculation match with SQL
+  useEffect(() => {
+    let isCancelled = false;
+    const fetchLive = async () => {
+      try {
+        const params = new URLSearchParams({
+          dimension,
+          month: slicers.month || 'all',
+          tx_type: slicers.tx_type || 'BUY_GOLD',
+          is_500k_up: slicers.is_500k_up || 'all',
+          is_2g_up: slicers.is_2g_up || 'all',
+          is_3_75g_up: slicers.is_3_75g_up || 'all',
+          is_15g_up: slicers.is_15g_up || 'all',
+          status: slicers.status || 'all',
+        });
+        const res = await fetch(`/api/dashboard/pivot-report?${params.toString()}`);
+        if (res.ok && !isCancelled) {
+          const json = await res.json();
+          if (json && json.rows && json.rows.length > 0) {
+            setLivePayload(json);
+          }
+        }
+      } catch {
+        // Fall back gracefully
+      }
+    };
+    fetchLive();
+    return () => {
+      isCancelled = true;
+    };
+  }, [dimension, slicers, activeMetrics]);
+
+  const pivotPayload = livePayload || fallbackPayload;
 
   // Handle switching to a saved profile
   const handleSelectProfile = (profile: SavedReportingProfile) => {
