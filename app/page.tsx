@@ -6,7 +6,7 @@ import { BuyActivitySection } from '@/components/dashboard/BuyActivitySection';
 import { SellActivitySection } from '@/components/dashboard/SellActivitySection';
 import { MtdReportView } from '@/components/dashboard/mtd/MtdReportView';
 import { DynamicReportView } from '@/components/dashboard/dynamic/DynamicReportView';
-import { PivotReportView } from '@/components/dashboard/pivot/PivotReportView';
+import { PowerPivotStudio } from '@/components/dashboard/pivot/PowerPivotStudio';
 import { CampaignTrackingView } from '@/components/dashboard/campaign/CampaignTrackingView';
 import { UserAuthModal } from '@/components/dashboard/auth/UserAuthModal';
 import { SystemCheckAndValidationModal } from '@/components/dashboard/audit/SystemCheckAndValidationModal';
@@ -461,7 +461,7 @@ export default function DashboardPage() {
 
         {/* TAB 3: CUSTOM REPORTING PROFILE (PIVOT STUDIO) */}
         {activeReportTab === 'pivot' && (
-          <PivotReportView
+          <PowerPivotStudio
             currentUser={currentUser}
             onOpenAuthModal={() => setIsAuthModalOpen(true)}
           />

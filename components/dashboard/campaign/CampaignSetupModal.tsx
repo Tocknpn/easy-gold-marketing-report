@@ -1,25 +1,34 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { CampaignSetupConfig, CampaignConditionType } from '@/lib/types/campaign.types';
+import React, { useState, useEffect, useRef } from 'react';
+import { 
+  CampaignSetupConfig, 
+  CampaignConditionType, 
+  CampaignOperator 
+} from '@/lib/types/campaign.types';
 import { 
   X, 
   Target, 
   Calendar, 
   Settings, 
-  HelpCircle, 
-  CheckCircle2, 
   Sparkles,
   ArrowRight,
-  Sliders
+  Upload,
+  Image as ImageIcon,
+  Check,
+  Trash2,
+  Copy,
+  Clock,
+  Layers
 } from 'lucide-react';
-import { calculateDateDiffDays } from '@/lib/campaign/campaignEngine';
+import { calculateDateDiffDays, computeBackwardDates } from '@/lib/campaign/campaignEngine';
 
 interface CampaignSetupModalProps {
   isOpen: boolean;
   onClose: () => void;
   campaignToEdit?: CampaignSetupConfig | null;
   onSave: (config: CampaignSetupConfig) => Promise<void>;
+  onDelete?: (campaignId: string) => Promise<void>;
 }
 
 export function CampaignSetupModal({
@@ -27,102 +36,183 @@ export function CampaignSetupModal({
   onClose,
   campaignToEdit,
   onSave,
+  onDelete,
 }: CampaignSetupModalProps) {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
+  const [categoryTag, setCategoryTag] = useState('Volume Driver');
+  const [imageUrl, setImageUrl] = useState('');
+  
+  // Dates
   const [startDate, setStartDate] = useState('2026-08-24');
   const [endDate, setEndDate] = useState('2026-12-25');
   const [asOfDate, setAsOfDate] = useState('2026-10-14');
-  const [backwardStart, setBackwardStart] = useState('2026-07-03');
-  const [backwardEnd, setBackwardEnd] = useState('2026-08-23');
+  const [autoSyncMaxDate, setAutoSyncMaxDate] = useState(true);
 
+  // Conditions
   const [conditionType, setConditionType] = useState<CampaignConditionType>('amount_gte');
+  const [conditionOperator, setConditionOperator] = useState<CampaignOperator>('>=');
   const [conditionValue, setConditionValue] = useState<number>(500000);
+  const [conditionMaxValue, setConditionMaxValue] = useState<number>(2000000);
   const [conditionLabel, setConditionLabel] = useState('Buy trans >= 500k');
+  const [txType, setTxType] = useState('BUY_GOLD');
 
+  // Targets
+  const [selectedTargets, setSelectedTargets] = useState<('ec' | 'nc' | 'revenue' | 'weight')[]>([
+    'ec',
+    'nc',
+    'revenue',
+    'weight',
+  ]);
   const [ecTarget, setEcTarget] = useState<number>(307500);
   const [ncTarget, setNcTarget] = useState<number>(17220);
+  const [revenueTarget, setRevenueTarget] = useState<number>(2876304.2);
+  const [goldWeightTarget, setGoldWeightTarget] = useState<number>(913509.7);
   const [baselineDailyRr, setBaselineDailyRr] = useState<number | undefined>(79.0);
 
   const [isSaving, setIsSaving] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Load existing campaign data or defaults
   useEffect(() => {
     if (campaignToEdit) {
       setName(campaignToEdit.campaign_name);
       setDescription(campaignToEdit.description || '');
+      setCategoryTag(campaignToEdit.category_tag || 'Volume Driver');
+      setImageUrl(campaignToEdit.image_url || '');
       setStartDate(campaignToEdit.campaign_date_start);
       setEndDate(campaignToEdit.campaign_date_end);
-      setAsOfDate(campaignToEdit.data_update_on);
-      setBackwardStart(campaignToEdit.same_period_backward_start);
-      setBackwardEnd(campaignToEdit.same_period_backward_end);
-      setConditionType(campaignToEdit.condition_type);
-      setConditionValue(campaignToEdit.condition_value);
-      setConditionLabel(campaignToEdit.condition_label);
-      setEcTarget(campaignToEdit.ec_target);
-      setNcTarget(campaignToEdit.nc_target);
+      setAsOfDate(campaignToEdit.data_update_on || '2026-10-14');
+      setAutoSyncMaxDate(campaignToEdit.auto_sync_max_date ?? true);
+      setConditionType(campaignToEdit.condition_type || 'amount_gte');
+      setConditionOperator(campaignToEdit.condition_operator || '>=');
+      setConditionValue(campaignToEdit.condition_value || 500000);
+      setConditionMaxValue(campaignToEdit.condition_max_value || 2000000);
+      setConditionLabel(campaignToEdit.condition_label || 'Buy trans >= 500k');
+      setTxType(campaignToEdit.tx_type || 'BUY_GOLD');
+      setSelectedTargets(campaignToEdit.target_types || ['ec', 'nc']);
+      setEcTarget(campaignToEdit.ec_target || 307500);
+      setNcTarget(campaignToEdit.nc_target || 17220);
+      setRevenueTarget(campaignToEdit.revenue_target_mil || 2876304.2);
+      setGoldWeightTarget(campaignToEdit.gold_weight_target_g || 913509.7);
       setBaselineDailyRr(campaignToEdit.baseline_daily_rr);
     } else {
-      // Default template
+      // New campaign template
       setName('New Marketing Campaign');
-      setDescription('');
+      setDescription('Target volume incentive campaign');
+      setCategoryTag('Volume Driver');
+      setImageUrl('https://images.unsplash.com/photo-1610375461246-83df859d849d?w=150&auto=format&fit=crop&q=80');
       setStartDate('2026-08-24');
       setEndDate('2026-12-25');
       setAsOfDate('2026-10-14');
-      setBackwardStart('2026-07-03');
-      setBackwardEnd('2026-08-23');
+      setAutoSyncMaxDate(true);
       setConditionType('amount_gte');
+      setConditionOperator('>=');
       setConditionValue(500000);
+      setConditionMaxValue(2000000);
       setConditionLabel('Buy trans >= 500k');
+      setTxType('BUY_GOLD');
+      setSelectedTargets(['ec', 'nc', 'revenue', 'weight']);
       setEcTarget(307500);
       setNcTarget(17220);
+      setRevenueTarget(2876304.2);
+      setGoldWeightTarget(913509.7);
+      setBaselineDailyRr(79.0);
     }
   }, [campaignToEdit, isOpen]);
 
+  // Dynamic calculations for preview
+  const totalDays = calculateDateDiffDays(startDate, endDate);
+  const isEnded = new Date(asOfDate).getTime() >= new Date(endDate).getTime();
+  const isUpcoming = new Date(asOfDate).getTime() < new Date(startDate).getTime();
+  const elapsedDays = isEnded ? totalDays : isUpcoming ? 0 : Math.min(totalDays, calculateDateDiffDays(startDate, asOfDate));
+  const pctTimeGone = Math.min(100, Math.round((elapsedDays / totalDays) * 100));
+
+  // Dynamic backward dates
+  const backwardWindow = computeBackwardDates(startDate, elapsedDays);
+  const backwardDays = calculateDateDiffDays(backwardWindow.start, backwardWindow.end);
+
   if (!isOpen) return null;
 
-  const totalDays = calculateDateDiffDays(startDate, endDate);
-  const elapsedDays = Math.min(totalDays, calculateDateDiffDays(startDate, asOfDate));
-  const backwardDays = calculateDateDiffDays(backwardStart, backwardEnd);
+  // Handle local image file upload -> Base64 Data URL
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImageUrl(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
-  const handleConditionPreset = (type: '500k' | '2g' | '15g') => {
+  // Quick preset selector
+  const handleConditionPreset = (type: '500k' | '2g' | '15g' | 'range_1_5g') => {
     if (type === '500k') {
       setConditionType('amount_gte');
+      setConditionOperator('>=');
       setConditionValue(500000);
       setConditionLabel('Buy trans >= 500k');
     } else if (type === '2g') {
       setConditionType('weight_gte');
+      setConditionOperator('>=');
       setConditionValue(2.0);
       setConditionLabel('Buy trans >= 2g');
-    } else {
+    } else if (type === '15g') {
       setConditionType('weight_gte');
+      setConditionOperator('>=');
       setConditionValue(15.0);
       setConditionLabel('Buy trans >= 15g');
+    } else if (type === 'range_1_5g') {
+      setConditionType('weight_between');
+      setConditionOperator('between');
+      setConditionValue(1.0);
+      setConditionMaxValue(5.0);
+      setConditionLabel('Gold weight between 1.0g - 5.0g');
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const toggleTargetType = (type: 'ec' | 'nc' | 'revenue' | 'weight') => {
+    if (selectedTargets.includes(type)) {
+      if (selectedTargets.length > 1) {
+        setSelectedTargets(selectedTargets.filter((t) => t !== type));
+      }
+    } else {
+      setSelectedTargets([...selectedTargets, type]);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent, isDuplicate = false) => {
     e.preventDefault();
     if (!name.trim()) return;
 
     setIsSaving(true);
     try {
       const config: CampaignSetupConfig = {
-        id: campaignToEdit ? campaignToEdit.id : `campaign-${Date.now()}`,
-        campaign_name: name.trim(),
+        id: isDuplicate || !campaignToEdit ? `campaign-${Date.now()}` : campaignToEdit.id,
+        campaign_name: isDuplicate ? `${name.trim()} (Copy)` : name.trim(),
         description: description.trim(),
+        category_tag: categoryTag,
+        image_url: imageUrl,
         campaign_date_start: startDate,
         campaign_date_end: endDate,
         data_update_on: asOfDate,
-        same_period_backward_start: backwardStart,
-        same_period_backward_end: backwardEnd,
+        auto_sync_max_date: autoSyncMaxDate,
+        same_period_backward_start: backwardWindow.start,
+        same_period_backward_end: backwardWindow.end,
         condition_type: conditionType,
+        condition_operator: conditionOperator,
         condition_value: Number(conditionValue),
-        condition_label: conditionLabel,
-        tx_type: 'BUY_GOLD',
+        condition_max_value: conditionOperator === 'between' ? Number(conditionMaxValue) : undefined,
+        condition_label: conditionLabel.trim(),
+        tx_type: txType,
+        target_types: selectedTargets,
         ec_target: Number(ecTarget),
         nc_target: Number(ncTarget),
+        revenue_target_mil: selectedTargets.includes('revenue') ? Number(revenueTarget) : undefined,
+        gold_weight_target_g: selectedTargets.includes('weight') ? Number(goldWeightTarget) : undefined,
         baseline_daily_rr: baselineDailyRr ? Number(baselineDailyRr) : undefined,
-        status: 'active',
+        status: isEnded ? 'completed' : isUpcoming ? 'upcoming' : 'active',
       };
 
       await onSave(config);
@@ -133,9 +223,9 @@ export function CampaignSetupModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-200">
       <div 
-        className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]"
+        className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-3xl overflow-hidden flex flex-col max-h-[92vh]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -151,61 +241,138 @@ export function CampaignSetupModal({
           <div className="flex items-center gap-2 mb-1">
             <Target className="w-5 h-5 text-[#e5a812]" />
             <h3 className="text-lg font-bold">
-              {campaignToEdit ? 'Edit Campaign Setup' : 'Create New Campaign Tracking Concept'}
+              {campaignToEdit ? 'Adjust & Edit Campaign Tracking' : 'Create New Campaign Profile'}
             </h3>
           </div>
           <p className="text-xs text-blue-100/80">
-            Configure campaign dates, transaction threshold conditions, target volume (EC/NC), and backward baseline period.
+            Set campaign profile image, date timeline, reverse backward duration, condition thresholds, and multi-targets.
           </p>
         </div>
 
         {/* Scrollable Form Body */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-5 overflow-y-auto">
-          {/* 1. Basic Metadata */}
+        <form onSubmit={(e) => handleSubmit(e, false)} className="p-6 space-y-5 overflow-y-auto">
+          
+          {/* 1. Identity & Profile Picture */}
           <div className="space-y-3">
             <h4 className="text-xs font-black uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
-              <span>1. Campaign Concept & Title</span>
+              <span>1. Campaign Profile & Visual Identity</span>
             </h4>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="sm:col-span-2">
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Campaign Name *
-                </label>
+
+            <div className="flex flex-col sm:flex-row gap-4 items-start">
+              {/* Avatar Preview & Upload */}
+              <div className="flex flex-col items-center gap-2 shrink-0">
+                <div className="w-20 h-20 rounded-2xl overflow-hidden border-2 border-slate-200 shadow-md bg-slate-100 flex items-center justify-center relative group">
+                  {imageUrl ? (
+                    <img src={imageUrl} alt="Campaign Logo" className="w-full h-full object-cover" />
+                  ) : (
+                    <ImageIcon className="w-8 h-8 text-slate-400" />
+                  )}
+                  <div 
+                    onClick={() => fileInputRef.current?.click()}
+                    className="absolute inset-0 bg-slate-900/60 text-white opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center cursor-pointer text-[10px] font-bold"
+                  >
+                    <Upload className="w-4 h-4 mb-0.5" />
+                    <span>Upload</span>
+                  </div>
+                </div>
+
                 <input
-                  type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="e.g. Mega Buy Gold >= 500K Campaign"
-                  className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-[#0c4ca3] focus:outline-hidden"
-                  required
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleFileUpload}
+                  accept="image/*"
+                  className="hidden"
                 />
+                
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="text-[10px] font-bold text-[#0c4ca3] hover:underline"
+                >
+                  Upload Photo
+                </button>
               </div>
 
-              <div className="sm:col-span-2">
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Description / Objective
-                </label>
-                <input
-                  type="text"
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  placeholder="e.g. Drive buy transactions >= 500k to hit Q4 budget targets"
-                  className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-[#0c4ca3] focus:outline-hidden"
-                />
+              {/* Name & URL & Category */}
+              <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-3 w-full">
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Campaign Name *
+                  </label>
+                  <input
+                    type="text"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="e.g. Mega Buy Gold >= 500K Campaign"
+                    className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-[#0c4ca3] focus:outline-hidden"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Category Tag
+                  </label>
+                  <select
+                    value={categoryTag}
+                    onChange={(e) => setCategoryTag(e.target.value)}
+                    className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-[#0c4ca3] focus:outline-hidden bg-white"
+                  >
+                    <option value="Volume Driver">Volume Driver</option>
+                    <option value="Sprint Promo">Sprint Promo</option>
+                    <option value="High Ticket Retention">High Ticket Retention</option>
+                    <option value="New User Acquisition">New User Acquisition</option>
+                    <option value="Seasonal Festival">Seasonal Festival</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Image Link (URL)
+                  </label>
+                  <input
+                    type="url"
+                    value={imageUrl}
+                    onChange={(e) => setImageUrl(e.target.value)}
+                    placeholder="https://... or paste image link"
+                    className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-[#0c4ca3] focus:outline-hidden font-mono"
+                  />
+                </div>
+
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Campaign Objective / Description
+                  </label>
+                  <input
+                    type="text"
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    placeholder="e.g. Volume driver incentivizing transactions of 500,000 LAK and above"
+                    className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-[#0c4ca3] focus:outline-hidden"
+                  />
+                </div>
               </div>
             </div>
           </div>
 
-          {/* 2. Timeline & As-Of Date */}
-          <div className="space-y-3 pt-2 border-t border-slate-200">
-            <div className="flex items-center justify-between">
+          {/* 2. Timeline & Automatic Reverse Backward Window */}
+          <div className="space-y-3 pt-3 border-t border-slate-200">
+            <div className="flex items-center justify-between flex-wrap gap-2">
               <h4 className="text-xs font-black uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
-                <Calendar className="w-3.5 h-3.5 text-[#0c4ca3]" />
-                <span>2. Campaign Timeline & Pace (Total: {totalDays} Days)</span>
+                <Calendar className="w-4 h-4 text-[#0c4ca3]" />
+                <span>2. Timeline Engine (Time Gone & Reverse Backward Benchmark)</span>
               </h4>
-              <span className="text-[11px] font-bold text-[#0c4ca3] bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200">
-                Elapsed: {elapsedDays} Days ({Math.round((elapsedDays / totalDays) * 100)}%)
-              </span>
+
+              <div className="flex items-center gap-2">
+                <span className={`text-[10px] font-black px-2 py-0.5 rounded-md ${
+                  isEnded ? 'bg-slate-200 text-slate-800' : isUpcoming ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'
+                }`}>
+                  {isEnded ? '🏁 Status: Ended' : isUpcoming ? '⏳ Status: Upcoming' : '🟢 Status: Active'}
+                </span>
+                <span className="text-[11px] font-mono font-bold text-blue-900 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200">
+                  {pctTimeGone}% Time Gone ({elapsedDays}/{totalDays}d)
+                </span>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -217,7 +384,7 @@ export function CampaignSetupModal({
                   type="date"
                   value={startDate}
                   onChange={(e) => setStartDate(e.target.value)}
-                  className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-[#0c4ca3] focus:outline-hidden"
+                  className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-[#0c4ca3] focus:outline-hidden font-mono"
                   required
                 />
               </div>
@@ -230,113 +397,138 @@ export function CampaignSetupModal({
                   type="date"
                   value={endDate}
                   onChange={(e) => setEndDate(e.target.value)}
-                  className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-[#0c4ca3] focus:outline-hidden"
+                  className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-[#0c4ca3] focus:outline-hidden font-mono"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Data Update On (As-Of)
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-bold text-slate-700">
+                    Data Update On (As-Of)
+                  </label>
+                  <label className="flex items-center gap-1 text-[10px] text-blue-700 cursor-pointer font-bold">
+                    <input
+                      type="checkbox"
+                      checked={autoSyncMaxDate}
+                      onChange={(e) => setAutoSyncMaxDate(e.target.checked)}
+                      className="rounded-xs text-[#0c4ca3]"
+                    />
+                    <span>Auto-Sync DB</span>
+                  </label>
+                </div>
                 <input
                   type="date"
                   value={asOfDate}
                   onChange={(e) => setAsOfDate(e.target.value)}
-                  className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-[#0c4ca3] focus:outline-hidden"
+                  className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-[#0c4ca3] focus:outline-hidden font-mono"
                   required
                 />
               </div>
             </div>
-          </div>
 
-          {/* 3. Backward Baseline Period */}
-          <div className="space-y-3 pt-2 border-t border-slate-200">
-            <div className="flex items-center justify-between">
-              <h4 className="text-xs font-black uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
-                <span>3. Same Period Backward Baseline ({backwardDays} Days)</span>
-              </h4>
-              <span className="text-[10px] text-slate-500 font-medium">
-                Benchmark period for growth %compare
+            {/* Calculated Reverse Backward Window Ribbon */}
+            <div className="bg-pink-50/70 border border-pink-200/80 rounded-2xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-pink-900">Computed Backward Period:</span>
+                <span className="font-mono font-bold text-pink-950 bg-white px-2 py-0.5 rounded-md border border-pink-200">
+                  {backwardWindow.start} → {backwardWindow.end}
+                </span>
+                <span className="text-[11px] text-pink-800 font-semibold">({backwardDays} Days duration)</span>
+              </div>
+              <span className="text-[10px] text-pink-700 italic">
+                *Exact same period backward calculated from timegone reversed from campaign start
               </span>
             </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Backward Start Date
-                </label>
-                <input
-                  type="date"
-                  value={backwardStart}
-                  onChange={(e) => setBackwardStart(e.target.value)}
-                  className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-[#0c4ca3] focus:outline-hidden"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Backward End Date
-                </label>
-                <input
-                  type="date"
-                  value={backwardEnd}
-                  onChange={(e) => setBackwardEnd(e.target.value)}
-                  className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-[#0c4ca3] focus:outline-hidden"
-                  required
-                />
-              </div>
-            </div>
           </div>
 
-          {/* 4. Campaign Conditions & Targets */}
-          <div className="space-y-3 pt-2 border-t border-slate-200">
-            <h4 className="text-xs font-black uppercase tracking-wider text-slate-700 flex items-center justify-between">
-              <span>4. Condition Rules & Targets</span>
-              <div className="flex items-center gap-1 font-sans">
+          {/* 3. Flexible Condition Rules (Weight, Value, Operators Min/Max/Between) */}
+          <div className="space-y-3 pt-3 border-t border-slate-200">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <h4 className="text-xs font-black uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                <Settings className="w-4 h-4 text-[#0c4ca3]" />
+                <span>3. Condition Rules & Eligibility</span>
+              </h4>
+
+              {/* Presets */}
+              <div className="flex items-center gap-1">
                 <button
                   type="button"
                   onClick={() => handleConditionPreset('500k')}
-                  className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-50 text-amber-900 border border-amber-200"
+                  className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-50 text-amber-900 border border-amber-200 hover:bg-amber-100"
                 >
-                  &gt;= 500k LAK
+                  &gt;= 500k
                 </button>
                 <button
                   type="button"
                   onClick={() => handleConditionPreset('2g')}
-                  className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-blue-50 text-[#0c4ca3] border border-blue-200"
+                  className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-blue-50 text-blue-900 border border-blue-200 hover:bg-blue-100"
                 >
                   &gt;= 2.0g
                 </button>
                 <button
                   type="button"
                   onClick={() => handleConditionPreset('15g')}
-                  className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200"
+                  className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-purple-50 text-purple-900 border border-purple-200 hover:bg-purple-100"
                 >
                   &gt;= 15.0g
                 </button>
+                <button
+                  type="button"
+                  onClick={() => handleConditionPreset('range_1_5g')}
+                  className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-50 text-emerald-900 border border-emerald-200 hover:bg-emerald-100"
+                >
+                  Between 1-5g
+                </button>
               </div>
-            </h4>
+            </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Condition Display Label *
+                  Condition Metric
                 </label>
-                <input
-                  type="text"
-                  value={conditionLabel}
-                  onChange={(e) => setConditionLabel(e.target.value)}
-                  placeholder="e.g. Buy trans >= 500k"
-                  className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-[#0c4ca3] focus:outline-hidden"
-                  required
-                />
+                <select
+                  value={conditionType}
+                  onChange={(e) => {
+                    const val = e.target.value as CampaignConditionType;
+                    setConditionType(val);
+                    if (val.includes('weight')) {
+                      setConditionValue(2.0);
+                      setConditionLabel('Buy trans >= 2g');
+                    } else {
+                      setConditionValue(500000);
+                      setConditionLabel('Buy trans >= 500k');
+                    }
+                  }}
+                  className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-[#0c4ca3] focus:outline-hidden bg-white"
+                >
+                  <option value="amount_gte">Total Buy Value (LAK)</option>
+                  <option value="weight_gte">Gold Weight (Grams)</option>
+                  <option value="weight_between">Weight Range (Between)</option>
+                  <option value="amount_between">Amount Range (Between)</option>
+                </select>
               </div>
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Threshold Value ({conditionType === 'amount_gte' ? 'LAK' : 'Grams'})
+                  Operator
+                </label>
+                <select
+                  value={conditionOperator}
+                  onChange={(e) => setConditionOperator(e.target.value as CampaignOperator)}
+                  className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-[#0c4ca3] focus:outline-hidden bg-white font-mono"
+                >
+                  <option value=">=">&gt;= (Greater or Equal / Min)</option>
+                  <option value="<=">&lt;= (Less or Equal / Max)</option>
+                  <option value="between">BETWEEN (Min and Max)</option>
+                  <option value="all">ALL (No threshold filter)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  {conditionOperator === 'between' ? 'Min Value' : 'Threshold Value'}
                 </label>
                 <input
                   type="number"
@@ -347,15 +539,113 @@ export function CampaignSetupModal({
                 />
               </div>
 
+              {conditionOperator === 'between' ? (
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Max Value (Upper Bound)
+                  </label>
+                  <input
+                    type="number"
+                    value={conditionMaxValue}
+                    onChange={(e) => setConditionMaxValue(Number(e.target.value))}
+                    className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-[#0c4ca3] focus:outline-hidden font-mono"
+                    required
+                  />
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Condition Display Label
+                  </label>
+                  <input
+                    type="text"
+                    value={conditionLabel}
+                    onChange={(e) => setConditionLabel(e.target.value)}
+                    className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-[#0c4ca3] focus:outline-hidden"
+                    required
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* 4. Multiple Target Selection by User */}
+          <div className="space-y-3 pt-3 border-t border-slate-200">
+            <div className="flex items-center justify-between">
+              <h4 className="text-xs font-black uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                <Target className="w-4 h-4 text-[#0c4ca3]" />
+                <span>4. Multiple Target Selection & Numerical Targets</span>
+              </h4>
+              <span className="text-[10px] text-slate-500">
+                Choose which KPI targets to evaluate
+              </span>
+            </div>
+
+            {/* Target Select Buttons */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              <button
+                type="button"
+                onClick={() => toggleTargetType('ec')}
+                className={`p-2.5 rounded-xl border text-xs font-bold flex items-center justify-between transition-all ${
+                  selectedTargets.includes('ec')
+                    ? 'bg-blue-50 border-[#0c4ca3] text-[#0c4ca3]'
+                    : 'bg-white border-slate-200 text-slate-500'
+                }`}
+              >
+                <span>EC (Transactions)</span>
+                {selectedTargets.includes('ec') && <Check className="w-3.5 h-3.5" />}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => toggleTargetType('nc')}
+                className={`p-2.5 rounded-xl border text-xs font-bold flex items-center justify-between transition-all ${
+                  selectedTargets.includes('nc')
+                    ? 'bg-purple-50 border-purple-600 text-purple-700'
+                    : 'bg-white border-slate-200 text-slate-500'
+                }`}
+              >
+                <span>NC (New Customers)</span>
+                {selectedTargets.includes('nc') && <Check className="w-3.5 h-3.5" />}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => toggleTargetType('revenue')}
+                className={`p-2.5 rounded-xl border text-xs font-bold flex items-center justify-between transition-all ${
+                  selectedTargets.includes('revenue')
+                    ? 'bg-emerald-50 border-emerald-600 text-emerald-700'
+                    : 'bg-white border-slate-200 text-slate-500'
+                }`}
+              >
+                <span>Revenue (Mil LAK)</span>
+                {selectedTargets.includes('revenue') && <Check className="w-3.5 h-3.5" />}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => toggleTargetType('weight')}
+                className={`p-2.5 rounded-xl border text-xs font-bold flex items-center justify-between transition-all ${
+                  selectedTargets.includes('weight')
+                    ? 'bg-amber-50 border-amber-500 text-amber-800'
+                    : 'bg-white border-slate-200 text-slate-500'
+                }`}
+              >
+                <span>Gold Weight (Grams)</span>
+                {selectedTargets.includes('weight') && <Check className="w-3.5 h-3.5" />}
+              </button>
+            </div>
+
+            {/* Target Value Inputs */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  EC Target (Existing/Total Customers) *
+                  EC Target (Existing/Total Customers Transactions) *
                 </label>
                 <input
                   type="number"
                   value={ecTarget}
                   onChange={(e) => setEcTarget(Number(e.target.value))}
-                  placeholder="e.g. 307500"
                   className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-[#0c4ca3] focus:outline-hidden font-mono font-bold"
                   required
                 />
@@ -363,21 +653,50 @@ export function CampaignSetupModal({
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  NC Target (New Customers) *
+                  NC Target (New Customers Count) *
                 </label>
                 <input
                   type="number"
                   value={ncTarget}
                   onChange={(e) => setNcTarget(Number(e.target.value))}
-                  placeholder="e.g. 17220"
                   className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-[#0c4ca3] focus:outline-hidden font-mono font-bold"
                   required
                 />
               </div>
 
+              {selectedTargets.includes('revenue') && (
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Revenue Target (Million LAK)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={revenueTarget}
+                    onChange={(e) => setRevenueTarget(Number(e.target.value))}
+                    className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-[#0c4ca3] focus:outline-hidden font-mono"
+                  />
+                </div>
+              )}
+
+              {selectedTargets.includes('weight') && (
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Gold Weight Target (Grams)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={goldWeightTarget}
+                    onChange={(e) => setGoldWeightTarget(Number(e.target.value))}
+                    className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-[#0c4ca3] focus:outline-hidden font-mono"
+                  />
+                </div>
+              )}
+
               <div className="sm:col-span-2">
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Baseline Normal Run-Rate per Day (Optional, e.g. Q3 average 79/day)
+                  Normal Baseline Daily Run-Rate (Optional, e.g. Q3 average 79.0 trans/day)
                 </label>
                 <input
                   type="number"
@@ -392,21 +711,54 @@ export function CampaignSetupModal({
           </div>
 
           {/* Footer Actions */}
-          <div className="pt-4 border-t border-slate-200 flex items-center justify-end gap-2.5">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={isSaving || !name.trim()}
-              className="px-6 py-2.5 rounded-xl text-xs font-black bg-[#0c4ca3] hover:bg-[#093d84] text-white shadow-md transition-all flex items-center gap-2"
-            >
-              {isSaving ? 'Saving...' : 'Save Campaign Setup'}
-            </button>
+          <div className="pt-4 border-t border-slate-200 flex items-center justify-between flex-wrap gap-2">
+            <div>
+              {campaignToEdit && onDelete && (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (confirm(`Are you sure you want to delete "${campaignToEdit.campaign_name}"?`)) {
+                      await onDelete(campaignToEdit.id);
+                      onClose();
+                    }
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-rose-600 hover:bg-rose-50 transition-colors"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Delete</span>
+                </button>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2">
+              {campaignToEdit && (
+                <button
+                  type="button"
+                  onClick={(e) => handleSubmit(e, true)}
+                  disabled={isSaving}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors"
+                >
+                  <Copy className="w-3.5 h-3.5" />
+                  <span>Save as Copy</span>
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="submit"
+                disabled={isSaving || !name.trim()}
+                className="px-6 py-2.5 rounded-xl text-xs font-black bg-[#0c4ca3] hover:bg-[#093d84] text-white shadow-md transition-all flex items-center gap-2"
+              >
+                {isSaving ? 'Saving...' : 'Save Campaign Setup'}
+              </button>
+            </div>
           </div>
         </form>
       </div>

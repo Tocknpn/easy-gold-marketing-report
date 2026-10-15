@@ -1,33 +1,50 @@
-export type CampaignConditionType = 'amount_gte' | 'weight_gte' | 'tx_type';
+export type CampaignConditionType = 'amount_gte' | 'weight_gte' | 'weight_between' | 'amount_between' | 'tx_type' | 'custom';
+export type CampaignOperator = '>=' | '<=' | 'between' | '==' | 'all';
+export type CampaignStatus = 'active' | 'completed' | 'upcoming' | 'draft';
 
 export interface CampaignSetupConfig {
   id: string;
   user_id?: string;
   campaign_name: string;
   description?: string;
-  // Dates
-  same_period_backward_start: string; // YYYY-MM-DD
-  same_period_backward_end: string;   // YYYY-MM-DD
+  image_url?: string;                 // Profile pic or campaign logo/banner (URL or base64 data)
+  category_tag?: string;              // 'Volume Driver' | 'Sprint Promo' | 'VIP Retention' | 'Acquisition'
+
+  // Timeline
   campaign_date_start: string;        // YYYY-MM-DD
   campaign_date_end: string;          // YYYY-MM-DD
-  data_update_on: string;             // YYYY-MM-DD (As-of date)
-  // Conditions
+  data_update_on: string;             // YYYY-MM-DD (As-of date, defaults to DB MAX date)
+  auto_sync_max_date?: boolean;       // If true, automatically uses MAX(created_at) from Supabase
+  same_period_backward_start: string; // YYYY-MM-DD (Reverse calculated)
+  same_period_backward_end: string;   // YYYY-MM-DD (Reverse calculated)
+
+  // Conditions & Thresholds
   condition_type: CampaignConditionType;
-  condition_value: number;            // 500000 (LAK) or 2.0 (grams)
-  condition_label: string;            // 'Buy trans >= 500k' or 'Buy trans >= 2g'
-  tx_type: string;                    // 'BUY_GOLD'
-  // Targets
-  ec_target: number;                  // e.g. 307500 or 12800
-  nc_target: number;                  // e.g. 17220 or 2500
-  baseline_daily_rr?: number;         // e.g. 79.0 (Avg Normal RR of Q3 per Day)
-  status?: 'active' | 'completed' | 'draft';
+  condition_operator: CampaignOperator;
+  condition_value: number;            // Min threshold (e.g. 500000 LAK or 2.0g)
+  condition_max_value?: number;       // For 'between' operators (e.g. 5.0g or 2,000,000 LAK)
+  condition_label: string;            // 'Buy trans >= 500k', 'Weight 2.0g - 5.0g'
+  tx_type: string;                    // 'BUY_GOLD', 'SALE_GOLD', 'all'
+  status?: CampaignStatus;
+
+  // Multiple Targets Configuration
+  target_types: ('ec' | 'nc' | 'revenue' | 'weight')[];
+  ec_target: number;                  // Existing/Total Transactions Target (e.g. 307500 or 12800)
+  nc_target: number;                  // New Customers Target (e.g. 17220 or 2500)
+  revenue_target_mil?: number;        // Revenue Target in Million LAK
+  gold_weight_target_g?: number;      // Gold Weight Target in Grams
+  baseline_daily_rr?: number;         // e.g. 79.0 (Avg Normal RR per Day baseline)
 }
 
 export interface CampaignTargetAchievementPayload {
   elapsed_days: number;
   total_days: number;
+  remaining_days: number;
   pct_time_gone: number;              // e.g. 42%
   condition_label: string;
+  is_ended: boolean;
+  is_upcoming: boolean;
+  status: CampaignStatus;
   
   // EC Target
   ec_actual_mtd: number;
@@ -43,23 +60,36 @@ export interface CampaignTargetAchievementPayload {
   nc_pct_hit_mtd: number;             // e.g. 14%
   nc_pct_hit_rr: number;              // e.g. 34%
   
-  // Additional Metrics
-  mtd_buy_weight_g: number;
-  rr_buy_weight_g: number;
+  // Revenue Target
+  revenue_target_mil?: number;
   mtd_buy_value_mil_lak: number;
   rr_buy_value_mil_lak: number;
+  revenue_pct_hit_mtd?: number;
+  revenue_pct_hit_rr?: number;
+
+  // Gold Weight Target
+  gold_weight_target_g?: number;
+  mtd_buy_weight_g: number;
+  rr_buy_weight_g: number;
+  weight_pct_hit_mtd?: number;
+  weight_pct_hit_rr?: number;
+
+  // Ticket Size
   mtd_ticket_size_g: number;
   rr_ticket_size_g: number;
   
-  // Daily Averages
+  // Daily Averages & Pacing
   avg_buy_trans_target_per_day: number;
   act_buy_trans_per_day: number;
+  required_daily_trans_remaining: number;
   daily_compare_pct: number;          // e.g. -5%
 }
 
 export interface CampaignBackwardComparisonPayload {
   backward_days: number;
   mtd_days: number;
+  backward_start: string;
+  backward_end: string;
   
   // Buy Transaction
   buy_trans_condition_label: string;
@@ -82,7 +112,7 @@ export interface CampaignBackwardComparisonPayload {
   ticket_size_g_backward: number;
   ticket_size_pct_compare: number;    // e.g. -4%
   
-  // Baseline Normal RR comparison (optional)
+  // Baseline Normal RR comparison
   baseline_normal_rr_per_day?: number;
   avg_campaign_daily_actual?: number;
   baseline_pct_compare?: number;      // e.g. +981%
@@ -92,4 +122,6 @@ export interface CampaignAnalyticsPayload {
   config: CampaignSetupConfig;
   targetAchievement: CampaignTargetAchievementPayload;
   backwardComparison: CampaignBackwardComparisonPayload;
+  dataSource?: 'supabase_live' | 'computed_cache';
+  evaluated_at?: string;
 }
