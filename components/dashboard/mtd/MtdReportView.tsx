@@ -35,10 +35,26 @@ export function MtdReportView({ initialData, onRefresh, loading = false }: MtdRe
   const [selectedBranch, setSelectedBranch] = useState<string>('all');
   const [selectedBank, setSelectedBank] = useState<string>('all');
   const [forecastScenario, setForecastScenario] = useState<'standard' | 'working_days' | 'conservative' | 'optimistic'>('standard');
+  const [hasExecuted, setHasExecuted] = useState<boolean>(false);
+  const [isExecuting, setIsExecuting] = useState<boolean>(false);
+  const [isExporting, setIsExporting] = useState<boolean>(false);
   const [isSlicersExpanded, setIsSlicersExpanded] = useState<boolean>(false);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [showFormulaInfo, setShowFormulaInfo] = useState(false);
-  const [isExporting, setIsExporting] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
+  const [showFormulaInfo, setShowFormulaInfo] = useState<boolean>(false);
+  const [executionTimestamp, setExecutionTimestamp] = useState<string>('');
+
+  const handleExecuteMtd = async () => {
+    setIsExecuting(true);
+    try {
+      if (onRefresh) {
+        await onRefresh();
+      }
+    } finally {
+      setIsExecuting(false);
+      setHasExecuted(true);
+      setExecutionTimestamp(new Date().toLocaleTimeString());
+    }
+  };
 
   // Available Branches
   const branches = [
@@ -289,6 +305,17 @@ export function MtdReportView({ initialData, onRefresh, loading = false }: MtdRe
             {isSlicersExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
           </button>
 
+          {/* ⚡ GO! Execute MTD Report Button */}
+          <button
+            onClick={handleExecuteMtd}
+            disabled={isExecuting || loading}
+            className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white text-xs font-black shadow-md transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
+            title="Execute MTD report on Supabase"
+          >
+            <span className="text-amber-300 font-black">⚡</span>
+            <span>{isExecuting || loading ? 'Querying...' : 'GO! CALCULATE (ສົ່ງຄຳນວນ)'}</span>
+          </button>
+
           {/* Export to CSV Button */}
           <button
             onClick={handleExportCsv}
@@ -443,37 +470,88 @@ export function MtdReportView({ initialData, onRefresh, loading = false }: MtdRe
         </div>
       )}
 
-      {/* 2. Main Executive Grid: 7 Cards across 3 Themed Containers */}
-      {/* Exact Proportions: BUY (2 cards, 28%), SELL (3 cards, 42%), PLATFORM (2 cards, 28%) */}
-      <div className="grid grid-cols-1 xl:grid-cols-7 gap-3 sm:gap-3.5 items-stretch">
-        {/* BUY ACTIVITY: 2 Cards (xl:col-span-2) */}
-        <div className="xl:col-span-2 flex flex-col">
-          <MtdBuyActivitySection
-            buyWeight={displayedData.metrics.buy_weight_g}
-            buyTransactions={displayedData.metrics.buy_transactions}
-            comparisonMonthLabel={displayedData.comparison_month_label}
-          />
-        </div>
+      {/* 2. Main Executive Grid OR Empty "Ready to Calculate" State */}
+      {!hasExecuted ? (
+        <div className="bg-white rounded-3xl p-8 sm:p-14 border-2 border-dashed border-slate-300 text-center flex flex-col items-center justify-center space-y-4 shadow-xs animate-in fade-in duration-200">
+          <div className="w-16 h-16 rounded-3xl bg-blue-50 text-[#0c4ca3] flex items-center justify-center border border-blue-200 shadow-inner">
+            <Calendar className="w-8 h-8 stroke-[2.2]" />
+          </div>
 
-        {/* SELL ACTIVITY: 3 Cards (xl:col-span-3) */}
-        <div className="xl:col-span-3 flex flex-col">
-          <MtdSellActivitySection
-            sellWeight={displayedData.metrics.sell_weight_g}
-            sellTransactions={displayedData.metrics.sell_transactions}
-            withdraw15g={displayedData.metrics.withdraw_15g}
-            comparisonMonthLabel={displayedData.comparison_month_label}
-          />
-        </div>
+          <div className="max-w-md space-y-1.5">
+            <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-100 text-amber-900 border border-amber-200 inline-block">
+              Awaiting Calculation
+            </span>
+            <h3 className="text-base sm:text-lg font-black text-slate-900 uppercase tracking-tight">
+              Ready to Calculate MTD &amp; Forecast Landing
+            </h3>
+            <p className="text-xs text-slate-500 font-medium leading-relaxed">
+              No numbers are pre-rendered to ensure exact alignment with Supabase. Set your cutoff date and comparison month above, then click <strong>GO!</strong> to calculate.
+            </p>
+          </div>
 
-        {/* PLATFORM OVERVIEW: 2 Cards (xl:col-span-2) */}
-        <div className="xl:col-span-2 flex flex-col">
-          <MtdPlatformSection
-            newCustomers={displayedData.metrics.new_customers}
-            totalTransactions={displayedData.metrics.total_transactions}
-            comparisonMonthLabel={displayedData.comparison_month_label}
-          />
+          <button
+            onClick={handleExecuteMtd}
+            disabled={isExecuting || loading}
+            className="flex items-center gap-2.5 px-7 py-3.5 rounded-2xl text-sm font-black bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:opacity-95 text-white shadow-lg hover:shadow-xl transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
+          >
+            <span className="text-amber-300 font-black text-lg">⚡</span>
+            <span>{isExecuting || loading ? 'Querying Supabase...' : 'GO! CALCULATE MTD FORECAST (ສົ່ງຄຳນວນ)'}</span>
+          </button>
         </div>
-      </div>
+      ) : (
+        <div className="space-y-4 animate-in fade-in duration-200">
+          {/* Live Execution Feedback Badge */}
+          <div className="flex items-center justify-between bg-emerald-50/80 border border-emerald-200 rounded-2xl px-4 py-2 text-xs text-emerald-900 font-medium flex-wrap gap-2">
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+              <span>
+                <strong>Live MTD Calculation:</strong> Cutoff: <strong>Day {displayedData.elapsed_days} ({displayedData.display_as_of_date})</strong> | Comp: <strong>vs {displayedData.comparison_month_label}</strong> ({mode})
+              </span>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="text-emerald-700 text-[11px]">Computed at {executionTimestamp}</span>
+              <button
+                onClick={handleExecuteMtd}
+                disabled={isExecuting || loading}
+                className="text-xs font-black text-emerald-800 hover:text-emerald-950 underline flex items-center gap-1 cursor-pointer"
+              >
+                <span>{isExecuting || loading ? 'Recalculating...' : 'Re-calculate'}</span>
+              </button>
+            </div>
+          </div>
+
+          {/* 7 Cards across 3 Themed Containers */}
+          <div className="grid grid-cols-1 xl:grid-cols-7 gap-3 sm:gap-3.5 items-stretch">
+            {/* BUY ACTIVITY: 2 Cards (xl:col-span-2) */}
+            <div className="xl:col-span-2 flex flex-col">
+              <MtdBuyActivitySection
+                buyWeight={displayedData.metrics.buy_weight_g}
+                buyTransactions={displayedData.metrics.buy_transactions}
+                comparisonMonthLabel={displayedData.comparison_month_label}
+              />
+            </div>
+
+            {/* SELL ACTIVITY: 3 Cards (xl:col-span-3) */}
+            <div className="xl:col-span-3 flex flex-col">
+              <MtdSellActivitySection
+                sellWeight={displayedData.metrics.sell_weight_g}
+                sellTransactions={displayedData.metrics.sell_transactions}
+                withdraw15g={displayedData.metrics.withdraw_15g}
+                comparisonMonthLabel={displayedData.comparison_month_label}
+              />
+            </div>
+
+            {/* PLATFORM OVERVIEW: 2 Cards (xl:col-span-2) */}
+            <div className="xl:col-span-2 flex flex-col">
+              <MtdPlatformSection
+                newCustomers={displayedData.metrics.new_customers}
+                totalTransactions={displayedData.metrics.total_transactions}
+                comparisonMonthLabel={displayedData.comparison_month_label}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

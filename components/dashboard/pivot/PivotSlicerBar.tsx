@@ -8,9 +8,11 @@ interface PivotSlicerBarProps {
   slicers: PivotSlicerState;
   onChange: (updated: PivotSlicerState) => void;
   onReset: () => void;
+  onExecuteQuery?: () => void;
+  isCalculating?: boolean;
 }
 
-export function PivotSlicerBar({ slicers, onChange, onReset }: PivotSlicerBarProps) {
+export function PivotSlicerBar({ slicers, onChange, onReset, onExecuteQuery, isCalculating }: PivotSlicerBarProps) {
   const updateField = <K extends keyof PivotSlicerState>(field: K, val: PivotSlicerState[K]) => {
     onChange({ ...slicers, [field]: val });
   };
@@ -28,14 +30,27 @@ export function PivotSlicerBar({ slicers, onChange, onReset }: PivotSlicerBarPro
           </span>
         </div>
 
-        <button
-          onClick={onReset}
-          className="flex items-center gap-1 text-[11px] font-bold text-slate-500 hover:text-[#0c4ca3] transition-colors"
-          title="Reset Slicers to Default"
-        >
-          <RotateCcw className="w-3 h-3" />
-          <span>Reset Filters</span>
-        </button>
+        <div className="flex items-center gap-2.5">
+          <button
+            onClick={onReset}
+            className="flex items-center gap-1 text-[11px] font-bold text-slate-500 hover:text-[#0c4ca3] transition-colors px-2 py-1"
+            title="Reset Slicers to Default"
+          >
+            <RotateCcw className="w-3 h-3" />
+            <span>Reset Filters</span>
+          </button>
+
+          {onExecuteQuery && (
+            <button
+              onClick={onExecuteQuery}
+              disabled={isCalculating}
+              className="flex items-center gap-2 px-4 py-1.5 rounded-xl text-xs font-black bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white shadow-md transition-all active:scale-95 disabled:opacity-50"
+            >
+              <span className="text-amber-300 font-black text-sm">⚡</span>
+              <span>{isCalculating ? 'Querying Supabase...' : 'GO! CALCULATE (ສົ່ງຄຳນວນ)'}</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Slicers Grid matching Image 1 & Image 2 */}

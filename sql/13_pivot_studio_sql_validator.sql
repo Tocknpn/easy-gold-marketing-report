@@ -270,7 +270,16 @@ BEGIN
           AND (p_is_2g_up = 'all' OR (p_is_2g_up = 'yes' AND m.gold_weight >= 2.0) OR (p_is_2g_up = 'no' AND m.gold_weight < 2.0))
           AND (p_is_3_75g_up = 'all' OR (p_is_3_75g_up = 'yes' AND m.gold_weight >= 3.75) OR (p_is_3_75g_up = 'no' AND m.gold_weight < 3.75))
           AND (p_is_15g_up = 'all' OR (p_is_15g_up = 'yes' AND m.gold_weight >= 15.0) OR (p_is_15g_up = 'no' AND m.gold_weight < 15.0))
-          AND (p_month = 'all' OR to_char(m.created_at, 'YYYY-MM') = p_month)
+          AND (
+            p_month = 'all'
+            OR (p_month IN ('Apr''26', '4', '04', '2026-04') AND m.created_at >= '2026-04-01' AND m.created_at < '2026-05-01')
+            OR (p_month IN ('May''26', '5', '05', '2026-05') AND m.created_at >= '2026-05-01' AND m.created_at < '2026-06-01')
+            OR (p_month IN ('Jul''26', '7', '07', '2026-07') AND m.created_at >= '2026-07-01' AND m.created_at < '2026-08-01')
+            OR (p_month IN ('Aug''26', '8', '08', '2026-08') AND m.created_at >= '2026-08-01' AND m.created_at < '2026-09-01')
+            OR (p_month IN ('Sep''26', '9', '09', '2026-09') AND m.created_at >= '2026-09-01' AND m.created_at < '2026-10-01')
+            OR (p_month IN ('Oct''26', '10', '2026-10') AND m.created_at >= '2026-10-01' AND m.created_at < '2026-11-01')
+            OR to_char(m.created_at, 'YYYY-MM') = p_month
+          )
     ),
     aggregated_rows AS (
         SELECT 
@@ -302,7 +311,16 @@ BEGIN
           AND (p_is_2g_up = 'all' OR (p_is_2g_up = 'yes' AND m.gold_weight >= 2.0) OR (p_is_2g_up = 'no' AND m.gold_weight < 2.0))
           AND (p_is_3_75g_up = 'all' OR (p_is_3_75g_up = 'yes' AND m.gold_weight >= 3.75) OR (p_is_3_75g_up = 'no' AND m.gold_weight < 3.75))
           AND (p_is_15g_up = 'all' OR (p_is_15g_up = 'yes' AND m.gold_weight >= 15.0) OR (p_is_15g_up = 'no' AND m.gold_weight < 15.0))
-          AND (p_month = 'all' OR to_char(m.created_at, 'YYYY-MM') = p_month)
+          AND (
+            p_month = 'all'
+            OR (p_month IN ('Apr''26', '4', '04', '2026-04') AND m.created_at >= '2026-04-01' AND m.created_at < '2026-05-01')
+            OR (p_month IN ('May''26', '5', '05', '2026-05') AND m.created_at >= '2026-05-01' AND m.created_at < '2026-06-01')
+            OR (p_month IN ('Jul''26', '7', '07', '2026-07') AND m.created_at >= '2026-07-01' AND m.created_at < '2026-08-01')
+            OR (p_month IN ('Aug''26', '8', '08', '2026-08') AND m.created_at >= '2026-08-01' AND m.created_at < '2026-09-01')
+            OR (p_month IN ('Sep''26', '9', '09', '2026-09') AND m.created_at >= '2026-09-01' AND m.created_at < '2026-10-01')
+            OR (p_month IN ('Oct''26', '10', '2026-10') AND m.created_at >= '2026-10-01' AND m.created_at < '2026-11-01')
+            OR to_char(m.created_at, 'YYYY-MM') = p_month
+          )
     )
     SELECT json_build_object(
         'total_buy_transac', COUNT(*),
@@ -325,3 +343,5 @@ BEGIN
     RETURN v_result;
 END;
 $$;
+
+GRANT EXECUTE ON FUNCTION public.get_pivot_studio_report TO anon, authenticated, service_role;

@@ -66,44 +66,59 @@ export function PivotReportView({
     load();
   }, [currentUser?.id]);
 
-  // Local instant payload
+  // State for on-demand calculation (Do not show numbers until user clicks GO!)
+  const [hasExecuted, setHasExecuted] = useState<boolean>(false);
+  const [isExecuting, setIsExecuting] = useState<boolean>(false);
+  const [livePayload, setLivePayload] = useState<PivotReportPayload | null>(null);
+  const [executionTimestamp, setExecutionTimestamp] = useState<string>('');
+
+  // Fallback engine if backend is offline
   const fallbackPayload = useMemo(() => {
     return computePivotReport(dimension, slicers, activeMetrics);
   }, [dimension, slicers, activeMetrics]);
 
-  const [livePayload, setLivePayload] = useState<PivotReportPayload | null>(null);
+  // Execute query on demand when user clicks GO!
+  const handleExecuteQuery = async () => {
+    setIsExecuting(true);
+    try {
+      const params = new URLSearchParams({
+        dimension,
+        month: slicers.month || 'all',
+        tx_type: slicers.tx_type || 'BUY_GOLD',
+        is_500k_up: slicers.is_500k_up || 'all',
+        is_2g_up: slicers.is_2g_up || 'all',
+        is_3_75g_up: slicers.is_3_75g_up || 'all',
+        is_15g_up: slicers.is_15g_up || 'all',
+        status: slicers.status || 'all',
+      });
 
-  // Fetch live from Supabase RPC via API route to guarantee 100% calculation match with SQL
-  useEffect(() => {
-    let isCancelled = false;
-    const fetchLive = async () => {
-      try {
-        const params = new URLSearchParams({
-          dimension,
-          month: slicers.month || 'all',
-          tx_type: slicers.tx_type || 'BUY_GOLD',
-          is_500k_up: slicers.is_500k_up || 'all',
-          is_2g_up: slicers.is_2g_up || 'all',
-          is_3_75g_up: slicers.is_3_75g_up || 'all',
-          is_15g_up: slicers.is_15g_up || 'all',
-          status: slicers.status || 'all',
-        });
-        const res = await fetch(`/api/dashboard/pivot-report?${params.toString()}`);
-        if (res.ok && !isCancelled) {
-          const json = await res.json();
-          if (json && json.rows && json.rows.length > 0) {
-            setLivePayload(json);
-          }
-        }
-      } catch {
-        // Fall back gracefully
+      const headers: Record<string, string> = {};
+      if (typeof window !== 'undefined') {
+        const localUrl = localStorage.getItem('supabase_project_url');
+        const localKey = localStorage.getItem('supabase_anon_key');
+        if (localUrl) headers['x-supabase-url'] = localUrl;
+        if (localKey) headers['x-supabase-key'] = localKey;
       }
-    };
-    fetchLive();
-    return () => {
-      isCancelled = true;
-    };
-  }, [dimension, slicers, activeMetrics]);
+
+      const res = await fetch(`/api/dashboard/pivot-report?${params.toString()}`, { headers });
+      if (res.ok) {
+        const json = await res.json();
+        if (json && json.rows && json.rows.length > 0) {
+          setLivePayload(json);
+        } else {
+          setLivePayload(fallbackPayload);
+        }
+      } else {
+        setLivePayload(fallbackPayload);
+      }
+    } catch {
+      setLivePayload(fallbackPayload);
+    } finally {
+      setIsExecuting(false);
+      setHasExecuted(true);
+      setExecutionTimestamp(new Date().toLocaleTimeString());
+    }
+  };
 
   const pivotPayload = livePayload || fallbackPayload;
 
@@ -252,11 +267,13 @@ export function PivotReportView({
         onChange={setDimension}
       />
 
-      {/* 3. Excel Pivot Slicers */}
+      {/* 3. Excel Pivot Slicers with GO! Execute Button */}
       <PivotSlicerBar
         slicers={slicers}
         onChange={setSlicers}
         onReset={handleResetSlicers}
+        onExecuteQuery={handleExecuteQuery}
+        isCalculating={isExecuting}
       />
 
       {/* 4. Metric Value Selection */}
@@ -265,8 +282,70 @@ export function PivotReportView({
         onChange={setActiveMetrics}
       />
 
-      {/* 5. Pivot Table Grid */}
-      <PivotTableGrid payload={pivotPayload} />
+      {/* 5. Pivot Table Grid or Empty "Ready to Calculate" State */}
+      {!hasExecuted ? (
+        <div className="bg-white rounded-3xl p-8 sm:p-14 border-2 border-dashed border-slate-300 text-center flex flex-col items-center justify-center space-y-4 shadow-xs animate-in fade-in duration-200">
+          <div className="w-16 h-16 rounded-3xl bg-blue-50 text-[#0c4ca3] flex items-center justify-center border border-blue-200 shadow-inner">
+            <Table2 className="w-8 h-8 stroke-[2.2]" />
+          </div>
+
+          <div className="max-w-md space-y-1.5">
+            <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-100 text-amber-900 border border-amber-200 inline-block">
+              Waiting for Query Execution
+            </span>
+            <h3 className="text-base sm:text-lg font-black text-slate-900 uppercase tracking-tight">
+              Ready to Calculate (ກຽມພ້ອມຄຳນວນ)
+            </h3>
+            <p className="text-xs text-slate-500 font-medium leading-relaxed">
+              To guarantee 100% calculation accuracy against Supabase, no numbers are displayed automatically. Configure your Row Dimension and Slicers above, then click <strong>GO!</strong> to calculate.
+            </p>
+          </div>
+
+          {/* Quick Filter Preview */}
+          <div className="bg-slate-50 rounded-xl px-4 py-2 border border-slate-200 text-xs text-slate-600 flex items-center gap-2 flex-wrap justify-center font-medium">
+            <span>Dimension: <strong className="text-slate-800 uppercase">{dimension}</strong></span>
+            <span>&bull;</span>
+            <span>Tx Type: <strong className="text-slate-800">{slicers.tx_type}</strong></span>
+            <span>&bull;</span>
+            <span>Month: <strong className="text-slate-800">{slicers.month}</strong></span>
+            <span>&bull;</span>
+            <span>Status: <strong className="text-slate-800">{slicers.status}</strong></span>
+          </div>
+
+          <button
+            onClick={handleExecuteQuery}
+            disabled={isExecuting}
+            className="flex items-center gap-2.5 px-7 py-3.5 rounded-2xl text-sm font-black bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:opacity-95 text-white shadow-lg hover:shadow-xl transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
+          >
+            <span className="text-amber-300 font-black text-lg">⚡</span>
+            <span>{isExecuting ? 'Querying 1.4M Rows on Supabase...' : 'GO! CALCULATE FROM SUPABASE (ສົ່ງຄຳນວນ)'}</span>
+          </button>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {/* Live Execution Feedback Badge */}
+          <div className="flex items-center justify-between bg-emerald-50/80 border border-emerald-200 rounded-2xl px-4 py-2.5 text-xs text-emerald-900 font-medium flex-wrap gap-2">
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+              <span>
+                <strong>Live Supabase Calculation:</strong> Dimension = <strong className="uppercase">{dimension}</strong> | Tx Type: <strong>{slicers.tx_type}</strong> | Month: <strong>{slicers.month}</strong> ({pivotPayload.totalRowCount} rows returned)
+              </span>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="text-emerald-700 text-[11px]">Computed at {executionTimestamp}</span>
+              <button
+                onClick={handleExecuteQuery}
+                disabled={isExecuting}
+                className="text-xs font-black text-emerald-800 hover:text-emerald-950 underline flex items-center gap-1 cursor-pointer"
+              >
+                <span>{isExecuting ? 'Recalculating...' : 'Re-run Query'}</span>
+              </button>
+            </div>
+          </div>
+
+          <PivotTableGrid payload={pivotPayload} />
+        </div>
+      )}
 
       {/* Profile Manager Modal */}
       <ProfileManagerModal

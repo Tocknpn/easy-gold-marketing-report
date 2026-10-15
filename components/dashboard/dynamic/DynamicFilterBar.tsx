@@ -33,6 +33,7 @@ interface DynamicFilterBarProps {
   onFilterChange: (newFilters: DynamicFilterState) => void;
   onReset: () => void;
   isLoading?: boolean;
+  onExecuteQuery?: () => void;
 }
 
 export function DynamicFilterBar({
@@ -40,6 +41,7 @@ export function DynamicFilterBar({
   onFilterChange,
   onReset,
   isLoading,
+  onExecuteQuery,
 }: DynamicFilterBarProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [activeDropdown, setActiveDropdown] = useState<'banks' | 'branches' | 'txTypes' | null>(null);
@@ -174,6 +176,17 @@ export function DynamicFilterBar({
             <span>{isExpanded ? 'Hide Slicers' : 'Advanced Slicers'}</span>
             {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
           </button>
+
+          {onExecuteQuery && (
+            <button
+              onClick={onExecuteQuery}
+              disabled={isLoading}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-black bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white shadow-sm transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
+            >
+              <span className="text-amber-300 font-black">⚡</span>
+              <span>{isLoading ? 'Querying...' : 'GO! CALCULATE (ສົ່ງຄຳນວນ)'}</span>
+            </button>
+          )}
 
           <button
             onClick={onReset}

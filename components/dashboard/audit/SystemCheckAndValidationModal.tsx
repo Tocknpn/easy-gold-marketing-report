@@ -39,7 +39,28 @@ export function SystemCheckAndValidationModal({
   const [lastTestedAt, setLastTestedAt] = useState<string>('Just now');
   const [pingLatency, setPingLatency] = useState<number>(14);
   const [isPinging, setIsPinging] = useState(false);
-  const [dbMode, setDbMode] = useState<'edge_cache' | 'supabase_rpc' | 'autonomous_offline'>('edge_cache');
+  const [supabaseUrlInput, setSupabaseUrlInput] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('supabase_project_url') || process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+    }
+    return '';
+  });
+  const [supabaseKeyInput, setSupabaseKeyInput] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('supabase_anon_key') || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+    }
+    return '';
+  });
+  const [isSavedCreds, setIsSavedCreds] = useState<boolean>(false);
+
+  const handleSaveCredentials = () => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('supabase_project_url', supabaseUrlInput.trim());
+      localStorage.setItem('supabase_anon_key', supabaseKeyInput.trim());
+      setIsSavedCreds(true);
+      setTimeout(() => setIsSavedCreds(false), 2500);
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -391,6 +412,68 @@ export function SystemCheckAndValidationModal({
                     <span className="text-xs text-slate-500">Free Cap Remaining</span>
                     <span className="text-xs font-bold text-slate-800">118 MB Free</span>
                   </div>
+                </div>
+              </div>
+
+              {/* Supabase Live Credentials Configuration */}
+              <div className="bg-blue-50/70 border border-blue-200 rounded-2xl p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Database className="w-4 h-4 text-[#0c4ca3]" />
+                    <h4 className="text-xs font-black uppercase text-slate-800 tracking-wider">
+                      Supabase Project Live Connection Keys
+                    </h4>
+                  </div>
+                  <span className="text-[10px] font-bold text-slate-500">
+                    Saved in browser localStorage for direct queries
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                      Supabase Project URL (e.g. https://your-ref.supabase.co)
+                    </label>
+                    <input
+                      type="text"
+                      value={supabaseUrlInput}
+                      onChange={(e) => setSupabaseUrlInput(e.target.value)}
+                      placeholder="https://your-project.supabase.co"
+                      className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono focus:ring-2 focus:ring-[#0c4ca3] focus:outline-hidden"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                      Supabase Anon Public API Key (anon key)
+                    </label>
+                    <input
+                      type="password"
+                      value={supabaseKeyInput}
+                      onChange={(e) => setSupabaseKeyInput(e.target.value)}
+                      placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                      className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono focus:ring-2 focus:ring-[#0c4ca3] focus:outline-hidden"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between pt-1">
+                  <div className="text-[11px] text-slate-600 font-medium">
+                    {isSavedCreds ? (
+                      <span className="text-emerald-700 font-bold flex items-center gap-1">
+                        <CheckCircle2 className="w-3.5 h-3.5" /> Keys Saved! Future queries will connect directly to this database.
+                      </span>
+                    ) : (
+                      <span>Enter the Project URL and Anon Key from your Supabase Dashboard &rarr; Project Settings &rarr; API.</span>
+                    )}
+                  </div>
+
+                  <button
+                    onClick={handleSaveCredentials}
+                    className="px-4 py-1.5 rounded-xl bg-[#0c4ca3] hover:bg-[#093d84] text-white text-xs font-black shadow-sm transition-all"
+                  >
+                    Save &amp; Connect Live
+                  </button>
                 </div>
               </div>
 

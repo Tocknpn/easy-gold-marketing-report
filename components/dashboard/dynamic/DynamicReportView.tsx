@@ -28,6 +28,9 @@ export function DynamicReportView() {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isExporting, setIsExporting] = useState<boolean>(false);
 
+  const [hasExecuted, setHasExecuted] = useState<boolean>(false);
+  const [executionTimestamp, setExecutionTimestamp] = useState<string>('');
+
   // Fetch dynamic report from API with query params
   const fetchReport = useCallback(async (currentFilters: DynamicFilterState) => {
     setIsLoading(true);
@@ -60,12 +63,10 @@ export function DynamicReportView() {
       setReportData(calculateFilteredReport(currentFilters));
     } finally {
       setIsLoading(false);
+      setHasExecuted(true);
+      setExecutionTimestamp(new Date().toLocaleTimeString());
     }
   }, []);
-
-  useEffect(() => {
-    fetchReport(filters);
-  }, [filters, fetchReport]);
 
   const handleResetFilters = () => {
     setFilters(DEFAULT_FILTER_STATE);
@@ -88,14 +89,14 @@ export function DynamicReportView() {
           <div className="flex items-center gap-2">
             <SlidersHorizontal className="w-5 h-5 text-[#e5a812]" />
             <h2 className="text-base sm:text-lg font-black tracking-tight uppercase">
-              Dynamic BI Performance & Measures Explorer
+              Dynamic BI Performance &amp; Measures Explorer
             </h2>
             <span className="hidden sm:inline-block px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-[#e5a812] text-slate-950">
               Live Aggregations
             </span>
           </div>
           <p className="text-xs text-white/80 mt-1 font-medium">
-            Multi-dimensional cross-filtering across 1.4M rows. Replaces manual Excel work with instant automated calculations.
+            Multi-dimensional cross-filtering across 1.4M rows. Select your target date and dimensions, then click GO!
           </p>
         </div>
 
@@ -104,20 +105,22 @@ export function DynamicReportView() {
           <button
             onClick={() => fetchReport(filters)}
             disabled={isLoading}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-white/10 hover:bg-white/20 text-white border border-white/20 transition-all disabled:opacity-50"
+            className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black bg-gradient-to-r from-emerald-600 to-teal-700 hover:opacity-95 text-white shadow-md transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
-            <span>{isLoading ? 'Recalculating...' : 'Refresh'}</span>
+            <span className="text-amber-300 font-black">⚡</span>
+            <span>{isLoading ? 'Querying Supabase...' : 'GO! CALCULATE (ສົ່ງຄຳນວນ)'}</span>
           </button>
 
-          <button
-            onClick={handleExportCsv}
-            disabled={isExporting}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-black bg-[#e5a812] hover:bg-[#d4970b] text-slate-950 shadow-sm transition-all"
-          >
-            <FileSpreadsheet className="w-4 h-4 text-slate-950" />
-            <span>{isExporting ? 'Exporting...' : 'Export to Excel/CSV'}</span>
-          </button>
+          {hasExecuted && (
+            <button
+              onClick={handleExportCsv}
+              disabled={isExporting}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-black bg-[#e5a812] hover:bg-[#d4970b] text-slate-950 shadow-sm transition-all"
+            >
+              <FileSpreadsheet className="w-4 h-4 text-slate-950" />
+              <span>{isExporting ? 'Exporting...' : 'Export'}</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -127,21 +130,74 @@ export function DynamicReportView() {
         onFilterChange={setFilters}
         onReset={handleResetFilters}
         isLoading={isLoading}
+        onExecuteQuery={() => fetchReport(filters)}
       />
 
-      {/* 2. Executive KPI Ribbon (Platform, Buy, Sell, Withdraw, Pricing & Stats) */}
-      <DynamicKpiRibbon measures={reportData.dax_measures} />
+      {/* 2. Content: Empty "Ready to Calculate" State OR Live Results */}
+      {!hasExecuted ? (
+        <div className="bg-white rounded-3xl p-8 sm:p-14 border-2 border-dashed border-slate-300 text-center flex flex-col items-center justify-center space-y-4 shadow-xs animate-in fade-in duration-200">
+          <div className="w-16 h-16 rounded-3xl bg-blue-50 text-[#0c4ca3] flex items-center justify-center border border-blue-200 shadow-inner">
+            <SlidersHorizontal className="w-8 h-8 stroke-[2.2]" />
+          </div>
 
-      {/* 3. Visual Distribution Charts (Hourly, Banks, Branches, Weight Brackets) */}
-      <DynamicChartsSection
-        hourly={reportData.hourly}
-        banks={reportData.banks}
-        branches={reportData.branches}
-        weightBrackets={reportData.weight_brackets}
-      />
+          <div className="max-w-md space-y-1.5">
+            <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-100 text-amber-900 border border-amber-200 inline-block">
+              Awaiting Query Trigger
+            </span>
+            <h3 className="text-base sm:text-lg font-black text-slate-900 uppercase tracking-tight">
+              Ready to Run Dynamic BI Analysis
+            </h3>
+            <p className="text-xs text-slate-500 font-medium leading-relaxed">
+              No metrics are pre-loaded to ensure 100% data integrity with Supabase. Choose your date range, banks, branches, and filters above, then click <strong>GO!</strong> to calculate.
+            </p>
+          </div>
 
-      {/* 4. Complete PowerBI / Excel DAX Measures Table */}
-      <DaxMeasuresTable measures={reportData.dax_measures} />
+          <button
+            onClick={() => fetchReport(filters)}
+            disabled={isLoading}
+            className="flex items-center gap-2.5 px-7 py-3.5 rounded-2xl text-sm font-black bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:opacity-95 text-white shadow-lg hover:shadow-xl transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
+          >
+            <span className="text-amber-300 font-black text-lg">⚡</span>
+            <span>{isLoading ? 'Querying 1.4M Rows on Supabase...' : 'GO! RUN DYNAMIC ANALYSIS (ສົ່ງຄຳນວນ)'}</span>
+          </button>
+        </div>
+      ) : (
+        <div className="space-y-4 animate-in fade-in duration-200">
+          {/* Live Execution Feedback Badge */}
+          <div className="flex items-center justify-between bg-emerald-50/80 border border-emerald-200 rounded-2xl px-4 py-2.5 text-xs text-emerald-900 font-medium flex-wrap gap-2">
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+              <span>
+                <strong>Live Supabase Dynamic Aggregation:</strong> Window: <strong>{filters.startDate} to {filters.endDate}</strong> | Status: <strong>{filters.status}</strong>
+              </span>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="text-emerald-700 text-[11px]">Computed at {executionTimestamp}</span>
+              <button
+                onClick={() => fetchReport(filters)}
+                disabled={isLoading}
+                className="text-xs font-black text-emerald-800 hover:text-emerald-950 underline flex items-center gap-1 cursor-pointer"
+              >
+                <span>{isLoading ? 'Recalculating...' : 'Re-calculate'}</span>
+              </button>
+            </div>
+          </div>
+
+          {/* 2. Executive KPI Ribbon (Platform, Buy, Sell, Withdraw, Pricing & Stats) */}
+          <DynamicKpiRibbon measures={reportData.dax_measures} />
+
+          {/* 3. Visual Distribution Charts (Hourly, Banks, Branches, Weight Brackets) */}
+          <DynamicChartsSection
+            hourly={reportData.hourly}
+            banks={reportData.banks}
+            branches={reportData.branches}
+            weightBrackets={reportData.weight_brackets}
+          />
+
+          {/* 4. Complete PowerBI / Excel DAX Measures Table */}
+          <DaxMeasuresTable measures={reportData.dax_measures} />
+        </div>
+      )}
     </div>
   );
 }

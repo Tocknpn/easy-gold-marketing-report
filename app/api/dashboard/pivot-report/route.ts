@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { PivotReportPayload, PivotRowDimension, PivotSlicerState, PivotMetricId } from '@/lib/types/pivotReport.types';
 import { computePivotReport } from '@/lib/pivot/pivotEngine';
 import { DEFAULT_PIVOT_SLICERS } from '@/lib/storage/profileStorage';
@@ -10,7 +11,7 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
 
   const dimension = (searchParams.get('dimension') || 'bank') as PivotRowDimension;
-  const month = searchParams.get('month') || 'all';
+  const rawMonth = searchParams.get('month') || 'all';
   const tx_type = searchParams.get('tx_type') || 'BUY_GOLD';
   const is_500k_up = (searchParams.get('is_500k_up') || 'all') as any;
   const is_2g_up = (searchParams.get('is_2g_up') || 'all') as any;
@@ -18,9 +19,18 @@ export async function GET(request: NextRequest) {
   const is_15g_up = (searchParams.get('is_15g_up') || 'all') as any;
   const status = searchParams.get('status') || 'all';
 
+  // Normalize month string
+  let month = rawMonth;
+  if (rawMonth === "Apr'26") month = "Apr'26";
+  if (rawMonth === "May'26") month = "May'26";
+  if (rawMonth === "Jul'26") month = "Jul'26";
+  if (rawMonth === "Aug'26") month = "Aug'26";
+  if (rawMonth === "Sep'26") month = "Sep'26";
+  if (rawMonth === "Oct'26") month = "Oct'26";
+
   const slicers: PivotSlicerState = {
     ...DEFAULT_PIVOT_SLICERS,
-    month,
+    month: rawMonth,
     tx_type,
     is_500k_up,
     is_2g_up,
@@ -41,9 +51,16 @@ export async function GET(request: NextRequest) {
   let payload: PivotReportPayload = computePivotReport(dimension, slicers, activeMetrics);
 
   try {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const customUrl = request.headers.get('x-supabase-url') || searchParams.get('custom_url');
+    const customKey = request.headers.get('x-supabase-key') || searchParams.get('custom_key');
+    const supabaseUrl = customUrl || process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseKey = customKey || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
     if (supabaseUrl && !supabaseUrl.includes('placeholder')) {
-      const supabase = createServerSupabaseClient();
+      const supabase = customUrl && customKey 
+        ? createSupabaseClient(customUrl, customKey)
+        : createServerSupabaseClient();
+
       const { data, error } = await supabase.rpc('get_pivot_studio_report', {
         p_dimension: dimension,
         p_tx_type: tx_type,
