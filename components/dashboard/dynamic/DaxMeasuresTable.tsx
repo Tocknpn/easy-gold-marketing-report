@@ -208,6 +208,13 @@ export function DaxMeasuresTable({ measures }: DaxMeasuresTableProps) {
       description: 'Total physical gold bar withdrawals normalized in 15g Baht units',
     },
     {
+      name: 'Withdraw Gold (g)',
+      category: 'Withdraw',
+      daxFormula: "CALCULATE(SUM('Raw Data'[Gold Weight]), Type='WITHDRAW_GOLD')",
+      value: `${formatDec(measures.withdraw_gold_g, 2)} g`,
+      description: 'Total raw physical gold bar withdrawals measured in grams',
+    },
+    {
       name: 'Withdraw Trans',
       category: 'Withdraw',
       daxFormula: "CALCULATE(COUNT([Source Name]), Type='WITHDRAW_GOLD')",

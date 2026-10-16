@@ -5,6 +5,40 @@
 -- Replicates PowerBI / Excel "Manage Measures" with sub-100ms execution on 1.4M rows
 -- ============================================================================
 
+-- Ensure robust date parser is present
+CREATE OR REPLACE FUNCTION public.parse_tx_date(val TEXT)
+RETURNS TIMESTAMPTZ
+LANGUAGE plpgsql
+IMMUTABLE
+AS $$
+BEGIN
+    IF val IS NULL OR trim(val) = '' THEN
+        RETURN NULL;
+    END IF;
+    BEGIN
+        RETURN val::timestamptz;
+    EXCEPTION WHEN OTHERS THEN
+        NULL;
+    END;
+    BEGIN
+        RETURN to_timestamp(val, 'DD/MM/YYYY, HH24:MI:SS');
+    EXCEPTION WHEN OTHERS THEN
+        NULL;
+    END;
+    BEGIN
+        RETURN to_timestamp(val, 'DD/MM/YYYY HH24:MI:SS');
+    EXCEPTION WHEN OTHERS THEN
+        NULL;
+    END;
+    BEGIN
+        RETURN to_timestamp(val, 'DD/MM/YYYY');
+    EXCEPTION WHEN OTHERS THEN
+        NULL;
+    END;
+    RETURN NULL;
+END;
+$$;
+
 CREATE OR REPLACE FUNCTION public.get_dynamic_bi_report(
     p_start_date TIMESTAMPTZ DEFAULT NULL,
     p_end_date TIMESTAMPTZ DEFAULT NULL,
@@ -48,13 +82,14 @@ BEGIN
     INTO v_open_price
     FROM public.monthly_data
     WHERE (p_status IS NULL OR status = p_status)
-      AND created_at >= v_start_ts AND created_at <= v_end_ts
+      AND public.parse_tx_date(created_at::text) >= v_start_ts 
+      AND public.parse_tx_date(created_at::text) <= v_end_ts
       AND transaction_type = 'BUY_GOLD'
       AND total_amount > 100000
       AND gold_weight > 0
       AND (p_banks IS NULL OR bank = ANY(p_banks))
       AND (p_branches IS NULL OR branch = ANY(p_branches))
-    ORDER BY created_at ASC
+    ORDER BY public.parse_tx_date(created_at::text) ASC
     LIMIT 1;
 
     -- Close Price: Last valid BUY_GOLD transaction with total_amount > 100,000 in the filtered window
@@ -63,13 +98,14 @@ BEGIN
     INTO v_close_price
     FROM public.monthly_data
     WHERE (p_status IS NULL OR status = p_status)
-      AND created_at >= v_start_ts AND created_at <= v_end_ts
+      AND public.parse_tx_date(created_at::text) >= v_start_ts 
+      AND public.parse_tx_date(created_at::text) <= v_end_ts
       AND transaction_type = 'BUY_GOLD'
       AND total_amount > 100000
       AND gold_weight > 0
       AND (p_banks IS NULL OR bank = ANY(p_banks))
       AND (p_branches IS NULL OR branch = ANY(p_branches))
-    ORDER BY created_at DESC
+    ORDER BY public.parse_tx_date(created_at::text) DESC
     LIMIT 1;
 
     v_open_price := COALESCE(v_open_price, 0);
@@ -86,10 +122,11 @@ BEGIN
             total_amount,
             phone,
             created_at,
-            EXTRACT(HOUR FROM created_at)::int AS tx_hour
+            EXTRACT(HOUR FROM public.parse_tx_date(created_at::text))::int AS tx_hour
         FROM public.monthly_data
         WHERE (p_status IS NULL OR status = p_status)
-          AND created_at >= v_start_ts AND created_at <= v_end_ts
+          AND public.parse_tx_date(created_at::text) >= v_start_ts 
+          AND public.parse_tx_date(created_at::text) <= v_end_ts
           AND (p_banks IS NULL OR bank = ANY(p_banks))
           AND (p_branches IS NULL OR branch = ANY(p_branches))
           AND (p_tx_types IS NULL OR transaction_type = ANY(p_tx_types))
@@ -97,8 +134,8 @@ BEGIN
           AND (p_max_weight IS NULL OR gold_weight <= p_max_weight)
           AND (p_min_amount IS NULL OR total_amount >= p_min_amount)
           AND (p_max_amount IS NULL OR total_amount <= p_max_amount)
-          AND (p_start_hour IS NULL OR EXTRACT(HOUR FROM created_at) >= p_start_hour)
-          AND (p_end_hour IS NULL OR EXTRACT(HOUR FROM created_at) <= p_end_hour)
+          AND (p_start_hour IS NULL OR EXTRACT(HOUR FROM public.parse_tx_date(created_at::text)) >= p_start_hour)
+          AND (p_end_hour IS NULL OR EXTRACT(HOUR FROM public.parse_tx_date(created_at::text)) <= p_end_hour)
     )
     SELECT
         -- Overall platform
@@ -120,11 +157,11 @@ BEGIN
         COALESCE(SUM(gold_weight) FILTER (WHERE transaction_type = 'SALE_GOLD'), 0) AS gold_weight_sell_g,
         COALESCE(SUM(total_amount) FILTER (WHERE transaction_type = 'SALE_GOLD'), 0) AS revenue_sell_lak,
 
-        -- Withdraw activity
-        COUNT(*) FILTER (WHERE transaction_type IN ('WITHDRAW_GOLD', 'MARKETHUB_WITHDRAW')) AS withdraw_trans,
-        COUNT(DISTINCT phone) FILTER (WHERE transaction_type IN ('WITHDRAW_GOLD', 'MARKETHUB_WITHDRAW')) AS user_withdraw_gold,
-        COALESCE(SUM(gold_weight) FILTER (WHERE transaction_type IN ('WITHDRAW_GOLD', 'MARKETHUB_WITHDRAW')), 0) AS withdraw_gold_g,
-        COALESCE(SUM(total_amount) FILTER (WHERE transaction_type IN ('WITHDRAW_GOLD', 'MARKETHUB_WITHDRAW')), 0) AS withdraw_value_lak,
+        -- Withdraw activity (covers WITHDRAW_GOLD, MARKETHUB_WITHDRAW, etc.)
+        COUNT(*) FILTER (WHERE transaction_type IN ('WITHDRAW_GOLD', 'MARKETHUB_WITHDRAW') OR transaction_type ILIKE '%WITHDRAW%') AS withdraw_trans,
+        COUNT(DISTINCT phone) FILTER (WHERE transaction_type IN ('WITHDRAW_GOLD', 'MARKETHUB_WITHDRAW') OR transaction_type ILIKE '%WITHDRAW%') AS user_withdraw_gold,
+        COALESCE(SUM(gold_weight) FILTER (WHERE transaction_type IN ('WITHDRAW_GOLD', 'MARKETHUB_WITHDRAW') OR transaction_type ILIKE '%WITHDRAW%'), 0) AS withdraw_gold_g,
+        COALESCE(SUM(total_amount) FILTER (WHERE transaction_type IN ('WITHDRAW_GOLD', 'MARKETHUB_WITHDRAW') OR transaction_type ILIKE '%WITHDRAW%'), 0) AS withdraw_value_lak,
 
         -- Statistical measures
         COALESCE(ROUND(AVG(total_amount), 2), 0) AS avg_value_lak,
@@ -142,13 +179,14 @@ BEGIN
     -- 4. Hourly Distribution (Hours 0 to 23)
     WITH filtered_data AS (
         SELECT 
-            EXTRACT(HOUR FROM created_at)::int AS tx_hour,
+            EXTRACT(HOUR FROM public.parse_tx_date(created_at::text))::int AS tx_hour,
             transaction_type,
             gold_weight,
             total_amount
         FROM public.monthly_data
         WHERE (p_status IS NULL OR status = p_status)
-          AND created_at >= v_start_ts AND created_at <= v_end_ts
+          AND public.parse_tx_date(created_at::text) >= v_start_ts 
+          AND public.parse_tx_date(created_at::text) <= v_end_ts
           AND (p_banks IS NULL OR bank = ANY(p_banks))
           AND (p_branches IS NULL OR branch = ANY(p_branches))
           AND (p_tx_types IS NULL OR transaction_type = ANY(p_tx_types))
@@ -156,8 +194,8 @@ BEGIN
           AND (p_max_weight IS NULL OR gold_weight <= p_max_weight)
           AND (p_min_amount IS NULL OR total_amount >= p_min_amount)
           AND (p_max_amount IS NULL OR total_amount <= p_max_amount)
-          AND (p_start_hour IS NULL OR EXTRACT(HOUR FROM created_at) >= p_start_hour)
-          AND (p_end_hour IS NULL OR EXTRACT(HOUR FROM created_at) <= p_end_hour)
+          AND (p_start_hour IS NULL OR EXTRACT(HOUR FROM public.parse_tx_date(created_at::text)) >= p_start_hour)
+          AND (p_end_hour IS NULL OR EXTRACT(HOUR FROM public.parse_tx_date(created_at::text)) <= p_end_hour)
     )
     SELECT json_agg(h ORDER BY h.hour ASC)
     INTO v_hourly
@@ -185,7 +223,8 @@ BEGIN
             total_amount
         FROM public.monthly_data
         WHERE (p_status IS NULL OR status = p_status)
-          AND created_at >= v_start_ts AND created_at <= v_end_ts
+          AND public.parse_tx_date(created_at::text) >= v_start_ts 
+          AND public.parse_tx_date(created_at::text) <= v_end_ts
           AND (p_banks IS NULL OR bank = ANY(p_banks))
           AND (p_branches IS NULL OR branch = ANY(p_branches))
           AND (p_tx_types IS NULL OR transaction_type = ANY(p_tx_types))
@@ -216,7 +255,8 @@ BEGIN
             transaction_type
         FROM public.monthly_data
         WHERE (p_status IS NULL OR status = p_status)
-          AND created_at >= v_start_ts AND created_at <= v_end_ts
+          AND public.parse_tx_date(created_at::text) >= v_start_ts 
+          AND public.parse_tx_date(created_at::text) <= v_end_ts
           AND (p_banks IS NULL OR bank = ANY(p_banks))
           AND (p_branches IS NULL OR branch = ANY(p_branches))
           AND (p_tx_types IS NULL OR transaction_type = ANY(p_tx_types))
@@ -233,7 +273,7 @@ BEGIN
             COUNT(*) AS total_tx,
             COALESCE(SUM(gold_weight), 0) AS total_weight_g,
             COALESCE(SUM(total_amount), 0) AS total_amount_lak,
-            COALESCE(COUNT(*) FILTER (WHERE transaction_type IN ('WITHDRAW_GOLD', 'MARKETHUB_WITHDRAW')), 0) AS withdraw_tx
+            COALESCE(COUNT(*) FILTER (WHERE transaction_type IN ('WITHDRAW_GOLD', 'MARKETHUB_WITHDRAW') OR transaction_type ILIKE '%WITHDRAW%'), 0) AS withdraw_tx
         FROM filtered_data
         GROUP BY branch_name
         LIMIT 15
@@ -254,7 +294,8 @@ BEGIN
             total_amount
         FROM public.monthly_data
         WHERE (p_status IS NULL OR status = p_status)
-          AND created_at >= v_start_ts AND created_at <= v_end_ts
+          AND public.parse_tx_date(created_at::text) >= v_start_ts 
+          AND public.parse_tx_date(created_at::text) <= v_end_ts
           AND (p_banks IS NULL OR bank = ANY(p_banks))
           AND (p_branches IS NULL OR branch = ANY(p_branches))
           AND (p_tx_types IS NULL OR transaction_type = ANY(p_tx_types))
