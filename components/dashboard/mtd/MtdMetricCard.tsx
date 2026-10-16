@@ -205,6 +205,25 @@ export function MtdMetricCard({
           </div>
         </div>
 
+        {/* Dual Comparison Badge: Compare with Target */}
+        {metric.target_val && (
+          <div className="px-2 py-1 rounded-lg bg-amber-50/80 border border-amber-200/80 text-[10px] flex items-center justify-between">
+            <span className="font-bold text-amber-900 flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+              2026 Target: {metric.target_val.toLocaleString()}
+            </span>
+            <span className={`font-mono font-black ${
+              (metric.target_est_hit_percent || 0) >= 100 
+                ? 'text-emerald-700' 
+                : (metric.target_est_hit_percent || 0) >= 90 
+                ? 'text-blue-700' 
+                : 'text-amber-800'
+            }`}>
+              {metric.target_est_hit_percent || Math.round((metric.est_month_end / metric.target_val) * 100)}% Est. Hit
+            </span>
+          </div>
+        )}
+
         {/* Senior Analyst Required Daily Run-Rate Callout */}
         <div className="p-2 rounded-xl bg-slate-50 border border-slate-200/80 text-[10.5px] flex items-center justify-between">
           <div className="flex items-center gap-1 text-slate-600 font-semibold">

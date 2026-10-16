@@ -25,6 +25,9 @@ export const DEFAULT_MTD_PAYLOAD: MtdReportPayload = {
       est_month_end: 14348,
       full_comp_month: 15048,
       forecast_variance_percent: -5,
+      target_val: 407798,
+      target_variance_percent: -44,
+      target_est_hit_percent: 56,
     },
     buy_transactions: {
       id: 'buy_transactions',
@@ -36,6 +39,9 @@ export const DEFAULT_MTD_PAYLOAD: MtdReportPayload = {
       est_month_end: 135126,
       full_comp_month: 123977,
       forecast_variance_percent: 9,
+      target_val: 239711,
+      target_variance_percent: -42,
+      target_est_hit_percent: 58,
     },
     sell_weight_g: {
       id: 'sell_weight_g',
@@ -47,6 +53,9 @@ export const DEFAULT_MTD_PAYLOAD: MtdReportPayload = {
       est_month_end: 5458,
       full_comp_month: 6566,
       forecast_variance_percent: -17,
+      target_val: 319846,
+      target_variance_percent: -73,
+      target_est_hit_percent: 27,
     },
     sell_transactions: {
       id: 'sell_transactions',
@@ -58,6 +67,9 @@ export const DEFAULT_MTD_PAYLOAD: MtdReportPayload = {
       est_month_end: 48569,
       full_comp_month: 47724,
       forecast_variance_percent: 2,
+      target_val: 99448,
+      target_variance_percent: -49,
+      target_est_hit_percent: 51,
     },
     withdraw_15g: {
       id: 'withdraw_15g',
@@ -69,6 +81,9 @@ export const DEFAULT_MTD_PAYLOAD: MtdReportPayload = {
       est_month_end: 3212,
       full_comp_month: 3582,
       forecast_variance_percent: -10,
+      target_val: 3800,
+      target_variance_percent: -15,
+      target_est_hit_percent: 85,
     },
     new_customers: {
       id: 'new_customers',
@@ -80,6 +95,9 @@ export const DEFAULT_MTD_PAYLOAD: MtdReportPayload = {
       est_month_end: 2348,
       full_comp_month: 2946,
       forecast_variance_percent: -20,
+      target_val: 9500,
+      target_variance_percent: -75,
+      target_est_hit_percent: 25,
     },
     total_transactions: {
       id: 'total_transactions',
@@ -91,6 +109,9 @@ export const DEFAULT_MTD_PAYLOAD: MtdReportPayload = {
       est_month_end: 187837,
       full_comp_month: 175923,
       forecast_variance_percent: 7,
+      target_val: 339159,
+      target_variance_percent: -45,
+      target_est_hit_percent: 55,
     },
   },
   available_months: [

@@ -12,6 +12,9 @@ export interface MtdMetricItem {
   est_month_end: number;
   full_comp_month: number;
   forecast_variance_percent: number;
+  target_val?: number;
+  target_variance_percent?: number;
+  target_est_hit_percent?: number;
 }
 
 export interface MtdReportPayload {

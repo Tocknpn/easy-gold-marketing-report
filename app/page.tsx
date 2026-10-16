@@ -5,6 +5,7 @@ import { PlatformOverviewSection } from '@/components/dashboard/PlatformOverview
 import { BuyActivitySection } from '@/components/dashboard/BuyActivitySection';
 import { SellActivitySection } from '@/components/dashboard/SellActivitySection';
 import { MtdReportView } from '@/components/dashboard/mtd/MtdReportView';
+import { TargetReportView } from '@/components/dashboard/targets/TargetReportView';
 import { DynamicReportView } from '@/components/dashboard/dynamic/DynamicReportView';
 import { PowerPivotStudio } from '@/components/dashboard/pivot/PowerPivotStudio';
 import { CampaignTrackingView } from '@/components/dashboard/campaign/CampaignTrackingView';
@@ -39,14 +40,15 @@ import {
   Crown,
   ArrowRightLeft,
   Maximize2,
-  Minimize2
+  Minimize2,
+  FileSpreadsheet
 } from 'lucide-react';
 
 import { DEFAULT_MTD_PAYLOAD } from '@/lib/constants/mtdData';
 import { DEFAULT_WEEKLY_FALLBACK_DATA } from '@/lib/constants/weeklyData';
 
-type ReportTab = 'dynamic' | 'mtd' | 'weekly' | 'pivot' | 'campaign';
-const VALID_TABS: ReportTab[] = ['dynamic', 'mtd', 'weekly', 'pivot', 'campaign'];
+type ReportTab = 'targets' | 'dynamic' | 'mtd' | 'weekly' | 'pivot' | 'campaign';
+const VALID_TABS: ReportTab[] = ['targets', 'dynamic', 'mtd', 'weekly', 'pivot', 'campaign'];
 
 export default function DashboardPage() {
   // View toggle: 'dynamic', 'mtd', 'weekly', 'pivot', 'campaign' with URL and localStorage sync
@@ -311,6 +313,20 @@ export default function DashboardPage() {
           {/* Executive View Tabs */}
           <div className="flex items-center bg-white p-1 rounded-xl border border-slate-300/80 shadow-xs flex-wrap gap-1">
             <button
+              onClick={() => handleTabChange('targets')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-black transition-all ${
+                activeReportTab === 'targets'
+                  ? 'bg-gradient-to-r from-[#0c4ca3] to-blue-900 text-white shadow-xs'
+                  : 'text-slate-700 hover:text-slate-900 hover:bg-slate-50'
+              }`}
+            >
+              <Target className="w-4 h-4 text-amber-400" />
+              <span>Target &amp; Run-Rate</span>
+              <span className="px-1.5 py-0.2 rounded-full text-[9px] font-black bg-amber-400 text-slate-950">
+                2026
+              </span>
+            </button>
+            <button
               onClick={() => handleTabChange('dynamic')}
               className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-black transition-all ${
                 activeReportTab === 'dynamic'
@@ -433,6 +449,11 @@ export default function DashboardPage() {
             </div>
           </div>
         </div>
+
+        {/* TAB 0: MONTHLY RUN-RATE & 2026 TARGET TRACKING (Image 1, 2, 3) */}
+        {activeReportTab === 'targets' && (
+          <TargetReportView />
+        )}
 
         {/* TAB: DYNAMIC BI PERFORMANCE & DAX MEASURES EXPLORER */}
         {activeReportTab === 'dynamic' && (
