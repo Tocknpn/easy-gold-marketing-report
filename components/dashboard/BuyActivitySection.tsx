@@ -3,12 +3,14 @@
 import React from 'react';
 import { MetricKpiCard } from './MetricKpiCard';
 import { WeeklyMetricRow, MetricVariances } from '@/lib/types/dashboard.types';
+import { ArrowDownLeft, ShoppingBag } from 'lucide-react';
 
 interface BuyActivitySectionProps {
   currentWeek: WeeklyMetricRow;
   history: WeeklyMetricRow[];
   variances: MetricVariances;
   selectedWeek?: string;
+  isPartialWeek?: boolean;
 }
 
 export function BuyActivitySection({
@@ -16,19 +18,34 @@ export function BuyActivitySection({
   history,
   variances,
   selectedWeek,
+  isPartialWeek = false,
 }: BuyActivitySectionProps) {
   // Extract historical trend series
   const weightData = history.map((w) => ({ week: w.week_label, value: Number(w.buy_weight_15g) }));
   const txData = history.map((w) => ({ week: w.week_label, value: w.buy_transactions }));
   const ticketData = history.map((w) => ({ week: w.week_label, value: Number(w.buy_ticket_size_g) }));
 
+  // Prorated estimates for partial week
+  const isPartial = isPartialWeek || currentWeek.week_label === 'W42';
+  const proratedWeight = isPartial ? Math.round(Number(currentWeek.buy_weight_15g) * 7) : undefined;
+  const proratedTx = isPartial ? Math.round(currentWeek.buy_transactions * 7) : undefined;
+
   return (
-    <div className="border-[2px] border-dotted border-[#285430] rounded-xl p-2.5 sm:p-3 bg-[#f6faf6] shadow-xs">
+    <div className="border border-emerald-200/80 rounded-2xl p-3 sm:p-3.5 bg-gradient-to-b from-[#f4fbf5] via-white to-[#f4fbf5] shadow-xs">
       {/* Forest Green Header Banner */}
-      <div className="bg-[#285430] text-white font-black text-sm sm:text-base tracking-wider px-4 py-1.5 rounded-lg uppercase mb-2.5 shadow-xs flex items-center justify-between">
-        <span>Buy Activity</span>
-        <span className="text-[11px] sm:text-xs font-semibold text-emerald-100 normal-case tracking-normal">
-          Active Week: {currentWeek.week_label}
+      <div className="bg-gradient-to-r from-[#174620] via-[#1f592a] to-[#285430] text-white font-black text-xs sm:text-sm tracking-wider px-3.5 py-2 rounded-xl mb-3 shadow-xs flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className="p-1 rounded-md bg-white/20 backdrop-blur-xs">
+            <ShoppingBag className="w-3.5 h-3.5 text-emerald-100" />
+          </div>
+          <span className="uppercase tracking-wide font-black">Buy Activity</span>
+          <span className="hidden sm:inline-flex items-center gap-1 text-[10px] font-bold text-emerald-200 bg-white/10 px-2 py-0.5 rounded-md">
+            <ArrowDownLeft className="w-3 h-3 text-emerald-300" />
+            Inflow
+          </span>
+        </div>
+        <span className="text-[11px] font-bold text-emerald-100 bg-white/10 px-2 py-0.5 rounded-md backdrop-blur-xs">
+          Active: {currentWeek.week_label}
         </span>
       </div>
 
@@ -42,6 +59,9 @@ export function BuyActivitySection({
           historyData={weightData}
           themeColor="green"
           selectedWeek={selectedWeek || currentWeek.week_label}
+          subtitle="Baht"
+          proratedEstimate={proratedWeight}
+          isPartialWeek={isPartial}
         />
 
         {/* Card 2: Transaction */}
@@ -52,6 +72,9 @@ export function BuyActivitySection({
           historyData={txData}
           themeColor="green"
           selectedWeek={selectedWeek || currentWeek.week_label}
+          subtitle="Count"
+          proratedEstimate={proratedTx}
+          isPartialWeek={isPartial}
         />
 
         {/* Card 3: Ticket Size (g) */}
@@ -63,6 +86,7 @@ export function BuyActivitySection({
           themeColor="green"
           isDecimal={true}
           selectedWeek={selectedWeek || currentWeek.week_label}
+          subtitle="Avg/Tx"
         />
       </div>
     </div>

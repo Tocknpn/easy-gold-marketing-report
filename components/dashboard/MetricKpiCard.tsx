@@ -12,6 +12,9 @@ interface MetricKpiCardProps {
   themeColor: ThemeSectionColor;
   isDecimal?: boolean;
   selectedWeek?: string;
+  subtitle?: string;
+  proratedEstimate?: string | number;
+  isPartialWeek?: boolean;
 }
 
 export function MetricKpiCard({
@@ -22,6 +25,9 @@ export function MetricKpiCard({
   themeColor,
   isDecimal = false,
   selectedWeek,
+  subtitle,
+  proratedEstimate,
+  isPartialWeek = false,
 }: MetricKpiCardProps) {
   const isPositive = variancePercent > 0;
   const isNegative = variancePercent < 0;
@@ -35,48 +41,84 @@ export function MetricKpiCard({
         : value.toLocaleString()
       : value;
 
+  // Color accents for subtle card highlights
+  const accentBorderColors = {
+    blue: 'hover:border-blue-300 focus-within:border-blue-400',
+    green: 'hover:border-emerald-300 focus-within:border-emerald-400',
+    red: 'hover:border-rose-300 focus-within:border-rose-400',
+  };
+
+  const indicatorDots = {
+    blue: 'bg-blue-600',
+    green: 'bg-emerald-600',
+    red: 'bg-rose-600',
+  };
+
   return (
-    <div className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-[0_1px_3px_rgba(0,0,0,0.06)] flex flex-col justify-between transition-all hover:shadow-md">
+    <div className={`bg-white rounded-xl border border-slate-200/90 p-3 sm:p-3.5 shadow-[0_1px_4px_rgba(0,0,0,0.05)] hover:shadow-md transition-all duration-200 flex flex-col justify-between group ${accentBorderColors[themeColor]}`}>
       {/* Top Header & Metric */}
-      <div className="flex flex-col items-center">
-        {/* Title */}
-        <h4 className="text-center font-bold text-slate-800 text-sm md:text-base tracking-normal underline decoration-slate-400/80 underline-offset-4">
-          {title}
-        </h4>
-
-        {/* Big KPI Metric */}
-        <div className="text-center text-4xl lg:text-[42px] font-black text-slate-900 tracking-tight my-2.5 font-sans">
-          {formattedValue}
-        </div>
-
-        {/* Variance Percentage Indicator */}
-        <div className="flex items-center justify-center gap-1.5 font-extrabold text-xl lg:text-2xl mb-3">
-          {isNeutral && (
-            <span className="text-slate-700">0%</span>
-          )}
-          {isPositive && (
-            <span className="text-emerald-700 flex items-center">
-              ▲ {variancePercent}%
-            </span>
-          )}
-          {isNegative && (
-            <span className="text-[#c5221f] flex items-center">
-              ▼ {Math.abs(variancePercent)}%
+      <div>
+        {/* Title Row with Status Dot */}
+        <div className="flex items-center justify-between gap-1 mb-1.5">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${indicatorDots[themeColor]}`} />
+            <h4 className="font-bold text-slate-700 text-xs sm:text-[13px] tracking-tight truncate" title={title}>
+              {title}
+            </h4>
+          </div>
+          {subtitle && (
+            <span className="text-[10px] text-slate-400 font-medium shrink-0">
+              {subtitle}
             </span>
           )}
         </div>
 
-        {/* Subtle Horizontal Divider */}
-        <div className="w-full h-[1.5px] bg-slate-200/70 mb-4" />
+        {/* Hero KPI Metric + Variance Badge Row */}
+        <div className="flex items-baseline justify-between gap-2 my-1">
+          {/* Main Number */}
+          <div className="text-2xl sm:text-[26px] lg:text-[28px] font-black text-slate-900 tracking-tight font-sans tabular-nums leading-none">
+            {formattedValue}
+          </div>
+
+          {/* Variance Badge */}
+          <div className="shrink-0">
+            {isNeutral && (
+              <span className="px-2 py-0.5 rounded-md text-[11px] font-black bg-slate-100 text-slate-600 border border-slate-200">
+                0%
+              </span>
+            )}
+            {isPositive && (
+              <span className="px-2 py-0.5 rounded-md text-[11px] font-black bg-emerald-50 text-emerald-700 border border-emerald-200/80 flex items-center gap-0.5 shadow-2xs">
+                ▲ {variancePercent}%
+              </span>
+            )}
+            {isNegative && (
+              <span className="px-2 py-0.5 rounded-md text-[11px] font-black bg-rose-50 text-[#c5221f] border border-rose-200/80 flex items-center gap-0.5 shadow-2xs">
+                ▼ {Math.abs(variancePercent)}%
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Partial Week Prorated Context Badge (if applicable) */}
+        {isPartialWeek && proratedEstimate && (
+          <div className="flex items-center gap-1 text-[10px] text-amber-700 font-semibold bg-amber-50/80 border border-amber-200/60 rounded px-1.5 py-0.5 mt-1">
+            <span>⚡ 7D Est:</span>
+            <span className="font-black text-slate-800">
+              {typeof proratedEstimate === 'number' ? proratedEstimate.toLocaleString() : proratedEstimate}
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Embedded 5-Week Trend Combo Chart */}
-      <div className="w-full h-36 lg:h-40 mt-auto">
+      <div className="w-full h-24 sm:h-26 mt-2 pt-1 border-t border-slate-100">
         <WeeklyComboChart
           data={historyData}
           themeColor={themeColor}
           isDecimal={isDecimal}
           selectedWeek={selectedWeek}
+          height={95}
         />
       </div>
     </div>

@@ -36,7 +36,10 @@ import {
   Gauge,
   Scale,
   Coins,
-  Crown
+  Crown,
+  ArrowRightLeft,
+  Maximize2,
+  Minimize2
 } from 'lucide-react';
 
 import { DEFAULT_MTD_PAYLOAD } from '@/lib/constants/mtdData';
@@ -71,6 +74,7 @@ export default function DashboardPage() {
   const [weeklyLoading, setWeeklyLoading] = useState(false);
   const [selectedWeekLabel, setSelectedWeekLabel] = useState<string>('W42');
   const [isProratedWoW, setIsProratedWoW] = useState<boolean>(false);
+  const [densityMode, setDensityMode] = useState<'comfortable' | 'compact'>('comfortable');
 
   // MTD data state initialized with default values for instant render
   const [mtdData, setMtdData] = useState<MtdReportPayload>(DEFAULT_MTD_PAYLOAD);
@@ -232,6 +236,19 @@ export default function DashboardPage() {
       (w.week_label === currentWeek.week_label && isProratedWoW && isPartial) ? currentWeek : w
     );
 
+    // Trading Flow Dynamics
+    const buyWeightNum = Number(currentWeek.buy_weight_15g);
+    const sellWeightNum = Number(currentWeek.sell_weight_15g);
+    const netGoldFlow = buyWeightNum - sellWeightNum;
+    const totalGoldTurnover = buyWeightNum + sellWeightNum;
+    const buyWeightPct = totalGoldTurnover > 0 ? (buyWeightNum / totalGoldTurnover) * 100 : 50;
+    const sellWeightPct = 100 - buyWeightPct;
+    const totalTransactions = currentWeek.buy_transactions + currentWeek.sell_transactions;
+    const buyTxPct = totalTransactions > 0 ? (currentWeek.buy_transactions / totalTransactions) * 100 : 50;
+    const orderFlowRatio = currentWeek.sell_transactions > 0 
+      ? (currentWeek.buy_transactions / currentWeek.sell_transactions).toFixed(2) 
+      : '1.00';
+
     return {
       currentWeek,
       rawWeek,
@@ -241,6 +258,13 @@ export default function DashboardPage() {
       history,
       chartHistory,
       activeIndex: effectiveIndex,
+      netGoldFlow,
+      totalGoldTurnover,
+      buyWeightPct,
+      sellWeightPct,
+      totalTransactions,
+      buyTxPct,
+      orderFlowRatio,
     };
   }, [weeklyData, sortedHistory, selectedWeekLabel, isProratedWoW]);
 
@@ -440,9 +464,9 @@ export default function DashboardPage() {
             <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4 mb-4 pb-2 border-b border-slate-200/80">
               {/* Left Title & Date */}
               <div>
-                <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black text-[#0c4ca3] tracking-tight flex items-center gap-3">
-                  <span>Overall performance Week over Week -</span>
-                  <span className="text-[#0c4ca3] underline decoration-[#0c4ca3]/40 underline-offset-4">
+                <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black text-[#0c4ca3] tracking-tight flex items-center gap-2.5 flex-wrap">
+                  <span>Overall Performance Week over Week</span>
+                  <span className="px-3 py-0.5 rounded-xl bg-blue-100/70 text-[#0c4ca3] border border-blue-300/80 text-xl sm:text-2xl lg:text-3xl font-black">
                     {activeWeeklyMetrics?.currentWeek.week_label || selectedWeekLabel}
                   </span>
                 </h1>
@@ -516,6 +540,34 @@ export default function DashboardPage() {
                   ))}
                 </div>
 
+                {/* Report Density / Scale Switcher */}
+                <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200 ml-1">
+                  <button
+                    onClick={() => setDensityMode('comfortable')}
+                    className={`px-2 py-0.5 rounded text-[11px] font-black transition-all flex items-center gap-1 ${
+                      densityMode === 'comfortable'
+                        ? 'bg-white text-slate-900 shadow-2xs'
+                        : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                    title="Standard Balanced Card Scale"
+                  >
+                    <Maximize2 className="w-3 h-3 text-[#0c4ca3]" />
+                    <span className="hidden sm:inline">Standard</span>
+                  </button>
+                  <button
+                    onClick={() => setDensityMode('compact')}
+                    className={`px-2 py-0.5 rounded text-[11px] font-black transition-all flex items-center gap-1 ${
+                      densityMode === 'compact'
+                        ? 'bg-white text-slate-900 shadow-2xs'
+                        : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                    title="Compact Trading Floor Density (Fits on 1 Screen)"
+                  >
+                    <Minimize2 className="w-3 h-3 text-[#0c4ca3]" />
+                    <span className="hidden sm:inline">Compact</span>
+                  </button>
+                </div>
+
                 <button
                   onClick={fetchWeeklySummary}
                   disabled={weeklyLoading}
@@ -534,10 +586,10 @@ export default function DashboardPage() {
                 <p className="font-semibold text-sm">Loading Weekly Performance Report...</p>
               </div>
             ) : activeWeeklyMetrics ? (
-              <main className="flex-1 flex flex-col gap-3 sm:gap-4 justify-between">
+              <main className={`flex-1 flex flex-col justify-between ${densityMode === 'compact' ? 'gap-2 sm:gap-2.5' : 'gap-3 sm:gap-3.5'}`}>
                 {/* 1. In-Progress Partial Week Intelligence Alert Banner */}
                 {activeWeeklyMetrics.isPartial && (
-                  <div className="bg-gradient-to-r from-amber-500 via-amber-600 to-orange-600 rounded-2xl p-3.5 sm:p-4 text-white shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in duration-200">
+                  <div className="bg-gradient-to-r from-amber-500 via-amber-600 to-orange-600 rounded-2xl p-3 sm:p-3.5 text-white shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in duration-200">
                     <div className="flex items-center gap-3">
                       <div className="p-2 rounded-xl bg-white/20 backdrop-blur-xs shrink-0">
                         <AlertTriangle className="w-5 h-5 text-white" />
@@ -552,7 +604,7 @@ export default function DashboardPage() {
                           </span>
                         </div>
                         <p className="text-xs text-amber-100/90 font-medium mt-0.5">
-                          Comparing raw numbers against a full 7-day week (W41) shows an artificial -87% drop. Turn on <strong>7-Day Prorated Run-Rate</strong> to compare on an equalized basis!
+                          Comparing raw numbers against a full 7-day week (W41) shows an artificial drop. Turn on <strong>7-Day Prorated Run-Rate</strong> to compare on an equalized basis!
                         </p>
                       </div>
                     </div>
@@ -571,25 +623,80 @@ export default function DashboardPage() {
                   </div>
                 )}
 
-
-
-                {/* 3. Three Themed Cards Sections */}
+                {/* 2. Platform Overview Section */}
                 <section className="w-full">
                   <PlatformOverviewSection
                     currentWeek={activeWeeklyMetrics.currentWeek}
                     history={activeWeeklyMetrics.chartHistory}
                     variances={activeWeeklyMetrics.variances}
                     selectedWeek={selectedWeekLabel}
+                    isPartialWeek={activeWeeklyMetrics.isPartial}
                   />
                 </section>
 
-                <div className="grid grid-cols-1 xl:grid-cols-2 gap-3 sm:gap-4 w-full">
+                {/* 3. Trading Flow Balance & Market Pulse Ribbon */}
+                <section className="w-full bg-white/95 rounded-2xl border border-slate-200/90 px-3.5 py-2.5 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-1.5 rounded-lg bg-amber-50 text-[#e5a812] border border-amber-200/80 shrink-0">
+                      <ArrowRightLeft className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                        Trading Flow &amp; Net Gold Position ({activeWeeklyMetrics.currentWeek.week_label})
+                      </div>
+                      <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                        <span className="text-xs font-bold text-slate-700">Net Flow:</span>
+                        <span className={`text-xs font-black px-2 py-0.5 rounded-md ${
+                          activeWeeklyMetrics.netGoldFlow > 0 
+                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                            : activeWeeklyMetrics.netGoldFlow < 0
+                            ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                            : 'bg-slate-100 text-slate-700'
+                        }`}>
+                          {activeWeeklyMetrics.netGoldFlow > 0 
+                            ? `▲ +${activeWeeklyMetrics.netGoldFlow.toLocaleString()} Baht (Accumulation)` 
+                            : `${activeWeeklyMetrics.netGoldFlow.toLocaleString()} Baht (Liquidation)`}
+                        </span>
+                        <span className="text-[11px] text-slate-400 font-medium">
+                          • Turnover: <strong>{activeWeeklyMetrics.totalGoldTurnover.toLocaleString()} Baht</strong>
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Buy vs Sell Volume Bar & Order Ratio */}
+                  <div className="w-full md:w-80 lg:w-96">
+                    <div className="flex justify-between text-[11px] font-black mb-1">
+                      <span className="text-emerald-700">Buy: {activeWeeklyMetrics.buyWeightPct.toFixed(1)}%</span>
+                      <span className="text-slate-500 font-bold text-[10px] bg-slate-100 px-1.5 py-0.2 rounded">
+                        Ratio: {activeWeeklyMetrics.orderFlowRatio}x
+                      </span>
+                      <span className="text-rose-700">Sell: {activeWeeklyMetrics.sellWeightPct.toFixed(1)}%</span>
+                    </div>
+                    <div className="h-2 rounded-full bg-slate-100 overflow-hidden flex shadow-inner">
+                      <div 
+                        className="h-full bg-gradient-to-r from-emerald-500 to-emerald-600 transition-all duration-300" 
+                        style={{ width: `${activeWeeklyMetrics.buyWeightPct}%` }}
+                        title={`Buy: ${activeWeeklyMetrics.buyWeightPct.toFixed(1)}%`}
+                      />
+                      <div 
+                        className="h-full bg-gradient-to-r from-rose-500 to-rose-600 transition-all duration-300" 
+                        style={{ width: `${activeWeeklyMetrics.sellWeightPct}%` }}
+                        title={`Sell: ${activeWeeklyMetrics.sellWeightPct.toFixed(1)}%`}
+                      />
+                    </div>
+                  </div>
+                </section>
+
+                {/* 4. Dual Activity Sections: Buy & Sell */}
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-3 sm:gap-3.5 w-full">
                   <section className="w-full">
                     <BuyActivitySection
                       currentWeek={activeWeeklyMetrics.currentWeek}
                       history={activeWeeklyMetrics.chartHistory}
                       variances={activeWeeklyMetrics.variances}
                       selectedWeek={selectedWeekLabel}
+                      isPartialWeek={activeWeeklyMetrics.isPartial}
                     />
                   </section>
 
@@ -599,11 +706,12 @@ export default function DashboardPage() {
                       history={activeWeeklyMetrics.chartHistory}
                       variances={activeWeeklyMetrics.variances}
                       selectedWeek={selectedWeekLabel}
+                      isPartialWeek={activeWeeklyMetrics.isPartial}
                     />
                   </section>
                 </div>
 
-                {/* 4. 8-Week Historical Trajectory Matrix with 4-Week Moving Average (MA4) */}
+                {/* 5. 8-Week Historical Trajectory Matrix with 4-Week Moving Average (MA4) */}
                 <section className="w-full">
                   <WeeklyHistoricalMatrix
                     history={sortedHistory}

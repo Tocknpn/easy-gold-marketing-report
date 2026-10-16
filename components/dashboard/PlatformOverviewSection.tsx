@@ -3,12 +3,14 @@
 import React from 'react';
 import { MetricKpiCard } from './MetricKpiCard';
 import { WeeklyMetricRow, MetricVariances } from '@/lib/types/dashboard.types';
+import { Activity } from 'lucide-react';
 
 interface PlatformOverviewSectionProps {
   currentWeek: WeeklyMetricRow;
   history: WeeklyMetricRow[];
   variances: MetricVariances;
   selectedWeek?: string;
+  isPartialWeek?: boolean;
 }
 
 export function PlatformOverviewSection({
@@ -16,6 +18,7 @@ export function PlatformOverviewSection({
   history,
   variances,
   selectedWeek,
+  isPartialWeek = false,
 }: PlatformOverviewSectionProps) {
   // Extract historical trend series
   const allTxData = history.map((w) => ({ week: w.week_label, value: w.all_transactions }));
@@ -23,14 +26,28 @@ export function PlatformOverviewSection({
   const newRegData = history.map((w) => ({ week: w.week_label, value: w.new_registers }));
   const withdrawData = history.map((w) => ({ week: w.week_label, value: Number(w.withdraw_gold_grams) }));
 
+  // Prorated estimates for W42 (~1-2 days elapsed, multiplied by 7 for standard week)
+  const isPartial = isPartialWeek || currentWeek.week_label === 'W42';
+  const proratedAllTx = isPartial ? Math.round(currentWeek.all_transactions * 7) : undefined;
+  const proratedUsers = isPartial ? Math.round(currentWeek.active_users * 3.5) : undefined;
+  const proratedNewReg = isPartial ? Math.round(currentWeek.new_registers * 7) : undefined;
+  const proratedWithdraw = isPartial ? Number((Number(currentWeek.withdraw_gold_grams) * 7).toFixed(1)) : undefined;
+
   return (
-    <div className="border-[2px] border-dotted border-[#1e56a0] rounded-xl p-2.5 sm:p-3 bg-[#f8faff] shadow-xs">
-      {/* Blue Header Banner */}
-      <div className="bg-[#1e56a0] text-white font-black text-sm sm:text-base tracking-wider px-4 py-1.5 rounded-lg uppercase mb-2.5 shadow-xs flex items-center justify-between">
-        <span>Platform Overview</span>
-        <span className="text-[11px] sm:text-xs font-semibold text-blue-100 normal-case tracking-normal">
-          Active Week: {currentWeek.week_label}
-        </span>
+    <div className="border border-blue-200/80 rounded-2xl p-3 sm:p-3.5 bg-gradient-to-b from-[#f8faff] via-white to-[#f8faff] shadow-xs">
+      {/* Modern Gradient Blue Header Banner */}
+      <div className="bg-gradient-to-r from-[#0c4ca3] via-[#1558b8] to-[#1e56a0] text-white font-black text-xs sm:text-sm tracking-wider px-3.5 py-2 rounded-xl mb-3 shadow-xs flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className="p-1 rounded-md bg-white/20 backdrop-blur-xs">
+            <Activity className="w-3.5 h-3.5 text-white" />
+          </div>
+          <span className="uppercase tracking-wide font-black">Platform Overview</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] font-bold text-blue-100 bg-white/10 px-2 py-0.5 rounded-md backdrop-blur-xs">
+            Active: {currentWeek.week_label}
+          </span>
+        </div>
       </div>
 
       {/* 4 Cards Grid */}
@@ -43,6 +60,9 @@ export function PlatformOverviewSection({
           historyData={allTxData}
           themeColor="blue"
           selectedWeek={selectedWeek || currentWeek.week_label}
+          subtitle="Orders"
+          proratedEstimate={proratedAllTx}
+          isPartialWeek={isPartial}
         />
 
         {/* Card 2: User Participate */}
@@ -53,6 +73,9 @@ export function PlatformOverviewSection({
           historyData={userPartData}
           themeColor="blue"
           selectedWeek={selectedWeek || currentWeek.week_label}
+          subtitle="Active"
+          proratedEstimate={proratedUsers}
+          isPartialWeek={isPartial}
         />
 
         {/* Card 3: New Register */}
@@ -63,6 +86,9 @@ export function PlatformOverviewSection({
           historyData={newRegData}
           themeColor="blue"
           selectedWeek={selectedWeek || currentWeek.week_label}
+          subtitle="Signups"
+          proratedEstimate={proratedNewReg}
+          isPartialWeek={isPartial}
         />
 
         {/* Card 4: Gold Withdraw (g) */}
@@ -73,6 +99,9 @@ export function PlatformOverviewSection({
           historyData={withdrawData}
           themeColor="blue"
           selectedWeek={selectedWeek || currentWeek.week_label}
+          subtitle="Physical"
+          proratedEstimate={proratedWithdraw}
+          isPartialWeek={isPartial}
         />
       </div>
     </div>
