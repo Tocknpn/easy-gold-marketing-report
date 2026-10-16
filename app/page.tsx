@@ -10,6 +10,7 @@ import { PowerPivotStudio } from '@/components/dashboard/pivot/PowerPivotStudio'
 import { CampaignTrackingView } from '@/components/dashboard/campaign/CampaignTrackingView';
 import { WeeklyHistoricalMatrix } from '@/components/dashboard/weekly/WeeklyHistoricalMatrix';
 import { UserAuthModal } from '@/components/dashboard/auth/UserAuthModal';
+import { AdminUserManagementModal } from '@/components/dashboard/admin/AdminUserManagementModal';
 import { SystemCheckAndValidationModal } from '@/components/dashboard/audit/SystemCheckAndValidationModal';
 import { FreshnessBadge } from '@/components/dashboard/FreshnessBadge';
 import { ExecutiveDashboardData, WeeklyMetricRow, MetricVariances } from '@/lib/types/dashboard.types';
@@ -34,20 +35,36 @@ import {
   AlertTriangle,
   Gauge,
   Scale,
-  Coins
+  Coins,
+  Crown
 } from 'lucide-react';
 
 import { DEFAULT_MTD_PAYLOAD } from '@/lib/constants/mtdData';
 import { DEFAULT_WEEKLY_FALLBACK_DATA } from '@/lib/constants/weeklyData';
 
-export default function DashboardPage() {
-  // View toggle: 'dynamic', 'mtd', 'weekly', 'pivot', 'campaign'
-  const [activeReportTab, setActiveReportTab] = useState<'dynamic' | 'mtd' | 'weekly' | 'pivot' | 'campaign'>('dynamic');
+type ReportTab = 'dynamic' | 'mtd' | 'weekly' | 'pivot' | 'campaign';
+const VALID_TABS: ReportTab[] = ['dynamic', 'mtd', 'weekly', 'pivot', 'campaign'];
 
-  // User authentication state
+export default function DashboardPage() {
+  // View toggle: 'dynamic', 'mtd', 'weekly', 'pivot', 'campaign' with URL and localStorage sync
+  const [activeReportTab, setActiveReportTab] = useState<ReportTab>('dynamic');
+
+  // User authentication & Admin management modal state
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
+  const [isUserManagementModalOpen, setIsUserManagementModalOpen] = useState<boolean>(false);
   const [isValidatorModalOpen, setIsValidatorModalOpen] = useState<boolean>(false);
+
+  // Tab change handler that updates state, localStorage, and browser URL query param (?tab=...)
+  const handleTabChange = (tab: ReportTab) => {
+    setActiveReportTab(tab);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('easy_gold_active_tab', tab);
+      const url = new URL(window.location.href);
+      url.searchParams.set('tab', tab);
+      window.history.replaceState(null, '', url.pathname + url.search);
+    }
+  };
 
   // Weekly data state initialized with default data
   const [weeklyData, setWeeklyData] = useState<ExecutiveDashboardData>(DEFAULT_WEEKLY_FALLBACK_DATA);
@@ -93,6 +110,46 @@ export default function DashboardPage() {
       setMtdLoading(false);
     }
   };
+
+  // Restore active tab from URL query params (?tab=...), hash, or localStorage upon mount & refresh
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const searchParams = new URLSearchParams(window.location.search);
+      const urlTab = searchParams.get('tab') as ReportTab | null;
+      const hashTab = window.location.hash.replace('#', '') as ReportTab;
+      const storedTab = localStorage.getItem('easy_gold_active_tab') as ReportTab | null;
+
+      let resolvedTab: ReportTab = 'dynamic';
+      if (urlTab && VALID_TABS.includes(urlTab)) {
+        resolvedTab = urlTab;
+      } else if (hashTab && VALID_TABS.includes(hashTab)) {
+        resolvedTab = hashTab;
+      } else if (storedTab && VALID_TABS.includes(storedTab)) {
+        resolvedTab = storedTab;
+      }
+
+      setActiveReportTab(resolvedTab);
+
+      // Keep URL clean and synchronized
+      const url = new URL(window.location.href);
+      if (url.searchParams.get('tab') !== resolvedTab) {
+        url.searchParams.set('tab', resolvedTab);
+        window.history.replaceState(null, '', url.pathname + url.search);
+      }
+
+      // Handle browser forward/back buttons
+      const handlePopState = () => {
+        const p = new URLSearchParams(window.location.search);
+        const t = p.get('tab') as ReportTab | null;
+        if (t && VALID_TABS.includes(t)) {
+          setActiveReportTab(t);
+        }
+      };
+      window.addEventListener('popstate', handlePopState);
+
+      return () => window.removeEventListener('popstate', handlePopState);
+    }
+  }, []);
 
   useEffect(() => {
     getCurrentUser().then(setCurrentUser);
@@ -230,7 +287,7 @@ export default function DashboardPage() {
           {/* Executive View Tabs */}
           <div className="flex items-center bg-white p-1 rounded-xl border border-slate-300/80 shadow-xs flex-wrap gap-1">
             <button
-              onClick={() => setActiveReportTab('dynamic')}
+              onClick={() => handleTabChange('dynamic')}
               className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-black transition-all ${
                 activeReportTab === 'dynamic'
                   ? 'bg-[#0c4ca3] text-white shadow-xs'
@@ -241,7 +298,7 @@ export default function DashboardPage() {
               <span>Dynamic BI</span>
             </button>
             <button
-              onClick={() => setActiveReportTab('mtd')}
+              onClick={() => handleTabChange('mtd')}
               className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-black transition-all ${
                 activeReportTab === 'mtd'
                   ? 'bg-[#0c4ca3] text-white shadow-xs'
@@ -252,7 +309,7 @@ export default function DashboardPage() {
               <span>MTD Forecast</span>
             </button>
             <button
-              onClick={() => setActiveReportTab('weekly')}
+              onClick={() => handleTabChange('weekly')}
               className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-black transition-all ${
                 activeReportTab === 'weekly'
                   ? 'bg-[#0c4ca3] text-white shadow-xs'
@@ -263,7 +320,7 @@ export default function DashboardPage() {
               <span>WoW Trends</span>
             </button>
             <button
-              onClick={() => setActiveReportTab('pivot')}
+              onClick={() => handleTabChange('pivot')}
               className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-black transition-all ${
                 activeReportTab === 'pivot'
                   ? 'bg-[#0c4ca3] text-white shadow-xs'
@@ -274,7 +331,7 @@ export default function DashboardPage() {
               <span>Custom Pivot Profile</span>
             </button>
             <button
-              onClick={() => setActiveReportTab('campaign')}
+              onClick={() => handleTabChange('campaign')}
               className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-black transition-all ${
                 activeReportTab === 'campaign'
                   ? 'bg-[#0c4ca3] text-white shadow-xs'
@@ -305,6 +362,21 @@ export default function DashboardPage() {
               <span className="hidden sm:inline">Audit &amp; Sync Check</span>
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
             </button>
+
+            {/* Admin User & Profile Management Button (Only for Admin Role) */}
+            {currentUser?.role === 'admin' && (
+              <button
+                onClick={() => setIsUserManagementModalOpen(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-blue-900 to-[#0c4ca3] hover:from-blue-800 hover:to-[#0a3f88] text-white shadow-xs transition-all font-bold text-xs border border-blue-400/40"
+                title="Admin: User Directory & Reporting Profile Provisioning"
+              >
+                <Crown className="w-3.5 h-3.5 text-[#e5a812]" />
+                <span className="hidden sm:inline">User Manage</span>
+                <span className="px-1.5 py-0.2 rounded-full text-[9px] font-black bg-[#e5a812] text-slate-950">
+                  ADMIN
+                </span>
+              </button>
+            )}
 
             {/* User Account / Profile Badge button */}
             <button
@@ -568,6 +640,14 @@ export default function DashboardPage() {
         onClose={() => setIsAuthModalOpen(false)}
         currentUser={currentUser}
         onAuthChange={setCurrentUser}
+        onOpenAdminModal={() => setIsUserManagementModalOpen(true)}
+      />
+
+      {/* Admin User & Reporting Profile Management Modal */}
+      <AdminUserManagementModal
+        isOpen={isUserManagementModalOpen}
+        onClose={() => setIsUserManagementModalOpen(false)}
+        currentUser={currentUser}
       />
 
       {/* System Integrity, Calculation & Free Plan Audit Modal */}

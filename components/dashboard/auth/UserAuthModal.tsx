@@ -12,7 +12,13 @@ import {
   LogOut, 
   Sparkles,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  Eye,
+  EyeOff,
+  Crown,
+  Sliders,
+  Database,
+  Layers
 } from 'lucide-react';
 
 interface UserAuthModalProps {
@@ -20,6 +26,7 @@ interface UserAuthModalProps {
   onClose: () => void;
   currentUser: UserProfile | null;
   onAuthChange: (user: UserProfile | null) => void;
+  onOpenAdminModal?: () => void;
 }
 
 export function UserAuthModal({
@@ -27,10 +34,12 @@ export function UserAuthModal({
   onClose,
   currentUser,
   onAuthChange,
+  onOpenAdminModal,
 }: UserAuthModalProps) {
   const [activeTab, setActiveTab] = useState<'signin' | 'signup'>('signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
@@ -92,6 +101,8 @@ export function UserAuthModal({
     onClose();
   };
 
+  const isAdmin = currentUser?.role === 'admin';
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-in fade-in duration-200">
       <div 
@@ -120,14 +131,14 @@ export function UserAuthModal({
             {currentUser ? 'User Account & Profiles' : 'Sign In to Your Workspace'}
           </h3>
           <p className="text-xs text-blue-100/80 mt-1">
-            Store and sync custom pivot reporting profiles, campaign goals, and executive views.
+            Store and sync custom pivot reporting profiles, campaign goals, and executive views securely in Supabase.
           </p>
         </div>
 
         {/* Content Body */}
         <div className="p-6">
           {currentUser ? (
-            <div className="space-y-5">
+            <div className="space-y-4">
               <div className="p-4 rounded-2xl bg-blue-50/70 border border-blue-200/80 flex items-center gap-3.5">
                 <div className="w-12 h-12 rounded-2xl bg-[#0c4ca3] text-[#e5a812] font-black flex items-center justify-center text-xl shadow-xs">
                   {currentUser.email.charAt(0).toUpperCase()}
@@ -137,7 +148,8 @@ export function UserAuthModal({
                     <span className="font-bold text-slate-900 truncate">
                       {currentUser.full_name || currentUser.email}
                     </span>
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-tight bg-blue-200 text-blue-900">
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-tight bg-blue-200 text-blue-900 flex items-center gap-1">
+                      {isAdmin && <Crown className="w-3 h-3 text-[#e5a812]" />}
                       {currentUser.role}
                     </span>
                   </div>
@@ -145,11 +157,45 @@ export function UserAuthModal({
                 </div>
               </div>
 
-              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-600 flex items-center gap-2.5">
+              {/* Assigned Profiles Preview */}
+              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-700 space-y-1.5">
+                <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                  <span className="flex items-center gap-1">
+                    <Sliders className="w-3.5 h-3.5 text-[#0c4ca3]" />
+                    <span>Assigned Reporting Profiles</span>
+                  </span>
+                  <span>{currentUser.assigned_profiles?.length || 1} Active</span>
+                </div>
+                <div className="flex flex-wrap gap-1 pt-1">
+                  {(currentUser.assigned_profiles || ['profile-daily-buy-summary']).map((p) => (
+                    <span
+                      key={p}
+                      className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-white text-slate-800 border border-slate-200 shadow-2xs"
+                    >
+                      {p.replace('profile-', '').replace('preset-', '').replace(/-/g, ' ')}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              {/* Admin Console Shortcut Button */}
+              {isAdmin && onOpenAdminModal && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    onOpenAdminModal();
+                  }}
+                  className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-blue-900 to-[#0c4ca3] hover:from-blue-800 hover:to-[#0a3f88] text-white text-xs font-bold shadow-md transition-all flex items-center justify-center gap-2"
+                >
+                  <Crown className="w-4 h-4 text-[#e5a812]" />
+                  <span>Open Admin User &amp; Profile Management</span>
+                </button>
+              )}
+
+              <div className="p-3 rounded-xl bg-emerald-50/80 border border-emerald-200/80 text-xs text-emerald-800 flex items-center gap-2">
                 <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
-                <span>
-                  All saved custom reporting profiles and campaign setups are linked to your identity.
-                </span>
+                <span>All saved reporting layouts sync with Supabase profiles.</span>
               </div>
 
               <div className="pt-2 flex items-center justify-between gap-3">
@@ -215,7 +261,7 @@ export function UserAuthModal({
               <form onSubmit={handleSubmit} className="space-y-3.5">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Work Email
+                    Corporate Email
                   </label>
                   <div className="relative">
                     <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
@@ -223,7 +269,7 @@ export function UserAuthModal({
                       type="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      placeholder="e.g. yourname@easygold.la"
+                      placeholder="e.g. director@easygold.la"
                       className="w-full pl-9 pr-3 py-2 text-xs border border-slate-300 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-[#0c4ca3]"
                       required
                     />
@@ -237,13 +283,21 @@ export function UserAuthModal({
                   <div className="relative">
                     <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
                     <input
-                      type="password"
+                      type={showPassword ? 'text' : 'password'}
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       placeholder="••••••••"
-                      className="w-full pl-9 pr-3 py-2 text-xs border border-slate-300 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-[#0c4ca3]"
+                      className="w-full pl-9 pr-9 py-2 text-xs border border-slate-300 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-[#0c4ca3]"
                       required
                     />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600"
+                      title={showPassword ? 'Hide password' : 'Show password'}
+                    >
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
                   </div>
                 </div>
 
@@ -272,16 +326,16 @@ export function UserAuthModal({
                   <button
                     type="button"
                     onClick={() => handleDemoLogin('admin')}
-                    className="py-2 px-2.5 rounded-xl text-[11px] font-bold bg-blue-50 text-[#0c4ca3] hover:bg-blue-100 border border-blue-200 transition-colors text-left"
+                    className="py-2 px-2.5 rounded-xl text-[11px] font-bold bg-blue-50 text-[#0c4ca3] hover:bg-blue-100 border border-blue-200 transition-colors text-left flex items-center gap-1.5"
                   >
-                    👑 Operations Director
+                    <span>👑 Operations Director</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => handleDemoLogin('manager')}
-                    className="py-2 px-2.5 rounded-xl text-[11px] font-bold bg-amber-50 text-amber-900 hover:bg-amber-100 border border-amber-200 transition-colors text-left"
+                    className="py-2 px-2.5 rounded-xl text-[11px] font-bold bg-amber-50 text-amber-900 hover:bg-amber-100 border border-amber-200 transition-colors text-left flex items-center gap-1.5"
                   >
-                    📊 Marketing Manager
+                    <span>📊 Marketing Manager</span>
                   </button>
                 </div>
               </div>
