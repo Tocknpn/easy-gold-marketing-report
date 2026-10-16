@@ -26,6 +26,8 @@ export async function GET(request: NextRequest) {
     const maxAmountParam = searchParams.get('max_amount');
     const startHourParam = searchParams.get('start_hour');
     const endHourParam = searchParams.get('end_hour');
+    const hoursParam = searchParams.get('hours');
+    const daysOfWeekParam = searchParams.get('days_of_week');
     const statusParam = searchParams.get('status') || 'ສໍາເລັດ';
 
     const banks = banksParam ? banksParam.split(',').filter(Boolean) : [];
@@ -35,8 +37,18 @@ export async function GET(request: NextRequest) {
     const maxWeight = maxWeightParam ? parseFloat(maxWeightParam) : null;
     const minAmount = minAmountParam ? parseFloat(minAmountParam) : null;
     const maxAmount = maxAmountParam ? parseFloat(maxAmountParam) : null;
-    const startHour = startHourParam !== null && startHourParam !== '' ? parseInt(startHourParam, 10) : null;
-    const endHour = endHourParam !== null && endHourParam !== '' ? parseInt(endHourParam, 10) : null;
+    const selectedHours = hoursParam 
+      ? hoursParam.split(',').map((h) => parseInt(h, 10)).filter((n) => !isNaN(n)) 
+      : [];
+    const selectedDaysOfWeek = daysOfWeekParam 
+      ? daysOfWeekParam.split(',').filter(Boolean) 
+      : [];
+    const startHour = selectedHours.length > 0 
+      ? Math.min(...selectedHours) 
+      : (startHourParam !== null && startHourParam !== '' ? parseInt(startHourParam, 10) : null);
+    const endHour = selectedHours.length > 0 
+      ? Math.max(...selectedHours) 
+      : (endHourParam !== null && endHourParam !== '' ? parseInt(endHourParam, 10) : null);
 
     const quickPresetParam = searchParams.get('quick_preset') || 'custom';
 
@@ -53,6 +65,8 @@ export async function GET(request: NextRequest) {
       maxAmount,
       startHour,
       endHour,
+      selectedHours,
+      selectedDaysOfWeek,
       status: statusParam,
     };
 

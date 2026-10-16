@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { 
   Calendar, 
   Clock, 
@@ -30,6 +30,22 @@ import {
   DEFAULT_FILTER_STATE 
 } from '@/lib/constants/dynamicReportData';
 
+const ALL_HOURS = Array.from({ length: 24 }, (_, i) => ({
+  hour: i,
+  label: `${String(i).padStart(2, '0')}:00 - ${String((i + 1) % 24).padStart(2, '0')}:00`,
+  short: `${String(i).padStart(2, '0')}:00`,
+}));
+
+const ALL_DAYS_OF_WEEK = [
+  { id: 'mon', name: 'Monday', lao: 'ວັນຈັນ', short: 'Mon', isWeekend: false },
+  { id: 'tue', name: 'Tuesday', lao: 'ວັນອັງຄານ', short: 'Tue', isWeekend: false },
+  { id: 'wed', name: 'Wednesday', lao: 'ວັນພຸດ', short: 'Wed', isWeekend: false },
+  { id: 'thu', name: 'Thursday', lao: 'ວັນພະຫັດ', short: 'Thu', isWeekend: false },
+  { id: 'fri', name: 'Friday', lao: 'ວັນສຸກ', short: 'Fri', isWeekend: false },
+  { id: 'sat', name: 'Saturday', lao: 'ວັນເສົາ', short: 'Sat', isWeekend: true },
+  { id: 'sun', name: 'Sunday', lao: 'ວັນອາທິດ', short: 'Sun', isWeekend: true },
+];
+
 interface DynamicFilterBarProps {
   filters: DynamicFilterState;
   onFilterChange: (newFilters: DynamicFilterState) => void;
@@ -47,6 +63,31 @@ export function DynamicFilterBar({
 }: DynamicFilterBarProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [activeDropdown, setActiveDropdown] = useState<'banks' | 'branches' | 'txTypes' | null>(null);
+  const [openDropdown, setOpenDropdown] = useState<'hours' | 'days' | null>(null);
+
+  const hoursDropdownRef = useRef<HTMLDivElement>(null);
+  const daysDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (
+        openDropdown === 'hours' &&
+        hoursDropdownRef.current &&
+        !hoursDropdownRef.current.contains(event.target as Node)
+      ) {
+        setOpenDropdown(null);
+      }
+      if (
+        openDropdown === 'days' &&
+        daysDropdownRef.current &&
+        !daysDropdownRef.current.contains(event.target as Node)
+      ) {
+        setOpenDropdown(null);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [openDropdown]);
 
   // Count active non-default filters
   const activeFilterCount = [
@@ -56,11 +97,103 @@ export function DynamicFilterBar({
     filters.selectedTxTypes.length > 0 ? 1 : 0,
     filters.minWeight !== null || filters.maxWeight !== null ? 1 : 0,
     filters.minAmount !== null || filters.maxAmount !== null ? 1 : 0,
+    (filters.selectedHours && filters.selectedHours.length > 0 && filters.selectedHours.length < 24) ||
     filters.startHour !== null || filters.endHour !== null ? 1 : 0,
     filters.customerSegment && filters.customerSegment !== 'all' ? 1 : 0,
-    filters.dayOfWeek && filters.dayOfWeek !== 'all' ? 1 : 0,
+    (filters.selectedDaysOfWeek && filters.selectedDaysOfWeek.length > 0 && filters.selectedDaysOfWeek.length < 7) ||
+    (filters.dayOfWeek && filters.dayOfWeek !== 'all') ? 1 : 0,
     filters.searchKeyword && filters.searchKeyword.trim() !== '' ? 1 : 0,
   ].reduce((a, b) => a + b, 0);
+
+  const toggleHour = (hour: number) => {
+    const current = filters.selectedHours || [];
+    const exists = current.includes(hour);
+    const updated = exists ? current.filter((h) => h !== hour) : [...current, hour].sort((a, b) => a - b);
+    onFilterChange({
+      ...filters,
+      selectedHours: updated,
+      startHour: updated.length > 0 ? Math.min(...updated) : null,
+      endHour: updated.length > 0 ? Math.max(...updated) : null,
+    });
+  };
+
+  const selectHourPreset = (preset: 'all' | 'morning' | 'afternoon' | 'evening' | 'clear') => {
+    let newHours: number[] = [];
+    if (preset === 'all') {
+      newHours = Array.from({ length: 24 }, (_, i) => i);
+    } else if (preset === 'morning') {
+      newHours = [8, 9, 10, 11, 12];
+    } else if (preset === 'afternoon') {
+      newHours = [13, 14, 15, 16, 17];
+    } else if (preset === 'evening') {
+      newHours = [18, 19, 20, 21, 22, 23];
+    } else if (preset === 'clear') {
+      newHours = [];
+    }
+    onFilterChange({
+      ...filters,
+      selectedHours: newHours,
+      startHour: newHours.length > 0 ? Math.min(...newHours) : null,
+      endHour: newHours.length > 0 ? Math.max(...newHours) : null,
+    });
+  };
+
+  const toggleDay = (dayId: string) => {
+    const current = filters.selectedDaysOfWeek || [];
+    const exists = current.includes(dayId);
+    const updated = exists ? current.filter((d) => d !== dayId) : [...current, dayId];
+    onFilterChange({
+      ...filters,
+      selectedDaysOfWeek: updated,
+      dayOfWeek:
+        updated.length === 5 && !updated.includes('sat') && !updated.includes('sun')
+          ? 'weekdays'
+          : updated.length === 2 && updated.includes('sat') && updated.includes('sun')
+          ? 'weekends'
+          : updated.length === 7 || updated.length === 0
+          ? 'all'
+          : 'custom',
+    });
+  };
+
+  const selectDayPreset = (preset: 'all' | 'weekdays' | 'weekends' | 'clear') => {
+    let newDays: string[] = [];
+    if (preset === 'all') {
+      newDays = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+    } else if (preset === 'weekdays') {
+      newDays = ['mon', 'tue', 'wed', 'thu', 'fri'];
+    } else if (preset === 'weekends') {
+      newDays = ['sat', 'sun'];
+    } else if (preset === 'clear') {
+      newDays = [];
+    }
+    onFilterChange({
+      ...filters,
+      selectedDaysOfWeek: newDays,
+      dayOfWeek: preset === 'all' || preset === 'clear' ? 'all' : preset,
+    });
+  };
+
+  const getHoursDisplayLabel = () => {
+    const count = filters.selectedHours ? filters.selectedHours.length : 0;
+    if (count === 0 || count === 24) return 'All 24 Hours (00-23)';
+    if (count === 1) return `Hour: ${String(filters.selectedHours[0]).padStart(2, '0')}:00`;
+    if (count <= 3) {
+      return filters.selectedHours.map((h) => `${String(h).padStart(2, '0')}:00`).join(', ');
+    }
+    return `${count} Hours Selected`;
+  };
+
+  const getDaysDisplayLabel = () => {
+    const sel = filters.selectedDaysOfWeek || [];
+    if (sel.length === 0 || sel.length === 7) return 'All 7 Days (Mon - Sun)';
+    if (sel.length === 5 && !sel.includes('sat') && !sel.includes('sun')) return 'Weekdays (Mon - Fri)';
+    if (sel.length === 2 && sel.includes('sat') && sel.includes('sun')) return 'Weekends (Sat - Sun)';
+    if (sel.length <= 3) {
+      return sel.map((d) => ALL_DAYS_OF_WEEK.find((x) => x.id === d)?.short).join(', ');
+    }
+    return `${sel.length} Days Selected`;
+  };
 
   // Quick preset handlers
   const handlePresetSelect = (preset: string) => {
@@ -236,54 +369,156 @@ export function DynamicFilterBar({
               </div>
             </div>
 
-            {/* 2. Hour Filter (Peak vs Non-Peak) */}
-            <div className="bg-white p-3 rounded-xl border border-slate-200">
-              <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                <Clock className="w-3.5 h-3.5 text-[#0c4ca3]" />
-                Trading Hours (0-23)
+            {/* 2. Custom Trading Hours Dropdown (Multiple Selection) */}
+            <div className="bg-white p-3 rounded-xl border border-slate-200 relative" ref={hoursDropdownRef}>
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                  <Clock className="w-3.5 h-3.5 text-[#0c4ca3]" />
+                  Trading Hours (0-23)
+                </span>
+                {filters.selectedHours && filters.selectedHours.length > 0 && filters.selectedHours.length < 24 && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      selectHourPreset('clear');
+                    }}
+                    className="text-[10px] text-red-600 font-bold hover:underline cursor-pointer"
+                  >
+                    Reset
+                  </button>
+                )}
               </div>
-              <div className="flex items-center gap-1.5 flex-wrap">
-                <button
-                  onClick={() => onFilterChange({ ...filters, startHour: null, endHour: null })}
-                  className={`px-2 py-1 text-[11px] font-bold rounded ${
-                    filters.startHour === null
-                      ? 'bg-[#0c4ca3] text-white'
-                      : 'bg-slate-100 text-slate-650 hover:bg-slate-200'
-                  }`}
-                >
-                  All 24h
-                </button>
-                <button
-                  onClick={() => onFilterChange({ ...filters, startHour: 8, endHour: 12 })}
-                  className={`px-2 py-1 text-[11px] font-bold rounded ${
-                    filters.startHour === 8 && filters.endHour === 12
-                      ? 'bg-[#0c4ca3] text-white'
-                      : 'bg-slate-100 text-slate-650 hover:bg-slate-200'
-                  }`}
-                >
-                  Morning (08-12)
-                </button>
-                <button
-                  onClick={() => onFilterChange({ ...filters, startHour: 13, endHour: 17 })}
-                  className={`px-2 py-1 text-[11px] font-bold rounded ${
-                    filters.startHour === 13 && filters.endHour === 17
-                      ? 'bg-[#0c4ca3] text-white'
-                      : 'bg-slate-100 text-slate-650 hover:bg-slate-200'
-                  }`}
-                >
-                  Afternoon (13-17)
-                </button>
-                <button
-                  onClick={() => onFilterChange({ ...filters, startHour: 18, endHour: 23 })}
-                  className={`px-2 py-1 text-[11px] font-bold rounded ${
-                    filters.startHour === 18 && filters.endHour === 23
-                      ? 'bg-[#0c4ca3] text-white'
-                      : 'bg-slate-100 text-slate-650 hover:bg-slate-200'
-                  }`}
-                >
-                  Evening (18-23)
-                </button>
-              </div>
+
+              {/* Dropdown Trigger Button */}
+              <button
+                type="button"
+                onClick={() => setOpenDropdown(openDropdown === 'hours' ? null : 'hours')}
+                className={`w-full flex items-center justify-between px-2.5 py-1.5 text-xs font-semibold rounded-lg border transition-all cursor-pointer ${
+                  openDropdown === 'hours'
+                    ? 'border-[#0c4ca3] ring-1 ring-[#0c4ca3] bg-blue-50/40 text-slate-900'
+                    : filters.selectedHours && filters.selectedHours.length > 0 && filters.selectedHours.length < 24
+                    ? 'border-blue-400 bg-blue-50/50 text-[#0c4ca3] font-bold'
+                    : 'border-slate-300 bg-slate-50 hover:bg-slate-100 text-slate-800'
+                }`}
+              >
+                <div className="flex items-center gap-2 truncate">
+                  <span className="truncate">{getHoursDisplayLabel()}</span>
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0 ml-1">
+                  {filters.selectedHours && filters.selectedHours.length > 0 && filters.selectedHours.length < 24 && (
+                    <span className="px-1.5 py-0.2 rounded-full text-[10px] font-extrabold bg-[#0c4ca3] text-white">
+                      {filters.selectedHours.length}
+                    </span>
+                  )}
+                  {openDropdown === 'hours' ? (
+                    <ChevronUp className="w-3.5 h-3.5 text-slate-600" />
+                  ) : (
+                    <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+                  )}
+                </div>
+              </button>
+
+              {/* Dropdown Popover */}
+              {openDropdown === 'hours' && (
+                <div className="absolute top-[calc(100%+4px)] left-0 sm:left-auto sm:right-0 z-50 w-[290px] sm:w-[330px] bg-white rounded-2xl border border-slate-200 shadow-2xl p-3 animate-in fade-in zoom-in-95 duration-150">
+                  <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-100">
+                    <span className="text-xs font-black text-slate-800 uppercase tracking-tight flex items-center gap-1.5">
+                      <Clock className="w-3.5 h-3.5 text-[#0c4ca3]" />
+                      Custom Trading Hours (00-23)
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setOpenDropdown(null)}
+                      className="p-1 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+
+                  {/* Preset Shortcuts inside dropdown */}
+                  <div className="flex items-center gap-1 flex-wrap mb-2.5 pb-2 border-b border-slate-100">
+                    <button
+                      type="button"
+                      onClick={() => selectHourPreset('all')}
+                      className={`text-[10px] px-2 py-0.5 rounded font-bold transition-all cursor-pointer ${
+                        !filters.selectedHours || filters.selectedHours.length === 0 || filters.selectedHours.length === 24
+                          ? 'bg-[#0c4ca3] text-white'
+                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      }`}
+                    >
+                      All 24h
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => selectHourPreset('morning')}
+                      className="text-[10px] px-2 py-0.5 rounded font-bold bg-slate-100 text-slate-600 hover:bg-slate-200 cursor-pointer"
+                    >
+                      Morning (08-12)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => selectHourPreset('afternoon')}
+                      className="text-[10px] px-2 py-0.5 rounded font-bold bg-slate-100 text-slate-600 hover:bg-slate-200 cursor-pointer"
+                    >
+                      Afternoon (13-17)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => selectHourPreset('evening')}
+                      className="text-[10px] px-2 py-0.5 rounded font-bold bg-slate-100 text-slate-600 hover:bg-slate-200 cursor-pointer"
+                    >
+                      Evening (18-23)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => selectHourPreset('clear')}
+                      className="text-[10px] px-2 py-0.5 rounded font-bold text-red-600 hover:bg-red-50 ml-auto cursor-pointer"
+                    >
+                      Clear
+                    </button>
+                  </div>
+
+                  {/* 24 Hours Multi-Select Grid */}
+                  <div className="grid grid-cols-4 gap-1.5 max-h-52 overflow-y-auto pr-1">
+                    {ALL_HOURS.map((h) => {
+                      const isSelected = (filters.selectedHours || []).includes(h.hour);
+                      return (
+                        <button
+                          key={h.hour}
+                          type="button"
+                          onClick={() => toggleHour(h.hour)}
+                          className={`flex items-center justify-between px-2 py-1.5 rounded-lg text-[11px] font-bold border transition-all cursor-pointer ${
+                            isSelected
+                              ? 'bg-[#0c4ca3] text-white border-[#0c4ca3] shadow-xs'
+                              : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                          }`}
+                          title={h.label}
+                        >
+                          <span>{h.short}</span>
+                          {isSelected && <Check className="w-3 h-3 text-white shrink-0 ml-1" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Footer */}
+                  <div className="flex items-center justify-between pt-2.5 mt-2 border-t border-slate-100 text-[11px]">
+                    <span className="text-slate-500 font-medium">
+                      {(filters.selectedHours || []).length === 0 || (filters.selectedHours || []).length === 24
+                        ? 'All 24 hours enabled'
+                        : `${filters.selectedHours.length} hours active`}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setOpenDropdown(null)}
+                      className="px-3 py-1 rounded-lg text-xs font-black bg-[#0c4ca3] text-white hover:bg-[#093d84] transition-colors cursor-pointer"
+                    >
+                      Done (ຕົກລົງ)
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* 3. Gold Weight Bracket (0.5g to 15g, etc) */}
@@ -421,44 +656,167 @@ export function DynamicFilterBar({
               </select>
             </div>
 
-            {/* 6. Day of Week */}
-            <div className="bg-white p-3 rounded-xl border border-slate-200">
-              <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                <CalendarDays className="w-3.5 h-3.5 text-[#0c4ca3]" />
-                Day of Week
+            {/* 6. Custom Day of Week Dropdown (Multiple Selection) */}
+            <div className="bg-white p-3 rounded-xl border border-slate-200 relative" ref={daysDropdownRef}>
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                  <CalendarDays className="w-3.5 h-3.5 text-[#0c4ca3]" />
+                  Day of Week
+                </span>
+                {filters.selectedDaysOfWeek && filters.selectedDaysOfWeek.length > 0 && filters.selectedDaysOfWeek.length < 7 && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      selectDayPreset('clear');
+                    }}
+                    className="text-[10px] text-red-600 font-bold hover:underline cursor-pointer"
+                  >
+                    Reset
+                  </button>
+                )}
               </div>
-              <div className="flex items-center gap-1 flex-wrap">
-                <button
-                  onClick={() => onFilterChange({ ...filters, dayOfWeek: 'all' })}
-                  className={`px-2 py-1 text-[11px] font-bold rounded ${
-                    filters.dayOfWeek === 'all' || !filters.dayOfWeek
-                      ? 'bg-[#0c4ca3] text-white'
-                      : 'bg-slate-100 text-slate-650 hover:bg-slate-200'
-                  }`}
-                >
-                  All 7 Days
-                </button>
-                <button
-                  onClick={() => onFilterChange({ ...filters, dayOfWeek: 'weekdays' })}
-                  className={`px-2 py-1 text-[11px] font-bold rounded ${
-                    filters.dayOfWeek === 'weekdays'
-                      ? 'bg-[#0c4ca3] text-white'
-                      : 'bg-slate-100 text-slate-650 hover:bg-slate-200'
-                  }`}
-                >
-                  Weekdays (Mon-Fri)
-                </button>
-                <button
-                  onClick={() => onFilterChange({ ...filters, dayOfWeek: 'weekends' })}
-                  className={`px-2 py-1 text-[11px] font-bold rounded ${
-                    filters.dayOfWeek === 'weekends'
-                      ? 'bg-[#0c4ca3] text-white'
-                      : 'bg-slate-100 text-slate-650 hover:bg-slate-200'
-                  }`}
-                >
-                  Weekends (Sat-Sun)
-                </button>
-              </div>
+
+              {/* Dropdown Trigger Button */}
+              <button
+                type="button"
+                onClick={() => setOpenDropdown(openDropdown === 'days' ? null : 'days')}
+                className={`w-full flex items-center justify-between px-2.5 py-1.5 text-xs font-semibold rounded-lg border transition-all cursor-pointer ${
+                  openDropdown === 'days'
+                    ? 'border-[#0c4ca3] ring-1 ring-[#0c4ca3] bg-blue-50/40 text-slate-900'
+                    : filters.selectedDaysOfWeek && filters.selectedDaysOfWeek.length > 0 && filters.selectedDaysOfWeek.length < 7
+                    ? 'border-blue-400 bg-blue-50/50 text-[#0c4ca3] font-bold'
+                    : 'border-slate-300 bg-slate-50 hover:bg-slate-100 text-slate-800'
+                }`}
+              >
+                <div className="flex items-center gap-2 truncate">
+                  <span className="truncate">{getDaysDisplayLabel()}</span>
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0 ml-1">
+                  {filters.selectedDaysOfWeek && filters.selectedDaysOfWeek.length > 0 && filters.selectedDaysOfWeek.length < 7 && (
+                    <span className="px-1.5 py-0.2 rounded-full text-[10px] font-extrabold bg-[#0c4ca3] text-white">
+                      {filters.selectedDaysOfWeek.length}
+                    </span>
+                  )}
+                  {openDropdown === 'days' ? (
+                    <ChevronUp className="w-3.5 h-3.5 text-slate-600" />
+                  ) : (
+                    <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+                  )}
+                </div>
+              </button>
+
+              {/* Dropdown Popover */}
+              {openDropdown === 'days' && (
+                <div className="absolute top-[calc(100%+4px)] left-0 sm:left-auto sm:right-0 z-50 w-[290px] sm:w-[330px] bg-white rounded-2xl border border-slate-200 shadow-2xl p-3 animate-in fade-in zoom-in-95 duration-150">
+                  <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-100">
+                    <span className="text-xs font-black text-slate-800 uppercase tracking-tight flex items-center gap-1.5">
+                      <CalendarDays className="w-3.5 h-3.5 text-[#0c4ca3]" />
+                      Custom Day of Week
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setOpenDropdown(null)}
+                      className="p-1 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+
+                  {/* Preset Shortcuts inside dropdown */}
+                  <div className="flex items-center gap-1 flex-wrap mb-2.5 pb-2 border-b border-slate-100">
+                    <button
+                      type="button"
+                      onClick={() => selectDayPreset('all')}
+                      className={`text-[10px] px-2 py-0.5 rounded font-bold transition-all cursor-pointer ${
+                        !filters.selectedDaysOfWeek || filters.selectedDaysOfWeek.length === 0 || filters.selectedDaysOfWeek.length === 7
+                          ? 'bg-[#0c4ca3] text-white'
+                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      }`}
+                    >
+                      All 7 Days
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => selectDayPreset('weekdays')}
+                      className="text-[10px] px-2 py-0.5 rounded font-bold bg-slate-100 text-slate-600 hover:bg-slate-200 cursor-pointer"
+                    >
+                      Weekdays (Mon-Fri)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => selectDayPreset('weekends')}
+                      className="text-[10px] px-2 py-0.5 rounded font-bold bg-slate-100 text-slate-600 hover:bg-slate-200 cursor-pointer"
+                    >
+                      Weekends (Sat-Sun)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => selectDayPreset('clear')}
+                      className="text-[10px] px-2 py-0.5 rounded font-bold text-red-600 hover:bg-red-50 ml-auto cursor-pointer"
+                    >
+                      Clear
+                    </button>
+                  </div>
+
+                  {/* Days Multi-Select List */}
+                  <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
+                    {ALL_DAYS_OF_WEEK.map((d) => {
+                      const isSelected = (filters.selectedDaysOfWeek || []).includes(d.id);
+                      return (
+                        <button
+                          key={d.id}
+                          type="button"
+                          onClick={() => toggleDay(d.id)}
+                          className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
+                            isSelected
+                              ? 'bg-blue-50 border-[#0c4ca3] text-[#0c4ca3] font-bold shadow-2xs'
+                              : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={`w-4 h-4 rounded flex items-center justify-center text-[10px] font-black ${
+                                isSelected ? 'bg-[#0c4ca3] text-white' : 'border border-slate-300'
+                              }`}
+                            >
+                              {isSelected ? <Check className="w-3 h-3 stroke-[3]" /> : null}
+                            </span>
+                            <span className="text-slate-800 font-bold">{d.name}</span>
+                            <span className="text-slate-400 text-[11px] font-normal">({d.lao})</span>
+                          </div>
+
+                          <span
+                            className={`text-[9px] font-extrabold uppercase px-1.5 py-0.2 rounded ${
+                              d.isWeekend
+                                ? 'bg-amber-100 text-amber-800'
+                                : 'bg-slate-100 text-slate-600'
+                            }`}
+                          >
+                            {d.isWeekend ? 'Weekend' : 'Weekday'}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Footer */}
+                  <div className="flex items-center justify-between pt-2.5 mt-2 border-t border-slate-100 text-[11px]">
+                    <span className="text-slate-500 font-medium">
+                      {(filters.selectedDaysOfWeek || []).length === 0 || (filters.selectedDaysOfWeek || []).length === 7
+                        ? 'All 7 days enabled'
+                        : `${filters.selectedDaysOfWeek.length} days active`}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setOpenDropdown(null)}
+                      className="px-3 py-1 rounded-lg text-xs font-black bg-[#0c4ca3] text-white hover:bg-[#093d84] transition-colors cursor-pointer"
+                    >
+                      Done (ຕົກລົງ)
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* 7. Status Filter */}

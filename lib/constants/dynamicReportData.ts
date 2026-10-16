@@ -47,9 +47,11 @@ export const DEFAULT_FILTER_STATE: DynamicFilterState = {
   maxAmount: null,
   startHour: null,
   endHour: null,
+  selectedHours: [],
   status: 'ສໍາເລັດ',
   customerSegment: 'all',
   dayOfWeek: 'all',
+  selectedDaysOfWeek: [],
   searchKeyword: '',
 };
 
@@ -832,8 +834,11 @@ export function calculateFilteredReport(
     scaleFactor *= Math.min(1.0, Math.max(0.02, txShare));
   }
 
-  // 3. Hour filter scaling
-  if (filters.startHour !== null && filters.endHour !== null) {
+  // 3. Hour filter scaling (custom multi-select or legacy start/end)
+  if (filters.selectedHours && filters.selectedHours.length > 0 && filters.selectedHours.length < 24) {
+    const hourRatio = filters.selectedHours.length / 24;
+    scaleFactor *= Math.min(1.0, Math.max(0.04, hourRatio));
+  } else if (filters.startHour !== null && filters.endHour !== null) {
     const hoursSpan = Math.max(1, filters.endHour - filters.startHour + 1);
     const hourRatio = hoursSpan / 24;
     scaleFactor *= Math.min(1.0, Math.max(0.05, hourRatio));
@@ -875,8 +880,11 @@ export function calculateFilteredReport(
     else if (filters.customerSegment === 'micro_2g') scaleFactor *= 0.45;
   }
 
-  // 8. Day of week scaling
-  if (filters.dayOfWeek && filters.dayOfWeek !== 'all') {
+  // 8. Day of week scaling (custom multi-select or legacy presets)
+  if (filters.selectedDaysOfWeek && filters.selectedDaysOfWeek.length > 0 && filters.selectedDaysOfWeek.length < 7) {
+    const dayRatio = filters.selectedDaysOfWeek.length / 7;
+    scaleFactor *= Math.min(1.0, Math.max(0.05, dayRatio));
+  } else if (filters.dayOfWeek && filters.dayOfWeek !== 'all') {
     if (filters.dayOfWeek === 'weekdays') scaleFactor *= 0.72;
     else if (filters.dayOfWeek === 'weekends') scaleFactor *= 0.28;
   }

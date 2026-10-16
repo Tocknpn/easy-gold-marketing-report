@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Table, Search, Download, CheckCircle2, Copy } from 'lucide-react';
+import { Table, Search, Download, CheckCircle2, Copy, Eye, EyeOff } from 'lucide-react';
 import { DaxMeasuresPayload, DaxMeasureRow } from '@/lib/types/dynamicReport.types';
 
 interface DaxMeasuresTableProps {
@@ -12,6 +12,7 @@ export function DaxMeasuresTable({ measures }: DaxMeasuresTableProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [copiedFormula, setCopiedFormula] = useState<string | null>(null);
+  const [isVisible, setIsVisible] = useState<boolean>(false);
 
   const formatNumber = (val: number) => Math.round(val).toLocaleString('en-US');
   const formatDec = (val: number, dec: number = 2) => Number(val).toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec });
@@ -253,24 +254,78 @@ export function DaxMeasuresTable({ measures }: DaxMeasuresTableProps) {
     setTimeout(() => setCopiedFormula(null), 2000);
   };
 
+  // If collapsed/hidden, show compact header with Eye Icon
+  if (!isVisible) {
+    return (
+      <div className="bg-white rounded-2xl border border-slate-200 p-3.5 sm:p-4 shadow-sm mb-6 transition-all hover:border-slate-300">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-200 text-[#0c4ca3] flex items-center justify-center shrink-0">
+              <Table className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="text-sm font-black uppercase text-slate-800 tracking-wider">
+                  DAX Measures Explorer (PowerBI / Excel Formula Matrix)
+                </h3>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-[#0c4ca3] border border-blue-200">
+                  {allMeasureRows.length} Measures
+                </span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 text-slate-500 border border-slate-200">
+                  Hidden / ຖືກເຊື່ອງໄວ້
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Technical DAX formula definitions are hidden to keep your dashboard clean. Click the eye button to reveal details.
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setIsVisible(true)}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black bg-gradient-to-r from-blue-50 to-indigo-50 hover:from-[#0c4ca3] hover:to-[#093d84] text-[#0c4ca3] hover:text-white border border-blue-200 shadow-2xs hover:shadow-sm transition-all cursor-pointer self-start sm:self-auto group"
+            title="Show DAX measures and formulas"
+          >
+            <Eye className="w-4 h-4 text-[#0c4ca3] group-hover:text-white transition-colors" />
+            <span>Show Details (ສະແດງສູດ DAX)</span>
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm mb-6">
+    <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm mb-6 transition-all animate-in fade-in duration-200">
       {/* Header & Controls */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pb-3 border-b border-slate-100">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 mb-4 pb-3 border-b border-slate-100">
         <div>
           <div className="flex items-center gap-2">
             <Table className="w-4 h-4 text-[#0c4ca3]" />
             <h3 className="text-sm font-black uppercase text-slate-900 tracking-wider">
               DAX Measures Explorer (PowerBI / Excel Formula Matrix)
             </h3>
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-[#0c4ca3]">
+              {allMeasureRows.length} Measures
+            </span>
           </div>
           <p className="text-xs text-slate-500 mt-0.5">
             1:1 replication of all 29+ measures from the Excel model, computed dynamically over active filters.
           </p>
         </div>
 
-        {/* Search & Category Filter */}
+        {/* Search, Category Filter & Eye Toggle */}
         <div className="flex items-center gap-2 flex-wrap">
+          <button
+            type="button"
+            onClick={() => setIsVisible(false)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition-all cursor-pointer shadow-2xs"
+            title="Hide DAX Measures Details"
+          >
+            <EyeOff className="w-4 h-4 text-slate-600" />
+            <span>Hide (ເຊື່ອງ)</span>
+          </button>
+
           <div className="relative">
             <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
             <input
@@ -278,11 +333,11 @@ export function DaxMeasuresTable({ measures }: DaxMeasuresTableProps) {
               placeholder="Search measure or formula..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-8 pr-3 py-1.5 text-xs font-medium border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0c4ca3] w-48 sm:w-60"
+              className="pl-8 pr-3 py-1.5 text-xs font-medium border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0c4ca3] w-44 sm:w-56"
             />
           </div>
 
-          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg">
+          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg flex-wrap">
             {categories.map((cat) => (
               <button
                 key={cat}

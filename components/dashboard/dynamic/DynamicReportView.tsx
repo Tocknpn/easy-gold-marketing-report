@@ -48,8 +48,17 @@ export function DynamicReportView() {
       if (currentFilters.maxWeight !== null) params.set('max_weight', currentFilters.maxWeight.toString());
       if (currentFilters.minAmount !== null) params.set('min_amount', currentFilters.minAmount.toString());
       if (currentFilters.maxAmount !== null) params.set('max_amount', currentFilters.maxAmount.toString());
-      if (currentFilters.startHour !== null) params.set('start_hour', currentFilters.startHour.toString());
-      if (currentFilters.endHour !== null) params.set('end_hour', currentFilters.endHour.toString());
+      if (currentFilters.selectedHours && currentFilters.selectedHours.length > 0) {
+        params.set('hours', currentFilters.selectedHours.join(','));
+        params.set('start_hour', Math.min(...currentFilters.selectedHours).toString());
+        params.set('end_hour', Math.max(...currentFilters.selectedHours).toString());
+      } else {
+        if (currentFilters.startHour !== null) params.set('start_hour', currentFilters.startHour.toString());
+        if (currentFilters.endHour !== null) params.set('end_hour', currentFilters.endHour.toString());
+      }
+      if (currentFilters.selectedDaysOfWeek && currentFilters.selectedDaysOfWeek.length > 0) {
+        params.set('days_of_week', currentFilters.selectedDaysOfWeek.join(','));
+      }
       if (currentFilters.status) params.set('status', currentFilters.status);
 
       const res = await fetch(`/api/dashboard/dynamic-report?${params.toString()}`);
