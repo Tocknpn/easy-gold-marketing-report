@@ -96,6 +96,12 @@ export interface BankMetric {
   total_weight_g: number;
   total_amount_lak: number;
   share_pct: number;
+  buy_tx?: number;
+  sell_tx?: number;
+  buy_amount_lak?: number;
+  sell_amount_lak?: number;
+  buy_share_pct?: number;
+  sell_share_pct?: number;
 }
 
 export interface BranchMetric {
