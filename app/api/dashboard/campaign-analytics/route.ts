@@ -67,13 +67,14 @@ export async function POST(req: NextRequest) {
 
     // 2. Timeline calculations
     const totalDays = calculateDateDiffDays(config.campaign_date_start, config.campaign_date_end);
+    const isUpcoming = new Date(asOfDate).getTime() < new Date(config.campaign_date_start).getTime();
     const isEnded = new Date(asOfDate).getTime() >= new Date(config.campaign_date_end).getTime();
     const elapsedDays = isEnded 
       ? totalDays 
-      : Math.min(totalDays, calculateDateDiffDays(config.campaign_date_start, asOfDate));
+      : isUpcoming ? 0 : Math.min(totalDays, calculateDateDiffDays(config.campaign_date_start, asOfDate));
 
-    // 3. Reverse Backward Dates
-    const backwardWindow = computeBackwardDates(config.campaign_date_start, elapsedDays);
+    // 3. Reverse Backward Dates (supports full planned horizon for upcoming campaigns)
+    const backwardWindow = computeBackwardDates(config.campaign_date_start, elapsedDays, totalDays);
 
     // 4. Run Live Campaign Aggregation Query via RPC if available, or query directly
     const effectiveBank = config.bank && config.bank !== 'all' 

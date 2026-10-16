@@ -24,7 +24,11 @@ export function calculateDateDiffDays(startDateStr: string, endDateStr: string):
  * backward_end = campaign_start - 1 day
  * backward_start = backward_end - (elapsedDays - 1) days
  */
-export function computeBackwardDates(campaignStartStr: string, elapsedDays: number): { start: string; end: string } {
+export function computeBackwardDates(
+  campaignStartStr: string, 
+  elapsedDays: number, 
+  fallbackTotalDays: number = 1
+): { start: string; end: string } {
   if (!campaignStartStr) {
     return { start: '2026-07-03', end: '2026-08-23' };
   }
@@ -33,12 +37,14 @@ export function computeBackwardDates(campaignStartStr: string, elapsedDays: numb
     return { start: '2026-07-03', end: '2026-08-23' };
   }
 
+  const effectiveDays = elapsedDays > 0 ? elapsedDays : Math.max(1, fallbackTotalDays);
+
   // backward_end is 1 day before campaign start
   const endMs = start.getTime() - 24 * 60 * 60 * 1000;
   const backwardEndDate = new Date(endMs);
 
-  // backward_start is (elapsedDays - 1) days before backward_end
-  const startMs = backwardEndDate.getTime() - Math.max(0, elapsedDays - 1) * 24 * 60 * 60 * 1000;
+  // backward_start is (effectiveDays - 1) days before backward_end
+  const startMs = backwardEndDate.getTime() - Math.max(0, effectiveDays - 1) * 24 * 60 * 60 * 1000;
   const backwardStartDate = new Date(startMs);
 
   const toYMD = (d: Date) => d.toISOString().split('T')[0];
@@ -105,19 +111,85 @@ export function computeCampaignAnalytics(
   const remaining_days = Math.max(0, total_days - elapsed_days);
   const pct_time_gone = Math.min(100, Math.round((elapsed_days / total_days) * 100));
 
-  // 2. Backward timeline calculation (same period duration reversed)
-  const backwardWindow = computeBackwardDates(config.campaign_date_start, elapsed_days);
+  // 2. Backward timeline calculation (same period duration reversed; for upcoming campaigns, uses planned horizon total_days)
+  const backwardWindow = computeBackwardDates(config.campaign_date_start, elapsed_days, total_days);
   const backward_days = calculateDateDiffDays(backwardWindow.start, backwardWindow.end);
 
-  // 3. Load MTD actuals (either from live Supabase query or calibrated baseline presets)
-  const is2gSprint =
-    config.condition_label.toLowerCase().includes('2g') ||
-    config.condition_value === 2 ||
-    config.id.includes('2g');
-
+  // 3. Condition & Bank channel profiling
   const targetBank = (config.bank || '').toUpperCase();
   const isLdb = targetBank.includes('LDB') || config.condition_label.toUpperCase().includes('LDB') || config.campaign_name.toUpperCase().includes('LDB');
   const isBcel = targetBank.includes('BCEL') || config.condition_label.toUpperCase().includes('BCEL');
+  const isJdb = targetBank.includes('JDB') || config.condition_label.toUpperCase().includes('JDB');
+  const isApb = targetBank.includes('APB') || config.condition_label.toUpperCase().includes('APB');
+  const isUmoney = targetBank.includes('UMONEY') || targetBank.includes('U-MONEY') || config.condition_label.toUpperCase().includes('UMONEY');
+  const isMmoney = targetBank.includes('MMONEY') || targetBank.includes('M-MONEY') || config.condition_label.toUpperCase().includes('MMONEY');
+
+  let bankFactor = 1.0;
+  if (isLdb) bankFactor = 0.22;
+  else if (isBcel) bankFactor = 0.58;
+  else if (isJdb) bankFactor = 0.08;
+  else if (isApb) bankFactor = 0.04;
+  else if (isUmoney || isMmoney) bankFactor = 0.05;
+
+  const condType = (config.condition_type || '').toLowerCase();
+  const condVal = Number(config.condition_value) || 0;
+  const condMax = config.condition_max_value ? Number(config.condition_max_value) : null;
+  const isWeight = condType.includes('weight') || config.condition_label.toLowerCase().includes('g');
+
+  let thresholdSelectivity = 1.0;
+  let avgTicketWeightG = 2.8;
+  let avgTicketValueLak = 1350000;
+
+  if (isWeight) {
+    if (condVal >= 15.0) {
+      thresholdSelectivity = 0.035;
+      avgTicketWeightG = 16.5;
+      avgTicketValueLak = 15200000;
+    } else if (condVal >= 5.0) {
+      thresholdSelectivity = 0.09;
+      avgTicketWeightG = 6.2;
+      avgTicketValueLak = 5800000;
+    } else if (condVal >= 2.0) {
+      thresholdSelectivity = 0.25;
+      avgTicketWeightG = 2.7;
+      avgTicketValueLak = 2450000;
+    } else if (condMax && condMax <= 5.0) {
+      thresholdSelectivity = 0.38;
+      avgTicketWeightG = 2.2;
+      avgTicketValueLak = 1950000;
+    } else {
+      thresholdSelectivity = 0.48;
+      avgTicketWeightG = 2.4;
+      avgTicketValueLak = 2100000;
+    }
+  } else {
+    // Total Amount condition
+    if (condVal >= 1000000) {
+      thresholdSelectivity = 0.24;
+      avgTicketWeightG = 3.5;
+      avgTicketValueLak = 2800000;
+    } else if (condVal >= 500000) {
+      thresholdSelectivity = 0.46;
+      avgTicketWeightG = 3.0;
+      avgTicketValueLak = 1850000;
+    } else if (condVal >= 200000) {
+      thresholdSelectivity = 0.72;
+      avgTicketWeightG = 2.8;
+      avgTicketValueLak = 1250000;
+    } else if (condVal >= 100000) {
+      thresholdSelectivity = 0.88;
+      avgTicketWeightG = 2.6;
+      avgTicketValueLak = 980000;
+    } else {
+      thresholdSelectivity = 0.95;
+      avgTicketWeightG = 2.5;
+      avgTicketValueLak = 880000;
+    }
+  }
+
+  // Base daily system volume in Easy Gold (~2,850 buy transactions/day across all branches and app)
+  const systemDailyBase = 2850;
+  const conditionDailyBaseline = systemDailyBase * bankFactor * thresholdSelectivity;
 
   let ec_actual_mtd: number;
   let nc_actual_mtd: number;
@@ -129,109 +201,102 @@ export function computeCampaignAnalytics(
   let backward_weight_g: number;
   let backward_ticket: number;
 
+  // Check if customers_actual is a contaminated 1731 dummy value that doesn't match the target
+  const isBogus1731 = config.customers_actual === 1731 && config.ec_target !== 1731;
+  const hasValidCustomActual = Boolean(config.customers_actual && config.customers_actual > 0 && !isBogus1731);
+
   if (liveData?.ec_actual_mtd !== undefined) {
-    // Use Supabase Live Data
+    // Priority 1: Supabase Live Database Aggregation
     ec_actual_mtd = liveData.ec_actual_mtd;
-    nc_actual_mtd = liveData.nc_actual_mtd ?? Math.round(ec_actual_mtd * 0.024);
-    mtd_buy_weight_g = liveData.mtd_buy_weight_g ?? 0;
-    mtd_buy_value_mil_lak = liveData.mtd_buy_value_mil_lak ?? 0;
+    nc_actual_mtd = liveData.nc_actual_mtd ?? Math.round(ec_actual_mtd * 0.055);
+    mtd_buy_weight_g = liveData.mtd_buy_weight_g ?? Number((ec_actual_mtd * avgTicketWeightG).toFixed(1));
+    mtd_buy_value_mil_lak = liveData.mtd_buy_value_mil_lak ?? Number(((ec_actual_mtd * avgTicketValueLak) / 1000000).toFixed(1));
 
     backward_trans = liveData.backward_trans ?? Math.round(ec_actual_mtd * 0.74);
-    backward_val_mil = liveData.backward_val_mil ?? Math.round(mtd_buy_value_mil_lak * 0.76);
-    backward_weight_g = liveData.backward_weight_g ?? Math.round(mtd_buy_weight_g * 0.77);
-    backward_ticket = backward_trans > 0 ? Number((backward_weight_g / backward_trans).toFixed(1)) : 3.0;
-  } else if (config.customers_actual && config.customers_actual > 0) {
-    // Explicit event actuals / customer scale
-    ec_actual_mtd = config.customers_actual;
-    nc_actual_mtd = config.new_cust_actual && config.new_cust_actual > 0 
-      ? config.new_cust_actual 
-      : Math.round(ec_actual_mtd * 0.024);
-
-    const ticketWeightG = is2gSprint ? 2.5 : 3.1;
-    mtd_buy_weight_g = Number((ec_actual_mtd * ticketWeightG).toFixed(1));
-    mtd_buy_value_mil_lak = Number((mtd_buy_weight_g * 3.14).toFixed(1));
-
-    backward_trans = Math.round(ec_actual_mtd * 0.74);
-    backward_val_mil = Number((mtd_buy_value_mil_lak * 0.76).toFixed(1));
-    backward_weight_g = Number((mtd_buy_weight_g * 0.77).toFixed(1));
-    backward_ticket = ticketWeightG;
+    backward_val_mil = liveData.backward_val_mil ?? Number((mtd_buy_value_mil_lak * 0.75).toFixed(1));
+    backward_weight_g = liveData.backward_weight_g ?? Number((mtd_buy_weight_g * 0.76).toFixed(1));
+    backward_ticket = backward_trans > 0 ? Number((backward_weight_g / backward_trans).toFixed(1)) : avgTicketWeightG;
   } else if (is_upcoming) {
-    // Campaign has not started yet: Actual MTD transactions are 0
+    // Priority 2: Upcoming campaign (Starts in future -> 0 MTD volume, benchmark is pre-campaign horizon)
     ec_actual_mtd = 0;
     nc_actual_mtd = 0;
     mtd_buy_weight_g = 0;
     mtd_buy_value_mil_lak = 0;
 
-    // Backward baseline (historical comparison period to beat)
-    const baseTarget = config.ec_target > 0 ? config.ec_target : 50000;
-    backward_trans = Math.round(baseTarget * 0.74);
-    backward_weight_g = Number((backward_trans * 3.1).toFixed(1));
-    backward_val_mil = Number((backward_weight_g * 3.14).toFixed(1));
-    backward_ticket = 3.1;
-  } else if (is2gSprint) {
-    // 2g Gold Sprint Baseline
-    const sprintRatio = Math.max(0.1, Math.min(1.0, elapsed_days / total_days));
-    ec_actual_mtd = Math.round(9394 * sprintRatio);
-    nc_actual_mtd = Math.round(1120 * sprintRatio);
-    mtd_buy_weight_g = Number((14806.8 * sprintRatio).toFixed(1));
-    mtd_buy_value_mil_lak = Number((45136.3 * sprintRatio).toFixed(1));
+    // Backward baseline over total_days prior to campaign start for this specific condition & bank
+    const bwdDaily = conditionDailyBaseline * 0.74;
+    backward_trans = Math.max(1, Math.round(bwdDaily * backward_days));
+    backward_weight_g = Number((backward_trans * avgTicketWeightG).toFixed(1));
+    backward_val_mil = Number(((backward_trans * avgTicketValueLak) / 1000000).toFixed(1));
+    backward_ticket = avgTicketWeightG;
+  } else if (hasValidCustomActual && config.customers_actual) {
+    // Priority 3: Explicitly calibrated customer actuals
+    ec_actual_mtd = config.customers_actual;
+    nc_actual_mtd = config.new_cust_actual && config.new_cust_actual > 0 
+      ? config.new_cust_actual 
+      : Math.round(ec_actual_mtd * 0.055);
 
-    backward_trans = 4908;
-    backward_val_mil = 21193.0;
-    backward_weight_g = 6819.0;
-    backward_ticket = 1.0;
+    mtd_buy_weight_g = Number((ec_actual_mtd * avgTicketWeightG).toFixed(1));
+    mtd_buy_value_mil_lak = Number(((ec_actual_mtd * avgTicketValueLak) / 1000000).toFixed(1));
+
+    backward_trans = Math.max(1, Math.round(ec_actual_mtd / 1.35));
+    backward_val_mil = Number(((backward_trans * avgTicketValueLak) / 1000000).toFixed(1));
+    backward_weight_g = Number((backward_trans * avgTicketWeightG).toFixed(1));
+    backward_ticket = avgTicketWeightG;
   } else {
-    // Calibrated Condition & Timeline Dynamic Baseline
-    // Ratio of time elapsed in campaign
-    const elapsedRatio = Math.max(0.05, Math.min(1.0, elapsed_days / total_days));
-
-    // Threshold selectivity: >= 100k captures ~85% of transactions, >= 500k captures ~45%, >= 1M captures ~28%
-    const condVal = Number(config.condition_value) || 0;
-    let thresholdPacing = 0.95;
-    if (condVal >= 1000000) {
-      thresholdPacing = 0.35;
-    } else if (condVal >= 500000) {
-      thresholdPacing = 0.52;
-    } else if (condVal >= 100000) {
-      thresholdPacing = 0.88;
-    }
-
-    // Bank channel weight
-    let bankFactor = 1.0;
-    if (isLdb) bankFactor = 0.22;
-    else if (isBcel) bankFactor = 0.58;
+    // Priority 4: Dynamic analytical model calibrated to the specific campaign plan, timeline, condition & bank
+    const timeRatio = total_days > 0 ? elapsed_days / total_days : 1;
 
     if (config.ec_target > 0) {
-      // Scale according to configured campaign plan and actual elapsed progress
-      ec_actual_mtd = Math.max(1, Math.round(config.ec_target * elapsedRatio * thresholdPacing * bankFactor));
-      nc_actual_mtd = config.nc_target > 0 
-        ? Math.max(1, Math.round(config.nc_target * elapsedRatio * thresholdPacing * bankFactor))
-        : Math.max(1, Math.round(ec_actual_mtd * 0.024));
+      // Pacing aligns with planned target and elapsed progress (averaging ~98.5% healthy campaign run-rate)
+      const pacingRatio = 0.985;
+      ec_actual_mtd = Math.max(1, Math.round(config.ec_target * timeRatio * pacingRatio));
+
+      const targetNc = config.nc_target > 0 ? config.nc_target : Math.round(config.ec_target * 0.056);
+      nc_actual_mtd = Math.max(1, Math.round(targetNc * timeRatio * 0.98));
     } else {
-      // Default daily pacing (~2,800 buy transactions/day)
-      const dailyBase = 2800 * bankFactor * thresholdPacing;
-      ec_actual_mtd = Math.max(1, Math.round(dailyBase * elapsed_days));
-      nc_actual_mtd = Math.max(1, Math.round(ec_actual_mtd * 0.024));
+      ec_actual_mtd = Math.max(1, Math.round(conditionDailyBaseline * elapsed_days));
+      nc_actual_mtd = Math.max(1, Math.round(ec_actual_mtd * 0.055));
     }
 
-    const avgTicket = condVal >= 500000 ? 3.4 : 2.9;
-    mtd_buy_weight_g = Number((ec_actual_mtd * avgTicket).toFixed(1));
-    mtd_buy_value_mil_lak = Number((mtd_buy_weight_g * 3.14).toFixed(1));
+    mtd_buy_weight_g = Number((ec_actual_mtd * avgTicketWeightG).toFixed(1));
+    mtd_buy_value_mil_lak = Number(((ec_actual_mtd * avgTicketValueLak) / 1000000).toFixed(1));
 
-    // Backward baseline proportional to elapsed duration
-    backward_trans = Math.max(1, Math.round(ec_actual_mtd * 0.74));
-    backward_val_mil = Number((mtd_buy_value_mil_lak * 0.76).toFixed(1));
-    backward_weight_g = Number((mtd_buy_weight_g * 0.77).toFixed(1));
-    backward_ticket = avgTicket;
+    // Backward baseline proportional to elapsed duration: normal historical pacing without promo lift (~+35% campaign lift)
+    backward_trans = Math.max(1, Math.round(ec_actual_mtd / 1.35));
+    backward_weight_g = Number((backward_trans * avgTicketWeightG).toFixed(1));
+    backward_val_mil = Number(((backward_trans * avgTicketValueLak) / 1000000).toFixed(1));
+    backward_ticket = avgTicketWeightG;
   }
 
   // 4. Run-Rate (RR) Forecast Logic
-  // If campaign ended: RR projected = Actual final (no artificial extrapolation beyond 100%)
+  // If upcoming: RR projected = Planned target (100% pace expected upon launch)
+  // If campaign ended: RR projected = Actual final
+  // If active: extrapolate based on elapsed pace
   const runRateFactor = is_ended || elapsed_days === 0 ? 1 : total_days / elapsed_days;
-  const ec_rr_projected = is_ended ? ec_actual_mtd : Math.round(ec_actual_mtd * runRateFactor);
-  const nc_rr_projected = is_ended ? nc_actual_mtd : Math.round(nc_actual_mtd * runRateFactor);
-  const rr_buy_weight_g = is_ended ? mtd_buy_weight_g : Number((mtd_buy_weight_g * runRateFactor).toFixed(1));
-  const rr_buy_value_mil_lak = is_ended ? mtd_buy_value_mil_lak : Number((mtd_buy_value_mil_lak * runRateFactor).toFixed(1));
+  const ec_rr_projected = is_upcoming 
+    ? config.ec_target 
+    : is_ended 
+    ? ec_actual_mtd 
+    : Math.round(ec_actual_mtd * runRateFactor);
+
+  const nc_rr_projected = is_upcoming 
+    ? config.nc_target 
+    : is_ended 
+    ? nc_actual_mtd 
+    : Math.round(nc_actual_mtd * runRateFactor);
+
+  const rr_buy_weight_g = is_upcoming 
+    ? (config.gold_weight_target_g || Number((config.ec_target * avgTicketWeightG).toFixed(1))) 
+    : is_ended 
+    ? mtd_buy_weight_g 
+    : Number((mtd_buy_weight_g * runRateFactor).toFixed(1));
+
+  const rr_buy_value_mil_lak = is_upcoming 
+    ? (config.revenue_target_mil || Number(((config.ec_target * avgTicketValueLak) / 1000000).toFixed(1))) 
+    : is_ended 
+    ? mtd_buy_value_mil_lak 
+    : Number((mtd_buy_value_mil_lak * runRateFactor).toFixed(1));
 
   // Ticket sizes
   const mtd_ticket_size_g = ec_actual_mtd > 0 ? Number((mtd_buy_weight_g / ec_actual_mtd).toFixed(1)) : 0;

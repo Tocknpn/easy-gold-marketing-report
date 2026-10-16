@@ -122,7 +122,9 @@ export function CampaignSetupModal({
       setLocation(campaignToEdit.location || '');
       setPlanBudget(campaignToEdit.plan_budget || 0);
       setTotalSpendingCost(campaignToEdit.total_spending_cost || 0);
-      setCustomersActual(campaignToEdit.customers_actual || 0);
+      // Clean contaminated 1731 dummy value if target differs
+      const cleanedActual = campaignToEdit.customers_actual === 1731 && campaignToEdit.ec_target !== 1731 ? 0 : (campaignToEdit.customers_actual || 0);
+      setCustomersActual(cleanedActual);
       setCustomersTarget(campaignToEdit.customers_target || campaignToEdit.ec_target || 0);
       setNewCustActual(campaignToEdit.new_cust_actual || 0);
       setNewCustTarget(campaignToEdit.new_cust_target || campaignToEdit.nc_target || 0);
@@ -151,25 +153,25 @@ export function CampaignSetupModal({
       setTxType('BUY_GOLD');
       setBank('all');
       setSelectedTargets(['ec', 'nc']);
-      setEcTarget(1731);
-      setNcTarget(200);
-      setRevenueTarget(2876304.2);
-      setGoldWeightTarget(913509.7);
+      setEcTarget(50000);
+      setNcTarget(2500);
+      setRevenueTarget(150000);
+      setGoldWeightTarget(150000);
       setBaselineDailyRr(79.0);
       setScaleCategory('MEDIUM — H2H BOOTH');
       setTeam('KPV');
       setLocation('Watchan');
-      setPlanBudget(395700000);
+      setPlanBudget(50000000);
       setTotalSpendingCost(0);
-      setCustomersActual(1731);
-      setCustomersTarget(1731);
+      setCustomersActual(0);
+      setCustomersTarget(50000);
       setNewCustActual(0);
-      setNewCustTarget(0);
+      setNewCustTarget(2500);
       setCpoActual(0);
       setCpoTarget(0);
       setCpaActual(0);
       setCpaTarget(0);
-      setExecutionStatusLabel('100% Plan Execution (Auto-Default)');
+      setExecutionStatusLabel('New Campaign Horizon');
       setYear(2026);
       setQuarter('Q4');
     }
@@ -285,10 +287,10 @@ export function CampaignSetupModal({
         location: location.trim(),
         plan_budget: Number(planBudget),
         total_spending_cost: Number(totalSpendingCost),
-        customers_actual: Number(customersActual),
-        customers_target: Number(customersTarget),
-        new_cust_actual: Number(newCustActual),
-        new_cust_target: Number(newCustTarget),
+        customers_actual: isUpcoming ? 0 : (customersActual === 1731 && Number(ecTarget) !== 1731 ? 0 : Number(customersActual)),
+        customers_target: Number(customersTarget) || Number(ecTarget),
+        new_cust_actual: isUpcoming ? 0 : Number(newCustActual),
+        new_cust_target: Number(newCustTarget) || Number(ncTarget),
         cpo_actual: Number(cpoActual),
         cpo_target: Number(cpoTarget),
         cpa_actual: Number(cpaActual),

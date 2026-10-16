@@ -33,6 +33,18 @@ export function CampaignBackwardCompareTable({ data, asOfDate }: CampaignBackwar
   const displayAsOf = formatDate(asOfDate);
 
   const renderComparePill = (pct: number, deltaVal?: number, unit: string = '') => {
+    if (data.mtd_days === 0 || data.buy_trans_mtd === 0) {
+      return (
+        <div className="flex flex-col items-end gap-0.5">
+          <span className="inline-flex items-center gap-1 py-0.5 px-2 rounded-md font-mono font-bold text-[10px] bg-amber-50 text-amber-900 border border-amber-200 shadow-2xs whitespace-nowrap">
+            Upcoming Horizon
+          </span>
+          <span className="text-[10px] font-sans text-slate-400 font-semibold">
+            Pre-event Benchmark
+          </span>
+        </div>
+      );
+    }
     const isPositive = pct >= 0;
     return (
       <div className="flex flex-col items-end gap-0.5">

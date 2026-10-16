@@ -169,18 +169,18 @@ export const INITIAL_PRESET_CAMPAIGNS: CampaignSetupConfig[] = [
     tx_type: 'BUY_GOLD',
     bank: 'LDB',
     target_types: ['ec', 'nc'],
-    ec_target: 1731,
-    nc_target: 200,
+    ec_target: 62400,
+    nc_target: 2500,
     revenue_target_mil: 2876304.2,
     gold_weight_target_g: 913509.7,
     plan_budget: 395700000,
     total_spending_cost: 0,
-    customers_actual: 1731,
-    customers_target: 1731,
-    new_cust_actual: 42,
-    new_cust_target: 200,
+    customers_actual: 0,
+    customers_target: 62400,
+    new_cust_actual: 0,
+    new_cust_target: 2500,
     baseline_daily_rr: 79.0,
-    execution_status_label: '100% Plan Execution (Target Achieved)',
+    execution_status_label: 'Upcoming Campaign Horizon',
     year: 2026,
     quarter: 'Q4',
   },
@@ -244,15 +244,17 @@ export async function loadCampaignSetups(userId?: string): Promise<CampaignSetup
           quarter: d.quarter || 'Q4',
         }));
 
+        const sanitizedList = list.map(sanitizeLoadedCampaign);
+
         if (typeof window !== 'undefined') {
           try {
-            localStorage.setItem(LOCAL_STORAGE_CAMPAIGNS_KEY, JSON.stringify(list));
+            localStorage.setItem(LOCAL_STORAGE_CAMPAIGNS_KEY, JSON.stringify(sanitizedList));
           } catch (e) {
             console.warn('Failed to cache campaigns to localStorage:', e);
           }
         }
 
-        return list;
+        return sanitizedList;
       }
     } catch (err) {
       console.warn('Could not load campaigns from Supabase, using local cache:', err);
@@ -266,7 +268,10 @@ export async function loadCampaignSetups(userId?: string): Promise<CampaignSetup
       try {
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
+          const sanitized = parsed.map(sanitizeLoadedCampaign);
+          // Update localStorage if values were sanitized
+          localStorage.setItem(LOCAL_STORAGE_CAMPAIGNS_KEY, JSON.stringify(sanitized));
+          return sanitized;
         }
       } catch (e) {
         console.warn('Failed parsing local campaigns:', e);
@@ -278,6 +283,34 @@ export async function loadCampaignSetups(userId?: string): Promise<CampaignSetup
   }
 
   return INITIAL_PRESET_CAMPAIGNS;
+}
+
+/**
+ * Sanitizes campaign setups by clearing accidental 1731 dummy values and zeroing upcoming campaigns
+ */
+function sanitizeLoadedCampaign(c: CampaignSetupConfig): CampaignSetupConfig {
+  const asOfDate = c.data_update_on || '2026-10-14';
+  const isUpcoming = new Date(asOfDate).getTime() < new Date(c.campaign_date_start).getTime();
+
+  let customersActual = c.customers_actual;
+  let newCustActual = c.new_cust_actual;
+
+  // Upcoming campaign has not launched: actuals must strictly be 0
+  if (isUpcoming) {
+    customersActual = 0;
+    newCustActual = 0;
+  } else if (customersActual === 1731 && c.ec_target !== 1731) {
+    // Corrupted dummy value 1731: reset to 0 so the engine dynamically computes accurate condition-specific pacing
+    customersActual = 0;
+    newCustActual = 0;
+  }
+
+  return {
+    ...c,
+    status: isUpcoming ? 'upcoming' : c.status,
+    customers_actual: customersActual,
+    new_cust_actual: newCustActual,
+  };
 }
 
 export async function saveCampaignSetup(campaign: CampaignSetupConfig, userId?: string): Promise<CampaignSetupConfig> {

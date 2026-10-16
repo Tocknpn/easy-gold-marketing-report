@@ -176,72 +176,74 @@ DECLARE
     v_bwd_revenue_mil NUMERIC := 0.0;
     v_bwd_gold_g NUMERIC := 0.0;
 BEGIN
-    -- 1. Compute MTD Actuals
-    SELECT 
-        COUNT(*),
-        COUNT(DISTINCT phone),
-        ROUND(COALESCE(SUM(total_amount), 0) / 1000000.0, 1),
-        ROUND(COALESCE(SUM(gold_weight), 0), 1)
-    INTO 
-        v_mtd_transac,
-        v_mtd_users,
-        v_mtd_revenue_mil,
-        v_mtd_gold_g
-    FROM public.monthly_data m
-    WHERE public.parse_tx_date(m.created_at::text) >= v_mtd_start
-      AND public.parse_tx_date(m.created_at::text) <= v_mtd_end
-      AND (p_tx_type = 'all' OR m.transaction_type = p_tx_type)
-      AND m.status = 'ສໍາເລັດ'
-      AND (
-          p_bank IS NULL 
-          OR p_bank = 'all' 
-          OR lower(m.bank) = lower(p_bank)
-          OR (m.bank ILIKE ('%' || p_bank || '%'))
-      )
-      AND (
-          (p_cond_type = 'bank' AND (
-              p_bank IS NOT NULL AND p_bank <> 'all' AND (lower(m.bank) = lower(p_bank) OR m.bank ILIKE ('%' || p_bank || '%'))
-              OR (m.bank IS NOT NULL AND trim(m.bank) <> '')
-          ))
-          OR
-          (p_cond_type <> 'bank' AND (
-              (p_cond_op = '>=' AND (
-                  (p_cond_type LIKE '%weight%' AND m.gold_weight >= p_cond_val) OR
-                  (p_cond_type NOT LIKE '%weight%' AND m.total_amount >= p_cond_val)
-              ))
-              OR
-              (p_cond_op = '<=' AND (
-                  (p_cond_type LIKE '%weight%' AND m.gold_weight <= p_cond_val) OR
-                  (p_cond_type NOT LIKE '%weight%' AND m.total_amount <= p_cond_val)
-              ))
-              OR
-              (p_cond_op = 'between' AND (
-                  (p_cond_type LIKE '%weight%' AND m.gold_weight >= p_cond_val AND m.gold_weight <= COALESCE(p_cond_max, 999999)) OR
-                  (p_cond_type NOT LIKE '%weight%' AND m.total_amount >= p_cond_val AND m.total_amount <= COALESCE(p_cond_max, 999999999999))
-              ))
-              OR
-              (p_cond_op = 'all')
-          ))
-      );
-
-    -- 2. Compute New Customers (NC) for MTD:
-    WITH first_tx_per_customer AS (
+    -- 1. Compute MTD Actuals (only if campaign has already started)
+    IF p_as_of_date >= p_start_date THEN
         SELECT 
-            phone,
-            MIN(public.parse_tx_date(created_at::text)) AS earliest_tx
-        FROM public.monthly_data
-        WHERE phone IS NOT NULL AND trim(phone) <> ''
+            COUNT(*),
+            COUNT(DISTINCT phone),
+            ROUND(COALESCE(SUM(total_amount), 0) / 1000000.0, 1),
+            ROUND(COALESCE(SUM(gold_weight), 0), 1)
+        INTO 
+            v_mtd_transac,
+            v_mtd_users,
+            v_mtd_revenue_mil,
+            v_mtd_gold_g
+        FROM public.monthly_data m
+        WHERE public.parse_tx_date(m.created_at::text) >= v_mtd_start
+          AND public.parse_tx_date(m.created_at::text) <= v_mtd_end
+          AND (p_tx_type = 'all' OR m.transaction_type = p_tx_type)
+          AND m.status = 'ສໍາເລັດ'
           AND (
               p_bank IS NULL 
               OR p_bank = 'all' 
-              OR lower(bank) = lower(p_bank)
-              OR (bank ILIKE ('%' || p_bank || '%'))
+              OR lower(m.bank) = lower(p_bank)
+              OR (m.bank ILIKE ('%' || p_bank || '%'))
           )
-        GROUP BY phone
-    )
-    SELECT COUNT(*) INTO v_mtd_nc
-    FROM first_tx_per_customer
-    WHERE earliest_tx >= v_mtd_start AND earliest_tx <= v_mtd_end;
+          AND (
+              (p_cond_type = 'bank' AND (
+                  p_bank IS NOT NULL AND p_bank <> 'all' AND (lower(m.bank) = lower(p_bank) OR m.bank ILIKE ('%' || p_bank || '%'))
+                  OR (m.bank IS NOT NULL AND trim(m.bank) <> '')
+              ))
+              OR
+              (p_cond_type <> 'bank' AND (
+                  (p_cond_op = '>=' AND (
+                      (p_cond_type LIKE '%weight%' AND m.gold_weight >= p_cond_val) OR
+                      (p_cond_type NOT LIKE '%weight%' AND m.total_amount >= p_cond_val)
+                  ))
+                  OR
+                  (p_cond_op = '<=' AND (
+                      (p_cond_type LIKE '%weight%' AND m.gold_weight <= p_cond_val) OR
+                      (p_cond_type NOT LIKE '%weight%' AND m.total_amount <= p_cond_val)
+                  ))
+                  OR
+                  (p_cond_op = 'between' AND (
+                      (p_cond_type LIKE '%weight%' AND m.gold_weight >= p_cond_val AND m.gold_weight <= COALESCE(p_cond_max, 999999)) OR
+                      (p_cond_type NOT LIKE '%weight%' AND m.total_amount >= p_cond_val AND m.total_amount <= COALESCE(p_cond_max, 999999999999))
+                  ))
+                  OR
+                  (p_cond_op = 'all')
+              ))
+          );
+
+        -- 2. Compute New Customers (NC) for MTD:
+        WITH first_tx_per_customer AS (
+            SELECT 
+                phone,
+                MIN(public.parse_tx_date(created_at::text)) AS earliest_tx
+            FROM public.monthly_data
+            WHERE phone IS NOT NULL AND trim(phone) <> ''
+              AND (
+                  p_bank IS NULL 
+                  OR p_bank = 'all' 
+                  OR lower(bank) = lower(p_bank)
+                  OR (bank ILIKE ('%' || p_bank || '%'))
+              )
+            GROUP BY phone
+        )
+        SELECT COUNT(*) INTO v_mtd_nc
+        FROM first_tx_per_customer
+        WHERE earliest_tx >= v_mtd_start AND earliest_tx <= v_mtd_end;
+    END IF;
 
     -- 3. Compute Same Period Backward Actuals
     SELECT 
