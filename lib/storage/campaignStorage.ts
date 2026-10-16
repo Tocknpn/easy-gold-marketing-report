@@ -160,7 +160,7 @@ export async function loadCampaignSetups(userId?: string): Promise<CampaignSetup
 
       if (!error && data && data.length > 0) {
         // Map database fields to CampaignSetupConfig
-        return data.map((d: any) => ({
+        const list = data.map((d: any) => ({
           id: d.id,
           user_id: d.user_id,
           campaign_name: d.campaign_name,
@@ -203,6 +203,16 @@ export async function loadCampaignSetups(userId?: string): Promise<CampaignSetup
           year: d.year || 2026,
           quarter: d.quarter || 'Q4',
         }));
+
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem(LOCAL_STORAGE_CAMPAIGNS_KEY, JSON.stringify(list));
+          } catch (e) {
+            console.warn('Failed to cache campaigns to localStorage:', e);
+          }
+        }
+
+        return list;
       }
     } catch (err) {
       console.warn('Could not load campaigns from Supabase, using local cache:', err);

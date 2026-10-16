@@ -25,7 +25,9 @@ import {
   Info,
   Sparkles,
   Target,
-  ArrowRight
+  Clock,
+  Calendar,
+  Layers
 } from 'lucide-react';
 
 interface CampaignTrackingViewProps {
@@ -37,10 +39,36 @@ export function CampaignTrackingView({
   currentUser,
   onOpenAuthModal,
 }: CampaignTrackingViewProps) {
-  const [allCampaigns, setAllCampaigns] = useState<CampaignSetupConfig[]>(INITIAL_PRESET_CAMPAIGNS);
-  const [activeCampaign, setActiveCampaign] = useState<CampaignSetupConfig>(INITIAL_PRESET_CAMPAIGNS[0]);
+  // Initialize from localStorage if present to prevent any flash of mock presets
+  const [allCampaigns, setAllCampaigns] = useState<CampaignSetupConfig[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const raw = localStorage.getItem('easy_gold_saved_campaign_setups_v4');
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+      } catch {}
+    }
+    return [];
+  });
+
+  const [activeCampaign, setActiveCampaign] = useState<CampaignSetupConfig | null>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const raw = localStorage.getItem('easy_gold_saved_campaign_setups_v4');
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed[0];
+        }
+      } catch {}
+    }
+    return null;
+  });
+
+  const [isLoadingCampaigns, setIsLoadingCampaigns] = useState<boolean>(true);
   
-  // Filter state (Pic 2 style)
+  // Filter state
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
 
@@ -61,17 +89,22 @@ export function CampaignTrackingView({
     try {
       const list = await loadCampaignSetups(currentUser?.id);
       setAllCampaigns(list);
-      if (list.length > 0 && !activeCampaign) {
-        setActiveCampaign(list[0]);
-      }
+      setActiveCampaign((prev) => {
+        if (prev) {
+          const matched = list.find((c) => c.id === prev.id);
+          if (matched) return matched;
+        }
+        return list.length > 0 ? list[0] : null;
+      });
     } finally {
+      setIsLoadingCampaigns(false);
       setTimeout(() => setIsRefreshing(false), 300);
     }
-  }, [currentUser?.id, activeCampaign]);
+  }, [currentUser?.id]);
 
   useEffect(() => {
     refreshCampaigns();
-  }, [currentUser?.id]);
+  }, [currentUser?.id, refreshCampaigns]);
 
   // Filtered campaigns
   const filteredCampaigns = useMemo(() => {
@@ -90,11 +123,16 @@ export function CampaignTrackingView({
     });
   }, [allCampaigns, selectedStatus, selectedCategory]);
 
+  // Primary active campaign target
+  const currentTargetCampaign = useMemo(() => {
+    return activeCampaign || (allCampaigns.length > 0 ? allCampaigns[0] : null);
+  }, [activeCampaign, allCampaigns]);
+
   // Compute live analytics payload for active campaign
-  const analytics: CampaignAnalyticsPayload = useMemo(() => {
-    const target = activeCampaign || allCampaigns[0];
-    return computeCampaignAnalytics(target, liveData);
-  }, [activeCampaign, allCampaigns, liveData]);
+  const analytics: CampaignAnalyticsPayload | null = useMemo(() => {
+    if (!currentTargetCampaign) return null;
+    return computeCampaignAnalytics(currentTargetCampaign, liveData);
+  }, [currentTargetCampaign, liveData]);
 
   // Execute Live Calculate from Supabase for target campaign
   const handleExecuteCalculate = useCallback(async (targetCamp: CampaignSetupConfig) => {
@@ -154,6 +192,8 @@ export function CampaignTrackingView({
       setAllCampaigns(updatedList);
       if (updatedList.length > 0) {
         setActiveCampaign(updatedList[0]);
+      } else {
+        setActiveCampaign(null);
       }
       setLiveData(null);
     }
@@ -174,69 +214,120 @@ export function CampaignTrackingView({
     setIsDetailModalOpen(true);
   };
 
+  // Format date helper: 2026-10-14 -> 14 Oct 2026
+  const formatDisplayDate = (dStr?: string) => {
+    if (!dStr) return '14 Oct 2026';
+    const parts = dStr.split('-');
+    if (parts.length === 3) {
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      const day = parseInt(parts[2], 10);
+      const month = months[parseInt(parts[1], 10) - 1] || parts[1];
+      return `${day} ${month} ${parts[0]}`;
+    }
+    return dStr;
+  };
+
+  // Latest data date for report
+  const latestDataDate = liveData?.max_db_date || currentTargetCampaign?.data_update_on || '2026-10-14';
+
   // Export report to CSV
   const handleExportCsv = () => {
+    if (!analytics || !currentTargetCampaign) return;
     setIsExporting(true);
     try {
-      const t1 = analytics.targetAchievement;
-      const t2 = analytics.backwardComparison;
-
-      const lines = [
-        `Easy Gold Campaign Tracking Report: ${activeCampaign.campaign_name}`,
-        `Start: ${activeCampaign.campaign_date_start}, End: ${activeCampaign.campaign_date_end}, As-Of: ${activeCampaign.data_update_on}`,
-        `Total Days: ${t1.total_days}, Elapsed Days: ${t1.elapsed_days}, %Time Gone: ${t1.pct_time_gone}%`,
-        `Status: ${t1.is_ended ? 'Completed' : t1.is_upcoming ? 'Upcoming' : 'Active In Progress'}`,
-        '',
-        '--- TABLE 1: TARGET ACHIEVEMENT & RUN-RATE PROJECTION ---',
-        `Metric,Target,MTD (${t1.elapsed_days} Days),% Target Hit,RR Projection (${t1.total_days} Days),Projected % Hit`,
-        `%Time Gone,-,${t1.pct_time_gone}%,-,100%,-`,
-        `"${t1.condition_label}",${t1.ec_target},${t1.ec_actual_mtd},${t1.ec_pct_hit_mtd}%,${t1.ec_rr_projected},${t1.ec_pct_hit_rr}%`,
-        `Total NC,${t1.nc_target},${t1.nc_actual_mtd},${t1.nc_pct_hit_mtd}%,${t1.nc_rr_projected},${t1.nc_pct_hit_rr}%`,
-        `MTD Buy weight (g),-,${t1.mtd_buy_weight_g},-,${t1.rr_buy_weight_g},-`,
-        `MTD Buy Value (mil LAK),-,${t1.mtd_buy_value_mil_lak},-,${t1.rr_buy_value_mil_lak},-`,
-        `MTD Ticket Size (g),-,${t1.mtd_ticket_size_g},-,${t1.rr_ticket_size_g},-`,
-        `Avg. Buy Trans Target per day,-,-,-,${t1.avg_buy_trans_target_per_day},-`,
-        `Act. Buy Trans per day,-,-,-,${t1.act_buy_trans_per_day},-`,
-        `Daily Compare,-,-,-,${t1.daily_compare_pct}%,-`,
-        '',
-        '--- TABLE 2: COMPARISON VS SAME PERIOD BACKWARD ---',
-        `Category,Metric,MTD (${t2.mtd_days} Days),Backward (${t2.backward_days} Days),%Compare`,
-        `Buy Transaction,"${t2.buy_trans_condition_label}",${t2.buy_trans_mtd},${t2.buy_trans_backward},${t2.buy_trans_pct_compare}%`,
-        `Buy value (LAK),MTD Buy Value (mil LAK),${t2.buy_value_lak_mtd},${t2.buy_value_lak_backward},${t2.buy_value_pct_compare}%`,
-        `Buy weight (g),MTD Buy Weight (g),${t2.buy_weight_g_mtd},${t2.buy_weight_g_backward},${t2.buy_weight_pct_compare}%`,
-        `Buy Ticket size (g),MTD Ticket Size (g),${t2.ticket_size_g_mtd},${t2.ticket_size_g_backward},${t2.ticket_size_pct_compare}%`,
+      const csvRows = [
+        ['Campaign Intelligence Report', currentTargetCampaign.campaign_name],
+        ['Category Tag', currentTargetCampaign.category_tag || 'Standard'],
+        ['Condition Threshold', currentTargetCampaign.condition_label],
+        ['Timeline Range', `${currentTargetCampaign.campaign_date_start} to ${currentTargetCampaign.campaign_date_end}`],
+        ['Report Data Up To', latestDataDate],
+        ['Elapsed Days', `${analytics.targetAchievement.elapsed_days} of ${analytics.targetAchievement.total_days}`],
+        [],
+        ['Metric', 'MTD Volume', 'RR Projection', 'Target Goal', '% Hit MTD', '% Hit RR'],
+        [
+          'EC Transactions',
+          analytics.targetAchievement.ec_actual_mtd,
+          analytics.targetAchievement.ec_rr_projected,
+          analytics.targetAchievement.ec_target,
+          `${analytics.targetAchievement.ec_pct_hit_mtd}%`,
+          `${analytics.targetAchievement.ec_pct_hit_rr}%`,
+        ],
+        [
+          'New Customers (NC)',
+          analytics.targetAchievement.nc_actual_mtd,
+          analytics.targetAchievement.nc_rr_projected,
+          analytics.targetAchievement.nc_target,
+          `${analytics.targetAchievement.nc_pct_hit_mtd}%`,
+          `${analytics.targetAchievement.nc_pct_hit_rr}%`,
+        ],
+        [
+          'Buy Value (Mil LAK)',
+          analytics.targetAchievement.mtd_buy_value_mil_lak,
+          analytics.targetAchievement.rr_buy_value_mil_lak,
+          analytics.targetAchievement.revenue_target_mil || 'N/A',
+          `${analytics.targetAchievement.revenue_pct_hit_mtd || 0}%`,
+          `${analytics.targetAchievement.revenue_pct_hit_rr || 0}%`,
+        ],
+        [
+          'Buy Weight (Grams)',
+          analytics.targetAchievement.mtd_buy_weight_g,
+          analytics.targetAchievement.rr_buy_weight_g,
+          analytics.targetAchievement.gold_weight_target_g || 'N/A',
+          `${analytics.targetAchievement.weight_pct_hit_mtd || 0}%`,
+          `${analytics.targetAchievement.weight_pct_hit_rr || 0}%`,
+        ],
+        [],
+        ['Comparison vs Backward Benchmark (Equal Days)', 'MTD Volume', 'Backward Benchmark', '% Growth Focus'],
+        [
+          'Buy Transactions',
+          analytics.backwardComparison.buy_trans_mtd,
+          analytics.backwardComparison.buy_trans_backward,
+          `${analytics.backwardComparison.buy_trans_pct_compare}%`,
+        ],
+        [
+          'Buy Value (Mil LAK)',
+          analytics.backwardComparison.buy_value_lak_mtd,
+          analytics.backwardComparison.buy_value_lak_backward,
+          `${analytics.backwardComparison.buy_value_pct_compare}%`,
+        ],
+        [
+          'Buy Weight (Grams)',
+          analytics.backwardComparison.buy_weight_g_mtd,
+          analytics.backwardComparison.buy_weight_g_backward,
+          `${analytics.backwardComparison.buy_weight_pct_compare}%`,
+        ],
       ];
 
-      const csvContent = lines.join('\n');
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
+      const csvContent = 'data:text/csv;charset=utf-8,' + csvRows.map((e) => e.join(',')).join('\n');
+      const encodedUri = encodeURI(csvContent);
       const link = document.createElement('a');
-      link.setAttribute('href', url);
-      link.setAttribute('download', `easy_gold_campaign_${activeCampaign.id}_${new Date().toISOString().slice(0, 10)}.csv`);
+      link.setAttribute('href', encodedUri);
+      link.setAttribute('download', `Campaign_Report_${currentTargetCampaign.campaign_name.replace(/\s+/g, '_')}.csv`);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+    } catch (e) {
+      console.error('Failed to export CSV:', e);
     } finally {
-      setTimeout(() => setIsExporting(false), 600);
+      setIsExporting(false);
     }
   };
 
   return (
-    <div className="space-y-6">
-      {/* 1. Header Bar with Actions & Pic 2 Style Controls */}
+    <div className="space-y-4">
+      {/* 1. Header Toolbar: Executive Title, Summary & Global Actions */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
           <div className="flex items-center gap-2">
-            <Target className="w-5 h-5 text-[#0c4ca3]" />
-            <h2 className="text-base sm:text-lg font-black tracking-tight text-slate-900 uppercase">
-              Campaign Tracking &amp; Target Performance
+            <h2 className="text-xl font-black text-slate-900 tracking-tight">
+              Campaign Tracking &amp; Target Intelligence
             </h2>
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-[#0c4ca3] text-white">
-              {allCampaigns.length} Campaigns
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-300">
+              Live Evaluation
             </span>
           </div>
           <p className="text-xs text-slate-500 font-medium mt-0.5">
-            Select any campaign card below to inspect live target pacing, run-rate projections, and same-period backward benchmarks.
+            Monitor campaign planned targets, actual MTD volume, Run-Rate projections, and reverse backward baseline growth.
           </p>
         </div>
 
@@ -244,8 +335,8 @@ export function CampaignTrackingView({
         <div className="flex items-center gap-2">
           <button
             onClick={handleExportCsv}
-            disabled={isExporting}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-black bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 shadow-2xs transition-all disabled:opacity-50"
+            disabled={isExporting || !analytics}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-black bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 shadow-2xs transition-all disabled:opacity-50 cursor-pointer"
           >
             <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
             <span>{isExporting ? 'Exporting...' : 'Export CSV'}</span>
@@ -261,7 +352,7 @@ export function CampaignTrackingView({
         </div>
       </div>
 
-      {/* 2. Filter Bar (Pic 2 Clean Filter Style) */}
+      {/* 2. Filter Bar with Fresh Data Up To Indicator */}
       <div className="bg-white rounded-2xl border border-slate-200/90 p-3 shadow-2xs flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
           <span className="text-xs font-black uppercase tracking-wider text-slate-400 pl-1">
@@ -292,13 +383,19 @@ export function CampaignTrackingView({
             <option value="vip">VIP Retention</option>
             <option value="acquisition">New Acquisition</option>
           </select>
+
+          {/* Prominent Latest Data Cutoff Chip in toolbar */}
+          <div className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-blue-50/80 border border-blue-200/80 text-[#0c4ca3] text-xs font-bold">
+            <Calendar className="w-3.5 h-3.5 text-[#0c4ca3]" />
+            <span>Data Up To: <strong className="font-mono text-blue-950 font-black">{formatDisplayDate(latestDataDate)}</strong></span>
+          </div>
         </div>
 
         {/* Refresh Button */}
         <button
           onClick={refreshCampaigns}
           disabled={isRefreshing}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 hover:text-slate-900 text-xs font-bold transition-all disabled:opacity-50"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 hover:text-slate-900 text-xs font-bold transition-all disabled:opacity-50 cursor-pointer"
           title="Reload campaign list"
         >
           <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-[#0c4ca3]' : ''}`} />
@@ -306,91 +403,138 @@ export function CampaignTrackingView({
         </button>
       </div>
 
-      {/* 3. Executive Campaign Cards Deck (Pic 2 Design Aesthetics for Easy Gold Campaigns) */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-4 gap-4 animate-in fade-in duration-200">
-        {filteredCampaigns.map((camp) => (
-          <CampaignCardItem
-            key={camp.id}
-            campaign={camp}
-            isActive={activeCampaign?.id === camp.id}
-            onSelectCampaign={(c) => {
-              setActiveCampaign(c);
-              setLiveData(null); // Recalibrate live data
-            }}
-            onOpenDetails={handleOpenDetails}
-            onRecord={handleExecuteCalculate}
-            onEdit={handleOpenEditModal}
-            onDelete={handleDeleteCampaign}
-            isRecording={recordingId === camp.id}
-          />
-        ))}
+      {/* 3. Executive Campaign Cards Deck or Loading Spinner */}
+      {isLoadingCampaigns && allCampaigns.length === 0 ? (
+        <div className="bg-white rounded-3xl p-16 text-center border border-slate-200/90 shadow-2xs flex flex-col items-center justify-center space-y-3 min-h-[320px]">
+          <div className="w-9 h-9 border-3 border-[#0c4ca3] border-t-transparent rounded-full animate-spin" />
+          <h4 className="text-sm font-black text-slate-800">Loading Campaign Portfolios...</h4>
+          <p className="text-xs text-slate-500 font-medium">Synchronizing live profiles, configured targets, and actuals</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-4 animate-in fade-in duration-200">
+          {filteredCampaigns.map((camp) => (
+            <CampaignCardItem
+              key={camp.id}
+              campaign={camp}
+              isActive={currentTargetCampaign?.id === camp.id}
+              onSelectCampaign={(c) => {
+                setActiveCampaign(c);
+                setLiveData(null); // Recalibrate live data
+              }}
+              onOpenDetails={handleOpenDetails}
+              onRecord={handleExecuteCalculate}
+              onEdit={handleOpenEditModal}
+              onDelete={handleDeleteCampaign}
+              isRecording={recordingId === camp.id}
+            />
+          ))}
 
-        {filteredCampaigns.length === 0 && (
-          <div className="col-span-full bg-white rounded-3xl p-12 text-center border-2 border-dashed border-slate-200 space-y-3">
-            <Sparkles className="w-8 h-8 text-slate-400 mx-auto" />
-            <h4 className="text-base font-bold text-slate-800">No campaigns found matching filter</h4>
-            <p className="text-xs text-slate-500">Reset the status or category dropdown to see all campaigns.</p>
+          {filteredCampaigns.length === 0 && (
+            <div className="col-span-full bg-white rounded-3xl p-12 text-center border-2 border-dashed border-slate-200 space-y-3">
+              <Sparkles className="w-8 h-8 text-slate-400 mx-auto" />
+              <h4 className="text-base font-bold text-slate-800">No campaigns found matching filter</h4>
+              <p className="text-xs text-slate-500">Reset the status or category dropdown to see all campaigns.</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 4. Active Campaign Deep-Dive Analytics (Tightened Size & Latest Data Display) */}
+      {analytics && currentTargetCampaign && (
+        <div className="space-y-3 pt-2">
+          {/* Deep-Dive Header with Prominent "Latest Data Up To" Indicator */}
+          <div className="bg-white rounded-2xl border border-slate-200/90 p-3 sm:p-3.5 shadow-2xs flex items-center justify-between flex-wrap gap-3">
+            <div className="flex items-center gap-2.5">
+              <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs font-black uppercase tracking-wider text-slate-400">
+                    Selected Deep-Dive:
+                  </span>
+                  <span className="text-sm sm:text-base font-black text-[#0c4ca3]">
+                    {currentTargetCampaign.campaign_name}
+                  </span>
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-amber-50 text-amber-900 border border-amber-200/80">
+                    <Sparkles className="w-3 h-3 text-amber-600" />
+                    <span>{currentTargetCampaign.condition_label}</span>
+                  </span>
+                </div>
+                <div className="text-[11px] text-slate-500 font-medium mt-0.5 flex items-center gap-2 flex-wrap">
+                  <span>Timeline: <strong className="font-mono text-slate-700">{currentTargetCampaign.campaign_date_start} to {currentTargetCampaign.campaign_date_end}</strong></span>
+                  <span>&bull;</span>
+                  <span>{analytics.targetAchievement.total_days} Days Horizon</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Prominent Latest Data Cutoff Date Badge */}
+            <div className="flex items-center gap-2.5 bg-gradient-to-r from-blue-50 via-indigo-50/60 to-blue-50 border border-blue-200/90 px-3 py-1.5 rounded-xl shadow-2xs">
+              <Clock className="w-4 h-4 text-[#0c4ca3] shrink-0" />
+              <div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">
+                    Report Data Up To:
+                  </span>
+                  <span className="text-xs font-black text-[#0c4ca3] font-mono">
+                    {formatDisplayDate(latestDataDate)}
+                  </span>
+                </div>
+                <span className="text-[10px] font-semibold text-blue-700 block">
+                  Day {analytics.targetAchievement.elapsed_days} of {analytics.targetAchievement.total_days} ({analytics.targetAchievement.pct_time_gone}% Elapsed)
+                </span>
+              </div>
+            </div>
           </div>
-        )}
-      </div>
 
-      {/* 4. Active Campaign Deep-Dive Analytics (The Essential Easy Gold Handbook Tables!) */}
-      <div className="space-y-4 pt-2">
-        <div className="flex items-center justify-between pb-2 border-b border-slate-200 flex-wrap gap-2">
-          <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-            <h3 className="text-sm font-black text-slate-800 uppercase tracking-tight">
-              Selected Campaign Deep-Dive: <span className="text-[#0c4ca3]">{activeCampaign?.campaign_name}</span>
-            </h3>
+          {/* Side-by-Side Detailed Analytics Tables with Compact Density & Clean Hierarchy */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3.5">
+            {/* Table 1: Target Achievement & Run Rate Projections */}
+            <CampaignTargetTable 
+              data={analytics.targetAchievement} 
+              asOfDate={latestDataDate}
+            />
+
+            {/* Table 2: Comparison vs Same Period Backward (Past Baseline Benchmark) */}
+            <CampaignBackwardCompareTable 
+              data={analytics.backwardComparison} 
+              asOfDate={latestDataDate}
+            />
           </div>
 
-          <div className="flex items-center gap-2 text-xs text-slate-500">
-            <span>Condition: <strong className="text-slate-800">{activeCampaign?.condition_label}</strong></span>
-            <span>&bull;</span>
-            <span>Timeline: <strong>{activeCampaign?.campaign_date_start} to {activeCampaign?.campaign_date_end}</strong></span>
+          {/* Export and Telemetry Bar */}
+          <div className="flex items-center justify-between p-3 bg-slate-50 border border-slate-200/80 rounded-2xl text-xs text-slate-600 flex-wrap gap-2">
+            <div className="flex items-center gap-2">
+              <Info className="w-4 h-4 text-[#0c4ca3]" />
+              <span>
+                Engine: <strong className="font-mono text-slate-800">{analytics.dataSource || 'computed_cache'}</strong> | Evaluated at: {new Date().toLocaleTimeString()}
+              </span>
+            </div>
+
+            <button
+              onClick={handleExportCsv}
+              disabled={isExporting}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 shadow-xs transition-colors disabled:opacity-50 cursor-pointer text-xs"
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+              <span>Export Campaign Analysis CSV</span>
+            </button>
           </div>
         </div>
-
-        {/* Side-by-Side Detailed Analytics Tables matching Excel Image 3 & 4 */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {/* Table 1: Target Achievement & Run Rate Projections */}
-          <CampaignTargetTable data={analytics.targetAchievement} />
-
-          {/* Table 2: Comparison vs Same Period Backward (Past Baseline Benchmark) */}
-          <CampaignBackwardCompareTable data={analytics.backwardComparison} />
-        </div>
-
-        {/* Export and Telemetry Bar */}
-        <div className="flex items-center justify-between p-3.5 bg-slate-50 border border-slate-200/80 rounded-2xl text-xs text-slate-600 flex-wrap gap-2">
-          <div className="flex items-center gap-2">
-            <Info className="w-4 h-4 text-[#0c4ca3]" />
-            <span>
-              Engine: <strong className="font-mono text-slate-800">{analytics.dataSource || 'computed_cache'}</strong> | Evaluated at: {new Date().toLocaleTimeString()}
-            </span>
-          </div>
-
-          <button
-            onClick={handleExportCsv}
-            disabled={isExporting}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 shadow-xs transition-colors disabled:opacity-50 cursor-pointer"
-          >
-            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
-            <span>Export Campaign Analysis CSV</span>
-          </button>
-        </div>
-      </div>
+      )}
 
       {/* 5. More Details Modal */}
-      <CampaignDetailModal
-        isOpen={isDetailModalOpen}
-        onClose={() => setIsDetailModalOpen(false)}
-        campaign={activeCampaign}
-        analytics={analytics}
-        onOpenEditModal={() => {
-          setIsDetailModalOpen(false);
-          handleOpenEditModal(activeCampaign);
-        }}
-      />
+      {currentTargetCampaign && analytics && (
+        <CampaignDetailModal
+          isOpen={isDetailModalOpen}
+          onClose={() => setIsDetailModalOpen(false)}
+          campaign={currentTargetCampaign}
+          analytics={analytics}
+          onOpenEditModal={() => {
+            setIsDetailModalOpen(false);
+            handleOpenEditModal(currentTargetCampaign);
+          }}
+        />
+      )}
 
       {/* 6. Campaign Add / Edit / Adjust Modal */}
       <CampaignSetupModal
