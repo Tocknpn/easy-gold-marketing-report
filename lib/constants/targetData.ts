@@ -51,6 +51,72 @@ export const HISTORICAL_ACTUALS: Record<number, {
     nc: number;
   };
 }> = {
+  1: { // January 2026 (from JantoMar_2026.xlsx)
+    full: {
+      buy_value_lak: 2616041,
+      buy_weight_g: 755926,
+      sell_value_lak: 2114121,
+      sell_weight_g: 616863,
+      buy_trans: 206451,
+      sell_trans: 86128,
+      withdraw_refund: 1389,
+      nc: 13795,
+    },
+    day15: {
+      buy_value_lak: 440407,
+      buy_weight_g: 140753,
+      sell_value_lak: 420309,
+      sell_weight_g: 134194,
+      buy_trans: 64344,
+      sell_trans: 27711,
+      withdraw_refund: 578,
+      nc: 3148,
+    },
+  },
+  2: { // February 2026 (from JantoMar_2026.xlsx)
+    full: {
+      buy_value_lak: 3294468,
+      buy_weight_g: 941700,
+      sell_value_lak: 2664971,
+      sell_weight_g: 760803,
+      buy_trans: 228565,
+      sell_trans: 92653,
+      withdraw_refund: 1751,
+      nc: 11269,
+    },
+    day15: {
+      buy_value_lak: 2275605,
+      buy_weight_g: 656305,
+      sell_value_lak: 1516350,
+      sell_weight_g: 436514,
+      buy_trans: 150913,
+      sell_trans: 52280,
+      withdraw_refund: 1019,
+      nc: 8458,
+    },
+  },
+  3: { // March 2026 (from JantoMar_2026.xlsx)
+    full: {
+      buy_value_lak: 3213005,
+      buy_weight_g: 904381,
+      sell_value_lak: 2112134,
+      sell_weight_g: 593487,
+      buy_trans: 254781,
+      sell_trans: 86556,
+      withdraw_refund: 2650,
+      nc: 7964,
+    },
+    day15: {
+      buy_value_lak: 1589025,
+      buy_weight_g: 431275,
+      sell_value_lak: 1201950,
+      sell_weight_g: 326936,
+      buy_trans: 105170,
+      sell_trans: 43136,
+      withdraw_refund: 1065,
+      nc: 3347,
+    },
+  },
   9: { // September
     full: {
       buy_value_lak: 710899,

@@ -121,5 +121,8 @@ export const DEFAULT_MTD_PAYLOAD: MtdReportPayload = {
     { label: "Jun'26", year: 2026, month: 6 },
     { label: "May'26", year: 2026, month: 5 },
     { label: "Apr'26", year: 2026, month: 4 },
+    { label: "Mar'26", year: 2026, month: 3 },
+    { label: "Feb'26", year: 2026, month: 2 },
+    { label: "Jan'26", year: 2026, month: 1 },
   ],
 };
