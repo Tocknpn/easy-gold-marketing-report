@@ -15,12 +15,14 @@ import {
   TrendingUp,
   Scale,
   Users,
-  Coins
+  Coins,
+  Landmark
 } from 'lucide-react';
 
 interface CampaignCardItemProps {
   campaign: CampaignSetupConfig;
   isActive?: boolean;
+  liveData?: any;
   onSelectCampaign: (campaign: CampaignSetupConfig) => void;
   onOpenDetails: (campaign: CampaignSetupConfig) => void;
   onRecord: (campaign: CampaignSetupConfig) => void;
@@ -131,6 +133,7 @@ function getCategoryBadgeStyle(category?: string) {
 export function CampaignCardItem({
   campaign,
   isActive = false,
+  liveData,
   onSelectCampaign,
   onOpenDetails,
   onRecord,
@@ -141,10 +144,10 @@ export function CampaignCardItem({
   const badgeStyle = getCategoryBadgeStyle(campaign.category_tag || campaign.scale_category);
   const tagText = campaign.category_tag || 'Marketing Campaign';
 
-  // Compute live analytics based on configured campaign plan
+  // Compute live analytics based on configured campaign plan and dynamic calculate result
   const analytics = useMemo(() => {
-    return computeCampaignAnalytics(campaign);
-  }, [campaign]);
+    return computeCampaignAnalytics(campaign, liveData);
+  }, [campaign, liveData]);
 
   const { targetAchievement, backwardComparison } = analytics;
   const isCompleted = targetAchievement.is_ended;
@@ -181,7 +184,7 @@ export function CampaignCardItem({
       }`}
     >
       <div className="p-3 flex-1 flex flex-col justify-between space-y-2">
-        {/* 1. Header Badges: Category Tag, Condition Pill, Status */}
+        {/* 1. Header Badges: Category Tag, Condition Pill, Bank Badge, Status */}
         <div className="flex items-center justify-between gap-1.5 flex-wrap">
           <div className="flex items-center gap-1 flex-wrap min-w-0">
             <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider ${badgeStyle.bg} ${badgeStyle.text} shadow-2xs shrink-0`}>
@@ -191,6 +194,12 @@ export function CampaignCardItem({
               <Sparkles className="w-2.5 h-2.5 text-amber-600 shrink-0" />
               <span className="truncate">{campaign.condition_label || 'Buy Trans'}</span>
             </span>
+            {campaign.bank && campaign.bank !== 'all' && (
+              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-50 text-indigo-900 border border-indigo-200 shrink-0">
+                <Landmark className="w-2.5 h-2.5 text-indigo-600 shrink-0" />
+                <span>{campaign.bank}</span>
+              </span>
+            )}
           </div>
 
           <div className="flex items-center gap-1 shrink-0">

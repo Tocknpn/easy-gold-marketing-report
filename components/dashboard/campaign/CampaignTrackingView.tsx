@@ -38,7 +38,8 @@ import {
   CheckCircle2,
   BarChart3,
   Edit3,
-  Trash2
+  Trash2,
+  Landmark
 } from 'lucide-react';
 
 interface CampaignTrackingViewProps {
@@ -93,6 +94,7 @@ export function CampaignTrackingView({
   // Live Query State
   const [recordingId, setRecordingId] = useState<string | null>(null);
   const [liveData, setLiveData] = useState<any>(null);
+  const [liveDataMap, setLiveDataMap] = useState<Record<string, any>>({});
   const [isExporting, setIsExporting] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -132,13 +134,14 @@ export function CampaignTrackingView({
         const itemCat = (c.category_tag || '').toLowerCase();
         if (!itemCat.includes(selectedCategory.toLowerCase())) return false;
       }
-      // Search query filter (matches name, condition, or tag)
+      // Search query filter (matches name, condition, bank, or tag)
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim();
         const matchName = (c.campaign_name || '').toLowerCase().includes(q);
         const matchCond = (c.condition_label || '').toLowerCase().includes(q);
         const matchTag = (c.category_tag || '').toLowerCase().includes(q);
-        if (!matchName && !matchCond && !matchTag) return false;
+        const matchBank = (c.bank || '').toLowerCase().includes(q);
+        if (!matchName && !matchCond && !matchTag && !matchBank) return false;
       }
       return true;
     });
@@ -152,8 +155,9 @@ export function CampaignTrackingView({
   // Compute live analytics payload for active campaign
   const analytics: CampaignAnalyticsPayload | null = useMemo(() => {
     if (!currentTargetCampaign) return null;
-    return computeCampaignAnalytics(currentTargetCampaign, liveData);
-  }, [currentTargetCampaign, liveData]);
+    const campLive = liveDataMap[currentTargetCampaign.id] || (activeCampaign?.id === currentTargetCampaign.id ? liveData : null);
+    return computeCampaignAnalytics(currentTargetCampaign, campLive || undefined);
+  }, [currentTargetCampaign, liveData, liveDataMap, activeCampaign?.id]);
 
   // Execute Live Calculate from Supabase for target campaign
   const handleExecuteCalculate = useCallback(async (targetCamp: CampaignSetupConfig) => {
@@ -176,17 +180,19 @@ export function CampaignTrackingView({
       if (res.ok) {
         const data = await res.json();
         if (data && data.targetAchievement) {
-          setLiveData({
+          const payload = {
             ec_actual_mtd: data.targetAchievement.ec_actual_mtd,
             nc_actual_mtd: data.targetAchievement.nc_actual_mtd,
             mtd_buy_weight_g: data.targetAchievement.mtd_buy_weight_g,
             mtd_buy_value_mil_lak: data.targetAchievement.mtd_buy_value_mil_lak,
-            backward_trans: data.backwardComparison.buy_trans_backward,
-            backward_val_mil: data.backwardComparison.buy_value_lak_backward,
-            backward_weight_g: data.backwardComparison.buy_weight_g_backward,
-            backward_ticket: data.backwardComparison.ticket_size_g_backward,
+            backward_trans: data.backwardComparison?.buy_trans_backward,
+            backward_val_mil: data.backwardComparison?.buy_value_lak_backward,
+            backward_weight_g: data.backwardComparison?.buy_weight_g_backward,
+            backward_ticket: data.backwardComparison?.ticket_size_g_backward,
             max_db_date: data.config?.data_update_on,
-          });
+          };
+          setLiveData(payload);
+          setLiveDataMap((prev) => ({ ...prev, [targetCamp.id]: payload }));
         }
       }
     } catch (err) {
@@ -203,6 +209,11 @@ export function CampaignTrackingView({
     setAllCampaigns(updatedList);
     setActiveCampaign(saved);
     setLiveData(null);
+    setLiveDataMap((prev) => {
+      const next = { ...prev };
+      delete next[config.id];
+      return next;
+    });
   };
 
   // Delete Campaign
@@ -502,7 +513,7 @@ export function CampaignTrackingView({
               <tbody className="divide-y divide-slate-100 font-mono text-xs">
                 {filteredCampaigns.map((camp) => {
                   const isSelected = currentTargetCampaign?.id === camp.id;
-                  const itemAnalytics = computeCampaignAnalytics(camp);
+                  const itemAnalytics = computeCampaignAnalytics(camp, liveDataMap[camp.id]);
                   const { targetAchievement } = itemAnalytics;
                   const isCompleted = targetAchievement.is_ended;
                   const isUpcoming = targetAchievement.is_upcoming;
@@ -513,7 +524,7 @@ export function CampaignTrackingView({
                       key={camp.id}
                       onClick={() => {
                         setActiveCampaign(camp);
-                        setLiveData(null);
+                        setLiveData(liveDataMap[camp.id] || null);
                       }}
                       className={`hover:bg-blue-50/50 transition-colors cursor-pointer ${
                         isSelected ? 'bg-blue-50/80 font-bold border-l-4 border-l-[#0c4ca3]' : ''
@@ -539,6 +550,12 @@ export function CampaignTrackingView({
                             <Sparkles className="w-2.5 h-2.5 text-amber-600" />
                             <span>{camp.condition_label || 'Buy Trans'}</span>
                           </span>
+                          {camp.bank && camp.bank !== 'all' && (
+                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[10px] font-bold bg-indigo-50 text-indigo-900 border border-indigo-200">
+                              <Landmark className="w-2.5 h-2.5 text-indigo-600" />
+                              <span>{camp.bank}</span>
+                            </span>
+                          )}
                         </div>
                       </td>
 
@@ -594,7 +611,7 @@ export function CampaignTrackingView({
                           <button
                             onClick={() => {
                               setActiveCampaign(camp);
-                              setLiveData(null);
+                              setLiveData(liveDataMap[camp.id] || null);
                             }}
                             className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
                               isSelected 
@@ -608,7 +625,7 @@ export function CampaignTrackingView({
                             onClick={() => handleExecuteCalculate(camp)}
                             disabled={recordingId === camp.id}
                             className="px-2 py-0.5 rounded text-[10px] font-black bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50"
-                            title="Execute live Supabase calculation"
+                            title="Execute live calculation with all condition rules & bank filters"
                           >
                             {recordingId === camp.id ? '...' : 'Calc'}
                           </button>
@@ -643,9 +660,10 @@ export function CampaignTrackingView({
               key={camp.id}
               campaign={camp}
               isActive={currentTargetCampaign?.id === camp.id}
+              liveData={liveDataMap[camp.id]}
               onSelectCampaign={(c) => {
                 setActiveCampaign(c);
-                setLiveData(null); // Recalibrate live data
+                setLiveData(liveDataMap[c.id] || null);
               }}
               onOpenDetails={handleOpenDetails}
               onRecord={handleExecuteCalculate}
@@ -684,6 +702,12 @@ export function CampaignTrackingView({
                     <Sparkles className="w-3 h-3 text-amber-600" />
                     <span>{currentTargetCampaign.condition_label}</span>
                   </span>
+                  {currentTargetCampaign.bank && currentTargetCampaign.bank !== 'all' && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-indigo-50 text-indigo-900 border border-indigo-200/80">
+                      <Landmark className="w-3 h-3 text-indigo-600" />
+                      <span>Bank: {currentTargetCampaign.bank}</span>
+                    </span>
+                  )}
                 </div>
                 <div className="text-[11px] text-slate-500 font-medium mt-0.5 flex items-center gap-2 flex-wrap">
                   <span>Timeline: <strong className="font-mono text-slate-700">{currentTargetCampaign.campaign_date_start} to {currentTargetCampaign.campaign_date_end}</strong></span>

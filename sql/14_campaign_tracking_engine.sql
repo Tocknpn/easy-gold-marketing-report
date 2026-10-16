@@ -53,7 +53,8 @@ ADD COLUMN IF NOT EXISTS condition_max_value NUMERIC(18, 2),
 ADD COLUMN IF NOT EXISTS target_types JSONB DEFAULT '["ec", "nc"]'::jsonb,
 ADD COLUMN IF NOT EXISTS revenue_target_mil NUMERIC(18, 2),
 ADD COLUMN IF NOT EXISTS gold_weight_target_g NUMERIC(18, 2),
-ADD COLUMN IF NOT EXISTS auto_sync_max_date BOOLEAN DEFAULT true;
+ADD COLUMN IF NOT EXISTS auto_sync_max_date BOOLEAN DEFAULT true,
+ADD COLUMN IF NOT EXISTS bank VARCHAR(64) DEFAULT 'all';
 
 
 -- STEP 2: HELPER TO GET THE MAX DATA DATE IN SUPABASE
@@ -80,7 +81,8 @@ CREATE OR REPLACE FUNCTION public.get_campaign_actual_metrics(
     p_cond_op TEXT DEFAULT '>=',
     p_cond_val NUMERIC DEFAULT 500000,
     p_cond_max NUMERIC DEFAULT NULL,
-    p_tx_type TEXT DEFAULT 'BUY_GOLD'
+    p_tx_type TEXT DEFAULT 'BUY_GOLD',
+    p_bank TEXT DEFAULT 'all'
 )
 RETURNS JSONB
 LANGUAGE plpgsql
@@ -120,23 +122,35 @@ BEGIN
       AND (p_tx_type = 'all' OR m.transaction_type = p_tx_type)
       AND m.status = 'ສໍາເລັດ'
       AND (
-          -- Threshold conditions
-          (p_cond_op = '>=' AND (
-              (p_cond_type LIKE '%weight%' AND m.gold_weight >= p_cond_val) OR
-              (p_cond_type NOT LIKE '%weight%' AND m.total_amount >= p_cond_val)
+          p_bank IS NULL 
+          OR p_bank = 'all' 
+          OR lower(m.bank) = lower(p_bank)
+          OR (m.bank ILIKE ('%' || p_bank || '%'))
+      )
+      AND (
+          (p_cond_type = 'bank' AND (
+              p_bank IS NOT NULL AND p_bank <> 'all' AND (lower(m.bank) = lower(p_bank) OR m.bank ILIKE ('%' || p_bank || '%'))
+              OR (m.bank IS NOT NULL AND trim(m.bank) <> '')
           ))
           OR
-          (p_cond_op = '<=' AND (
-              (p_cond_type LIKE '%weight%' AND m.gold_weight <= p_cond_val) OR
-              (p_cond_type NOT LIKE '%weight%' AND m.total_amount <= p_cond_val)
+          (p_cond_type <> 'bank' AND (
+              (p_cond_op = '>=' AND (
+                  (p_cond_type LIKE '%weight%' AND m.gold_weight >= p_cond_val) OR
+                  (p_cond_type NOT LIKE '%weight%' AND m.total_amount >= p_cond_val)
+              ))
+              OR
+              (p_cond_op = '<=' AND (
+                  (p_cond_type LIKE '%weight%' AND m.gold_weight <= p_cond_val) OR
+                  (p_cond_type NOT LIKE '%weight%' AND m.total_amount <= p_cond_val)
+              ))
+              OR
+              (p_cond_op = 'between' AND (
+                  (p_cond_type LIKE '%weight%' AND m.gold_weight >= p_cond_val AND m.gold_weight <= COALESCE(p_cond_max, 999999)) OR
+                  (p_cond_type NOT LIKE '%weight%' AND m.total_amount >= p_cond_val AND m.total_amount <= COALESCE(p_cond_max, 999999999999))
+              ))
+              OR
+              (p_cond_op = 'all')
           ))
-          OR
-          (p_cond_op = 'between' AND (
-              (p_cond_type LIKE '%weight%' AND m.gold_weight >= p_cond_val AND m.gold_weight <= COALESCE(p_cond_max, 999999)) OR
-              (p_cond_type NOT LIKE '%weight%' AND m.total_amount >= p_cond_val AND m.total_amount <= COALESCE(p_cond_max, 999999999999))
-          ))
-          OR
-          (p_cond_op = 'all')
       );
 
     -- 2. Compute New Customers (NC) for MTD:
@@ -170,22 +184,35 @@ BEGIN
       AND (p_tx_type = 'all' OR m.transaction_type = p_tx_type)
       AND m.status = 'ສໍາເລັດ'
       AND (
-          (p_cond_op = '>=' AND (
-              (p_cond_type LIKE '%weight%' AND m.gold_weight >= p_cond_val) OR
-              (p_cond_type NOT LIKE '%weight%' AND m.total_amount >= p_cond_val)
+          p_bank IS NULL 
+          OR p_bank = 'all' 
+          OR lower(m.bank) = lower(p_bank)
+          OR (m.bank ILIKE ('%' || p_bank || '%'))
+      )
+      AND (
+          (p_cond_type = 'bank' AND (
+              p_bank IS NOT NULL AND p_bank <> 'all' AND (lower(m.bank) = lower(p_bank) OR m.bank ILIKE ('%' || p_bank || '%'))
+              OR (m.bank IS NOT NULL AND trim(m.bank) <> '')
           ))
           OR
-          (p_cond_op = '<=' AND (
-              (p_cond_type LIKE '%weight%' AND m.gold_weight <= p_cond_val) OR
-              (p_cond_type NOT LIKE '%weight%' AND m.total_amount <= p_cond_val)
+          (p_cond_type <> 'bank' AND (
+              (p_cond_op = '>=' AND (
+                  (p_cond_type LIKE '%weight%' AND m.gold_weight >= p_cond_val) OR
+                  (p_cond_type NOT LIKE '%weight%' AND m.total_amount >= p_cond_val)
+              ))
+              OR
+              (p_cond_op = '<=' AND (
+                  (p_cond_type LIKE '%weight%' AND m.gold_weight <= p_cond_val) OR
+                  (p_cond_type NOT LIKE '%weight%' AND m.total_amount <= p_cond_val)
+              ))
+              OR
+              (p_cond_op = 'between' AND (
+                  (p_cond_type LIKE '%weight%' AND m.gold_weight >= p_cond_val AND m.gold_weight <= COALESCE(p_cond_max, 999999)) OR
+                  (p_cond_type NOT LIKE '%weight%' AND m.total_amount >= p_cond_val AND m.total_amount <= COALESCE(p_cond_max, 999999999999))
+              ))
+              OR
+              (p_cond_op = 'all')
           ))
-          OR
-          (p_cond_op = 'between' AND (
-              (p_cond_type LIKE '%weight%' AND m.gold_weight >= p_cond_val AND m.gold_weight <= COALESCE(p_cond_max, 999999)) OR
-              (p_cond_type NOT LIKE '%weight%' AND m.total_amount >= p_cond_val AND m.total_amount <= COALESCE(p_cond_max, 999999999999))
-          ))
-          OR
-          (p_cond_op = 'all')
       );
 
     -- Return structured JSON

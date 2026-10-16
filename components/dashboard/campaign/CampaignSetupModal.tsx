@@ -19,7 +19,8 @@ import {
   Trash2,
   Copy,
   Clock,
-  Layers
+  Layers,
+  Landmark
 } from 'lucide-react';
 import { calculateDateDiffDays, computeBackwardDates } from '@/lib/campaign/campaignEngine';
 
@@ -56,6 +57,7 @@ export function CampaignSetupModal({
   const [conditionMaxValue, setConditionMaxValue] = useState<number>(2000000);
   const [conditionLabel, setConditionLabel] = useState('Buy trans >= 500k');
   const [txType, setTxType] = useState('BUY_GOLD');
+  const [bank, setBank] = useState<string>('all');
 
   // Targets
   const [selectedTargets, setSelectedTargets] = useState<('ec' | 'nc' | 'revenue' | 'weight')[]>([
@@ -108,6 +110,7 @@ export function CampaignSetupModal({
       setConditionMaxValue(campaignToEdit.condition_max_value || 2000000);
       setConditionLabel(campaignToEdit.condition_label || 'Buy trans >= 500k');
       setTxType(campaignToEdit.tx_type || 'BUY_GOLD');
+      setBank(campaignToEdit.bank || 'all');
       setSelectedTargets(campaignToEdit.target_types || ['ec', 'nc']);
       setEcTarget(campaignToEdit.ec_target || 307500);
       setNcTarget(campaignToEdit.nc_target || 17220);
@@ -146,6 +149,7 @@ export function CampaignSetupModal({
       setConditionMaxValue(2000000);
       setConditionLabel('Buy trans >= 500k');
       setTxType('BUY_GOLD');
+      setBank('all');
       setSelectedTargets(['ec', 'nc']);
       setEcTarget(1731);
       setNcTarget(200);
@@ -197,28 +201,40 @@ export function CampaignSetupModal({
   };
 
   // Quick preset selector
-  const handleConditionPreset = (type: '500k' | '2g' | '15g' | 'range_1_5g') => {
+  const handleConditionPreset = (type: '500k' | '2g' | '15g' | 'range_1_5g' | 'ldb' | 'bcel') => {
     if (type === '500k') {
       setConditionType('amount_gte');
       setConditionOperator('>=');
       setConditionValue(500000);
-      setConditionLabel('Buy trans >= 500k');
+      setConditionLabel(bank !== 'all' ? `Buy trans >= 500k (${bank})` : 'Buy trans >= 500k');
     } else if (type === '2g') {
       setConditionType('weight_gte');
       setConditionOperator('>=');
       setConditionValue(2.0);
-      setConditionLabel('Buy trans >= 2g');
+      setConditionLabel(bank !== 'all' ? `Buy trans >= 2g (${bank})` : 'Buy trans >= 2g');
     } else if (type === '15g') {
       setConditionType('weight_gte');
       setConditionOperator('>=');
       setConditionValue(15.0);
-      setConditionLabel('Buy trans >= 15g');
+      setConditionLabel(bank !== 'all' ? `Buy trans >= 15g (${bank})` : 'Buy trans >= 15g');
     } else if (type === 'range_1_5g') {
       setConditionType('weight_between');
       setConditionOperator('between');
       setConditionValue(1.0);
       setConditionMaxValue(5.0);
-      setConditionLabel('Gold weight between 1.0g - 5.0g');
+      setConditionLabel(bank !== 'all' ? `Gold weight 1-5g (${bank})` : 'Gold weight between 1.0g - 5.0g');
+    } else if (type === 'ldb') {
+      setBank('LDB');
+      setConditionType('bank');
+      setConditionOperator('==');
+      setConditionValue(100000);
+      setConditionLabel('Buy trans >= 100k (LDB)');
+    } else if (type === 'bcel') {
+      setBank('BCEL');
+      setConditionType('bank');
+      setConditionOperator('==');
+      setConditionValue(100000);
+      setConditionLabel('Buy trans >= 100k (BCEL)');
     }
   };
 
@@ -256,6 +272,7 @@ export function CampaignSetupModal({
         condition_max_value: conditionOperator === 'between' ? Number(conditionMaxValue) : undefined,
         condition_label: conditionLabel.trim(),
         tx_type: txType,
+        bank: bank || 'all',
         target_types: selectedTargets,
         ec_target: Number(ecTarget),
         nc_target: Number(ncTarget),
@@ -517,34 +534,50 @@ export function CampaignSetupModal({
               </h4>
 
               {/* Presets */}
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1 flex-wrap">
                 <button
                   type="button"
                   onClick={() => handleConditionPreset('500k')}
-                  className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-50 text-amber-900 border border-amber-200 hover:bg-amber-100"
+                  className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-50 text-amber-900 border border-amber-200 hover:bg-amber-100 cursor-pointer"
                 >
                   &gt;= 500k
                 </button>
                 <button
                   type="button"
                   onClick={() => handleConditionPreset('2g')}
-                  className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-blue-50 text-blue-900 border border-blue-200 hover:bg-blue-100"
+                  className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-blue-50 text-blue-900 border border-blue-200 hover:bg-blue-100 cursor-pointer"
                 >
                   &gt;= 2.0g
                 </button>
                 <button
                   type="button"
                   onClick={() => handleConditionPreset('15g')}
-                  className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-purple-50 text-purple-900 border border-purple-200 hover:bg-purple-100"
+                  className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-purple-50 text-purple-900 border border-purple-200 hover:bg-purple-100 cursor-pointer"
                 >
                   &gt;= 15.0g
                 </button>
                 <button
                   type="button"
                   onClick={() => handleConditionPreset('range_1_5g')}
-                  className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-50 text-emerald-900 border border-emerald-200 hover:bg-emerald-100"
+                  className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-50 text-emerald-900 border border-emerald-200 hover:bg-emerald-100 cursor-pointer"
                 >
                   Between 1-5g
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleConditionPreset('ldb')}
+                  className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-50 text-indigo-900 border border-indigo-200 hover:bg-indigo-100 cursor-pointer flex items-center gap-1"
+                >
+                  <Landmark className="w-2.5 h-2.5 text-indigo-600" />
+                  <span>LDB Bank</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleConditionPreset('bcel')}
+                  className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-sky-50 text-sky-900 border border-sky-200 hover:bg-sky-100 cursor-pointer flex items-center gap-1"
+                >
+                  <Landmark className="w-2.5 h-2.5 text-sky-600" />
+                  <span>BCEL Bank</span>
                 </button>
               </div>
             </div>
@@ -559,12 +592,16 @@ export function CampaignSetupModal({
                   onChange={(e) => {
                     const val = e.target.value as CampaignConditionType;
                     setConditionType(val);
-                    if (val.includes('weight')) {
+                    if (val === 'bank') {
+                      if (bank === 'all') setBank('LDB');
+                      setConditionOperator('==');
+                      setConditionLabel(`Bank: ${bank !== 'all' ? bank : 'LDB'} Promo`);
+                    } else if (val.includes('weight')) {
                       setConditionValue(2.0);
-                      setConditionLabel('Buy trans >= 2g');
+                      setConditionLabel(bank !== 'all' ? `Buy trans >= 2g (${bank})` : 'Buy trans >= 2g');
                     } else {
                       setConditionValue(500000);
-                      setConditionLabel('Buy trans >= 500k');
+                      setConditionLabel(bank !== 'all' ? `Buy trans >= 500k (${bank})` : 'Buy trans >= 500k');
                     }
                   }}
                   className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-[#0c4ca3] focus:outline-hidden bg-white"
@@ -573,6 +610,7 @@ export function CampaignSetupModal({
                   <option value="weight_gte">Gold Weight (Grams)</option>
                   <option value="weight_between">Weight Range (Between)</option>
                   <option value="amount_between">Amount Range (Between)</option>
+                  <option value="bank">Bank (Partner / Channel)</option>
                 </select>
               </div>
 
@@ -588,21 +626,50 @@ export function CampaignSetupModal({
                   <option value=">=">&gt;= (Greater or Equal / Min)</option>
                   <option value="<=">&lt;= (Less or Equal / Max)</option>
                   <option value="between">BETWEEN (Min and Max)</option>
+                  <option value="==">== (Exact Bank / Match)</option>
                   <option value="all">ALL (No threshold filter)</option>
                 </select>
               </div>
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  {conditionOperator === 'between' ? 'Min Value' : 'Threshold Value'}
+                  {conditionType === 'bank' 
+                    ? 'Target Bank Channel' 
+                    : conditionOperator === 'between' 
+                    ? 'Min Value' 
+                    : 'Threshold Value'}
                 </label>
-                <input
-                  type="number"
-                  value={conditionValue}
-                  onChange={(e) => setConditionValue(Number(e.target.value))}
-                  className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-[#0c4ca3] focus:outline-hidden font-mono"
-                  required
-                />
+                {conditionType === 'bank' ? (
+                  <select
+                    value={bank}
+                    onChange={(e) => {
+                      const selectedBank = e.target.value;
+                      setBank(selectedBank);
+                      setConditionLabel(`Bank: ${selectedBank}`);
+                    }}
+                    className="w-full px-3 py-2 text-xs border border-indigo-300 bg-indigo-50/50 rounded-xl focus:ring-2 focus:ring-[#0c4ca3] focus:outline-hidden font-bold text-indigo-950"
+                  >
+                    <option value="all">All Banks (ທຸກທະນາຄານ)</option>
+                    <option value="BCEL">BCEL (OnePay)</option>
+                    <option value="LDB">LDB (Lao Development Bank)</option>
+                    <option value="JDB">JDB (Yes Pay)</option>
+                    <option value="UMONEY">u-money (Unitel)</option>
+                    <option value="MMONEY">M-Money (Lao Telecom)</option>
+                    <option value="ACLEDA">ACLEDA Bank</option>
+                    <option value="APB">APB (Agri Promotion Bank)</option>
+                    <option value="LVB">LVB Bank</option>
+                    <option value="PSVB">Phongsavanh Bank</option>
+                    <option value="STB">ST Bank</option>
+                  </select>
+                ) : (
+                  <input
+                    type="number"
+                    value={conditionValue}
+                    onChange={(e) => setConditionValue(Number(e.target.value))}
+                    className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-[#0c4ca3] focus:outline-hidden font-mono"
+                    required
+                  />
+                )}
               </div>
 
               {conditionOperator === 'between' ? (
@@ -632,6 +699,51 @@ export function CampaignSetupModal({
                   />
                 </div>
               )}
+            </div>
+
+            {/* Dedicated Bank Channel Scope & Filter Selector */}
+            <div className="bg-slate-50 border border-slate-200/90 rounded-xl p-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+              <div className="flex items-center gap-2">
+                <Landmark className="w-4 h-4 text-indigo-600 shrink-0" />
+                <div>
+                  <span className="text-xs font-bold text-slate-800">Bank Channel Filter:</span>
+                  <span className="text-[10px] text-slate-500 ml-1.5 hidden sm:inline">
+                    Filter campaign transactions by payment bank / partner
+                  </span>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <select
+                  value={bank}
+                  onChange={(e) => {
+                    const newBank = e.target.value;
+                    setBank(newBank);
+                    if (newBank !== 'all' && !conditionLabel.includes(newBank)) {
+                      setConditionLabel((prev) => `${prev.replace(/\s*\([A-Z]+\)$/, '')} (${newBank})`);
+                    } else if (newBank === 'all') {
+                      setConditionLabel((prev) => prev.replace(/\s*\([A-Z]+\)$/, ''));
+                    }
+                  }}
+                  className="px-3 py-1.5 text-xs font-bold border border-slate-300 rounded-xl focus:ring-2 focus:ring-[#0c4ca3] focus:outline-hidden bg-white text-slate-800"
+                >
+                  <option value="all">🏦 All Banks (ທຸກທະນາຄານ)</option>
+                  <option value="BCEL">BCEL (OnePay)</option>
+                  <option value="LDB">LDB (Lao Development Bank)</option>
+                  <option value="JDB">JDB (Yes Pay)</option>
+                  <option value="UMONEY">u-money (Unitel)</option>
+                  <option value="MMONEY">M-Money (Lao Telecom)</option>
+                  <option value="ACLEDA">ACLEDA Bank</option>
+                  <option value="APB">APB (Agri Promotion Bank)</option>
+                  <option value="LVB">LVB Bank</option>
+                  <option value="PSVB">Phongsavanh Bank</option>
+                  <option value="STB">ST Bank</option>
+                </select>
+                {bank !== 'all' && (
+                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-100 text-indigo-800 border border-indigo-200 whitespace-nowrap">
+                    Active: {bank}
+                  </span>
+                )}
+              </div>
             </div>
           </div>
 

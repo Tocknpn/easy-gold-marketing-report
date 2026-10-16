@@ -108,7 +108,8 @@ export function CampaignDetailModal({
                   {campaign.condition_label}
                 </span>
                 <span className="text-[10px] text-slate-500">
-                  Op: {campaign.condition_operator || '>='} {campaign.condition_value.toLocaleString()}
+                  {campaign.bank && campaign.bank !== 'all' ? `Bank: ${campaign.bank} • ` : ''}
+                  Op: {campaign.condition_operator || '>='} {campaign.condition_value?.toLocaleString()}
                   {campaign.condition_max_value ? ` to ${campaign.condition_max_value.toLocaleString()}` : ''}
                 </span>
               </div>

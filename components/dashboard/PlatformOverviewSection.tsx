@@ -34,9 +34,9 @@ export function PlatformOverviewSection({
   const proratedWithdraw = isPartial ? Number((Number(currentWeek.withdraw_gold_grams) * 7).toFixed(1)) : undefined;
 
   return (
-    <div className="border border-blue-200/80 rounded-2xl p-3 sm:p-3.5 bg-gradient-to-b from-[#f8faff] via-white to-[#f8faff] shadow-xs">
+    <div className="border border-blue-200/80 rounded-2xl p-3 sm:p-3.5 bg-gradient-to-b from-[#f8faff] via-white to-[#f8faff] shadow-xs h-full flex flex-col justify-between">
       {/* Modern Gradient Blue Header Banner */}
-      <div className="bg-gradient-to-r from-[#0c4ca3] via-[#1558b8] to-[#1e56a0] text-white font-black text-xs sm:text-sm tracking-wider px-3.5 py-2 rounded-xl mb-3 shadow-xs flex items-center justify-between">
+      <div className="bg-gradient-to-r from-[#0c4ca3] via-[#1558b8] to-[#1e56a0] text-white font-black text-xs sm:text-sm tracking-wider px-3.5 py-2 rounded-xl mb-3 shadow-xs flex items-center justify-between shrink-0">
         <div className="flex items-center gap-2">
           <div className="p-1 rounded-md bg-white/20 backdrop-blur-xs">
             <Activity className="w-3.5 h-3.5 text-white" />
@@ -50,8 +50,8 @@ export function PlatformOverviewSection({
         </div>
       </div>
 
-      {/* 4 Cards Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
+      {/* 4 Cards in 2x2 Grid for Equal 3-Pillar Row Alignment */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3 flex-1">
         {/* Card 1: All Transaction */}
         <MetricKpiCard
           title="All Transaction"

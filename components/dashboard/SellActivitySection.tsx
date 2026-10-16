@@ -31,9 +31,9 @@ export function SellActivitySection({
   const proratedTx = isPartial ? Math.round(currentWeek.sell_transactions * 7) : undefined;
 
   return (
-    <div className="border border-rose-200/80 rounded-2xl p-3 sm:p-3.5 bg-gradient-to-b from-[#fdf6f7] via-white to-[#fdf6f7] shadow-xs">
+    <div className="border border-rose-200/80 rounded-2xl p-3 sm:p-3.5 bg-gradient-to-b from-[#fdf6f7] via-white to-[#fdf6f7] shadow-xs h-full flex flex-col justify-between">
       {/* Burgundy Header Banner */}
-      <div className="bg-gradient-to-r from-[#6e112a] via-[#7d1232] to-[#881337] text-white font-black text-xs sm:text-sm tracking-wider px-3.5 py-2 rounded-xl mb-3 shadow-xs flex items-center justify-between">
+      <div className="bg-gradient-to-r from-[#6e112a] via-[#7d1232] to-[#881337] text-white font-black text-xs sm:text-sm tracking-wider px-3.5 py-2 rounded-xl mb-3 shadow-xs flex items-center justify-between shrink-0">
         <div className="flex items-center gap-2">
           <div className="p-1 rounded-md bg-white/20 backdrop-blur-xs">
             <Coins className="w-3.5 h-3.5 text-rose-100" />
@@ -49,8 +49,8 @@ export function SellActivitySection({
         </span>
       </div>
 
-      {/* 3 Cards Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3">
+      {/* 3 Cards Grid - 2 Rows matching Platform Overview 2x2 footprint */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3 flex-1">
         {/* Card 1: Gold Weight (15g) */}
         <MetricKpiCard
           title="Gold Weight (15g)"
@@ -78,16 +78,18 @@ export function SellActivitySection({
         />
 
         {/* Card 3: Ticket Size (g) */}
-        <MetricKpiCard
-          title="Ticket Size (g)"
-          value={Number(currentWeek.sell_ticket_size_g)}
-          variancePercent={variances.sell_ticket_size_g}
-          historyData={ticketData}
-          themeColor="red"
-          isDecimal={true}
-          selectedWeek={selectedWeek || currentWeek.week_label}
-          subtitle="Avg/Tx"
-        />
+        <div className="sm:col-span-2">
+          <MetricKpiCard
+            title="Ticket Size (g)"
+            value={Number(currentWeek.sell_ticket_size_g)}
+            variancePercent={variances.sell_ticket_size_g}
+            historyData={ticketData}
+            themeColor="red"
+            isDecimal={true}
+            selectedWeek={selectedWeek || currentWeek.week_label}
+            subtitle="Avg/Tx"
+          />
+        </div>
       </div>
     </div>
   );

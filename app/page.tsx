@@ -308,83 +308,32 @@ export default function DashboardPage() {
     <div className="min-h-screen bg-[#f3f5f9] text-slate-900 flex flex-col select-none">
       {/* Main Executive Report Content Area */}
       <div className="flex-1 flex flex-col p-3 sm:p-5 lg:p-6 overflow-x-hidden min-w-0">
-        {/* Navigation Tabs Bar & Branding */}
-        <div className="flex items-center justify-between pb-3 mb-2 border-b border-slate-200/80 gap-3 flex-wrap">
-          {/* Executive View Tabs */}
-          <div className="flex items-center bg-white p-1 rounded-xl border border-slate-300/80 shadow-xs flex-wrap gap-1">
-            <button
-              onClick={() => handleTabChange('targets')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-black transition-all ${
-                activeReportTab === 'targets'
-                  ? 'bg-gradient-to-r from-[#0c4ca3] to-blue-900 text-white shadow-xs'
-                  : 'text-slate-700 hover:text-slate-900 hover:bg-slate-50'
-              }`}
-            >
-              <Target className="w-4 h-4 text-amber-400" />
-              <span>Target &amp; Run-Rate</span>
-              <span className="px-1.5 py-0.2 rounded-full text-[9px] font-black bg-amber-400 text-slate-950">
-                2026
+        {/* Tier 1: Brand Logo & Executive Controls Bar (Never wraps below tabs) */}
+        <header className="flex items-center justify-between pb-3 mb-2.5 border-b border-slate-200/90 gap-3 min-w-0">
+          {/* Left: Brand Identity */}
+          <div className="flex items-center gap-3 select-none shrink-0">
+            <div>
+              <div className="flex items-baseline gap-1 font-black leading-none">
+                <span className="text-xl sm:text-2xl text-[#e5a812] tracking-wider font-black">EASY</span>
+                <span className="text-xl sm:text-2xl text-[#0c4ca3] tracking-wider font-black">GOLD</span>
+              </div>
+              <div className="text-[10px] sm:text-[11px] font-bold text-slate-400 tracking-wider mt-0.5 uppercase">
+                by KHAMPHOUVONG
+              </div>
+            </div>
+            <div className="hidden md:block h-6 w-px bg-slate-200/90" />
+            <div className="hidden md:block">
+              <span className="text-xs font-black text-slate-800 tracking-tight block">
+                Executive BI &amp; Marketing Intelligence
               </span>
-            </button>
-            <button
-              onClick={() => handleTabChange('dynamic')}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-black transition-all ${
-                activeReportTab === 'dynamic'
-                  ? 'bg-[#0c4ca3] text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-              }`}
-            >
-              <SlidersHorizontal className="w-4 h-4" />
-              <span>Dynamic BI</span>
-            </button>
-            <button
-              onClick={() => handleTabChange('mtd')}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-black transition-all ${
-                activeReportTab === 'mtd'
-                  ? 'bg-[#0c4ca3] text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-              }`}
-            >
-              <TrendingUp className="w-4 h-4" />
-              <span>MTD Forecast</span>
-            </button>
-            <button
-              onClick={() => handleTabChange('weekly')}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-black transition-all ${
-                activeReportTab === 'weekly'
-                  ? 'bg-[#0c4ca3] text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-              }`}
-            >
-              <BarChart3 className="w-4 h-4" />
-              <span>WoW Trends</span>
-            </button>
-            <button
-              onClick={() => handleTabChange('pivot')}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-black transition-all ${
-                activeReportTab === 'pivot'
-                  ? 'bg-[#0c4ca3] text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-              }`}
-            >
-              <Table2 className="w-4 h-4" />
-              <span>Custom Pivot Profile</span>
-            </button>
-            <button
-              onClick={() => handleTabChange('campaign')}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-black transition-all ${
-                activeReportTab === 'campaign'
-                  ? 'bg-[#0c4ca3] text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-              }`}
-            >
-              <Target className="w-4 h-4" />
-              <span>Campaign Tracking</span>
-            </button>
+              <span className="text-[10px] font-medium text-slate-400 block">
+                Real-Time Sales Operations &amp; Performance Analytics
+              </span>
+            </div>
           </div>
 
-          {/* Right Header: Freshness Badge + System Audit + User Profile + Brand Logo */}
-          <div className="flex items-center gap-2 sm:gap-2.5 flex-wrap justify-end">
+          {/* Right Header Options Bar: Freshness Badge + System Audit + User Manage + User Profile */}
+          <div className="flex items-center gap-2 sm:gap-2.5 shrink-0 justify-end flex-wrap">
             {/* Live Data Freshness & Sync Alert Badge */}
             <FreshnessBadge
               onTriggerRefresh={async () => {
@@ -395,7 +344,7 @@ export default function DashboardPage() {
             {/* System Health, Calculation & Free Plan Audit Button */}
             <button
               onClick={() => setIsValidatorModalOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 text-emerald-900 shadow-xs transition-all font-bold text-xs"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 text-emerald-900 shadow-xs transition-all font-bold text-xs cursor-pointer"
               title="System Integrity & Free Plan Audit"
             >
               <ShieldCheck className="w-4 h-4 text-emerald-600" />
@@ -407,7 +356,7 @@ export default function DashboardPage() {
             {currentUser?.role === 'admin' && (
               <button
                 onClick={() => setIsUserManagementModalOpen(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-blue-900 to-[#0c4ca3] hover:from-blue-800 hover:to-[#0a3f88] text-white shadow-xs transition-all font-bold text-xs border border-blue-400/40"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-blue-900 to-[#0c4ca3] hover:from-blue-800 hover:to-[#0a3f88] text-white shadow-xs transition-all font-bold text-xs border border-blue-400/40 cursor-pointer"
                 title="Admin: User Directory & Reporting Profile Provisioning"
               >
                 <Crown className="w-3.5 h-3.5 text-[#e5a812]" />
@@ -421,7 +370,7 @@ export default function DashboardPage() {
             {/* User Account / Profile Badge button */}
             <button
               onClick={() => setIsAuthModalOpen(true)}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white border border-slate-300 hover:border-slate-400 text-slate-700 shadow-xs transition-all hover:bg-slate-50"
+              className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white border border-slate-300 hover:border-slate-400 text-slate-700 shadow-xs transition-all hover:bg-slate-50 cursor-pointer"
               title="Manage Account & Reporting Profiles"
             >
               <div className="w-6 h-6 rounded-lg bg-[#0c4ca3] text-[#e5a812] font-black text-xs flex items-center justify-center">
@@ -436,19 +385,83 @@ export default function DashboardPage() {
                 </span>
               </div>
             </button>
-
-            {/* Logo: EASY GOLD by KHAMPHOUVONG */}
-            <div className="text-right select-none pl-1">
-              <div className="flex items-baseline justify-end gap-1 font-black leading-none">
-                <span className="text-xl sm:text-2xl text-[#e5a812] tracking-wider">EASY</span>
-                <span className="text-xl sm:text-2xl text-[#0c4ca3] tracking-wider">GOLD</span>
-              </div>
-              <div className="text-[10px] sm:text-[11px] font-bold text-slate-400 tracking-wider mt-0.5">
-                by KHAMPHOUVONG
-              </div>
-            </div>
           </div>
-        </div>
+        </header>
+
+        {/* Tier 2: Executive Navigation Tabs Bar */}
+        <nav aria-label="Reporting Views Navigation" className="mb-4">
+          <div className="flex items-center bg-white p-1 rounded-xl border border-slate-300/80 shadow-xs flex-wrap gap-1 w-fit">
+            <button
+              onClick={() => handleTabChange('targets')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-black transition-all cursor-pointer ${
+                activeReportTab === 'targets'
+                  ? 'bg-gradient-to-r from-[#0c4ca3] to-blue-900 text-white shadow-xs'
+                  : 'text-slate-700 hover:text-slate-900 hover:bg-slate-50'
+              }`}
+            >
+              <Target className="w-4 h-4 text-amber-400" />
+              <span>Target &amp; Run-Rate</span>
+              <span className="px-1.5 py-0.2 rounded-full text-[9px] font-black bg-amber-400 text-slate-950">
+                2026
+              </span>
+            </button>
+            <button
+              onClick={() => handleTabChange('dynamic')}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-black transition-all cursor-pointer ${
+                activeReportTab === 'dynamic'
+                  ? 'bg-[#0c4ca3] text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+              }`}
+            >
+              <SlidersHorizontal className="w-4 h-4" />
+              <span>Dynamic BI</span>
+            </button>
+            <button
+              onClick={() => handleTabChange('mtd')}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-black transition-all cursor-pointer ${
+                activeReportTab === 'mtd'
+                  ? 'bg-[#0c4ca3] text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+              }`}
+            >
+              <TrendingUp className="w-4 h-4" />
+              <span>MTD Forecast</span>
+            </button>
+            <button
+              onClick={() => handleTabChange('weekly')}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-black transition-all cursor-pointer ${
+                activeReportTab === 'weekly'
+                  ? 'bg-[#0c4ca3] text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+              }`}
+            >
+              <BarChart3 className="w-4 h-4" />
+              <span>WoW Trends</span>
+            </button>
+            <button
+              onClick={() => handleTabChange('pivot')}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-black transition-all cursor-pointer ${
+                activeReportTab === 'pivot'
+                  ? 'bg-[#0c4ca3] text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+              }`}
+            >
+              <Table2 className="w-4 h-4" />
+              <span>Custom Pivot Profile</span>
+            </button>
+            <button
+              onClick={() => handleTabChange('campaign')}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-black transition-all cursor-pointer ${
+                activeReportTab === 'campaign'
+                  ? 'bg-[#0c4ca3] text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+              }`}
+            >
+              <Target className="w-4 h-4" />
+              <span>Campaign Tracking</span>
+            </button>
+          </div>
+        </nav>
 
         {/* TAB 0: MONTHLY RUN-RATE & 2026 TARGET TRACKING (Image 1, 2, 3) */}
         {activeReportTab === 'targets' && (
@@ -644,16 +657,41 @@ export default function DashboardPage() {
                   </div>
                 )}
 
-                {/* 2. Platform Overview Section */}
-                <section className="w-full">
-                  <PlatformOverviewSection
-                    currentWeek={activeWeeklyMetrics.currentWeek}
-                    history={activeWeeklyMetrics.chartHistory}
-                    variances={activeWeeklyMetrics.variances}
-                    selectedWeek={selectedWeekLabel}
-                    isPartialWeek={activeWeeklyMetrics.isPartial}
-                  />
-                </section>
+                {/* 2. Three Report Sections on the SAME LINE (3x1 Line: Platform Overview | Buy Activity | Sell Activity) */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-3.5 w-full items-stretch">
+                  {/* Section 1: Platform Overview */}
+                  <section className="w-full flex flex-col">
+                    <PlatformOverviewSection
+                      currentWeek={activeWeeklyMetrics.currentWeek}
+                      history={activeWeeklyMetrics.chartHistory}
+                      variances={activeWeeklyMetrics.variances}
+                      selectedWeek={selectedWeekLabel}
+                      isPartialWeek={activeWeeklyMetrics.isPartial}
+                    />
+                  </section>
+
+                  {/* Section 2: Buy Activity */}
+                  <section className="w-full flex flex-col">
+                    <BuyActivitySection
+                      currentWeek={activeWeeklyMetrics.currentWeek}
+                      history={activeWeeklyMetrics.chartHistory}
+                      variances={activeWeeklyMetrics.variances}
+                      selectedWeek={selectedWeekLabel}
+                      isPartialWeek={activeWeeklyMetrics.isPartial}
+                    />
+                  </section>
+
+                  {/* Section 3: Sell Activity */}
+                  <section className="w-full flex flex-col">
+                    <SellActivitySection
+                      currentWeek={activeWeeklyMetrics.currentWeek}
+                      history={activeWeeklyMetrics.chartHistory}
+                      variances={activeWeeklyMetrics.variances}
+                      selectedWeek={selectedWeekLabel}
+                      isPartialWeek={activeWeeklyMetrics.isPartial}
+                    />
+                  </section>
+                </div>
 
                 {/* 3. Trading Flow Balance & Market Pulse Ribbon */}
                 <section className="w-full bg-white/95 rounded-2xl border border-slate-200/90 px-3.5 py-2.5 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-3">
@@ -708,29 +746,6 @@ export default function DashboardPage() {
                     </div>
                   </div>
                 </section>
-
-                {/* 4. Dual Activity Sections: Buy & Sell */}
-                <div className="grid grid-cols-1 xl:grid-cols-2 gap-3 sm:gap-3.5 w-full">
-                  <section className="w-full">
-                    <BuyActivitySection
-                      currentWeek={activeWeeklyMetrics.currentWeek}
-                      history={activeWeeklyMetrics.chartHistory}
-                      variances={activeWeeklyMetrics.variances}
-                      selectedWeek={selectedWeekLabel}
-                      isPartialWeek={activeWeeklyMetrics.isPartial}
-                    />
-                  </section>
-
-                  <section className="w-full">
-                    <SellActivitySection
-                      currentWeek={activeWeeklyMetrics.currentWeek}
-                      history={activeWeeklyMetrics.chartHistory}
-                      variances={activeWeeklyMetrics.variances}
-                      selectedWeek={selectedWeekLabel}
-                      isPartialWeek={activeWeeklyMetrics.isPartial}
-                    />
-                  </section>
-                </div>
 
                 {/* 5. 8-Week Historical Trajectory Matrix with 4-Week Moving Average (MA4) */}
                 <section className="w-full">

@@ -1,4 +1,4 @@
-export type CampaignConditionType = 'amount_gte' | 'weight_gte' | 'weight_between' | 'amount_between' | 'tx_type' | 'custom';
+export type CampaignConditionType = 'amount_gte' | 'weight_gte' | 'weight_between' | 'amount_between' | 'bank' | 'tx_type' | 'custom';
 export type CampaignOperator = '>=' | '<=' | 'between' | '==' | 'all';
 export type CampaignStatus = 'active' | 'completed' | 'upcoming' | 'draft';
 
@@ -23,8 +23,9 @@ export interface CampaignSetupConfig {
   condition_operator: CampaignOperator;
   condition_value: number;            // Min threshold (e.g. 500000 LAK or 2.0g)
   condition_max_value?: number;       // For 'between' operators (e.g. 5.0g or 2,000,000 LAK)
-  condition_label: string;            // 'Buy trans >= 500k', 'Weight 2.0g - 5.0g'
+  condition_label: string;            // 'Buy trans >= 500k', 'Weight 2.0g - 5.0g', 'Bank: LDB'
   tx_type: string;                    // 'BUY_GOLD', 'SALE_GOLD', 'all'
+  bank?: string;                      // 'all' | 'BCEL' | 'LDB' | 'JDB' | 'UMONEY' | 'MMONEY' | 'ACLEDA' | 'APB' | 'LVB' | 'PSVB' | 'STB'
   status?: CampaignStatus;
 
   // Multiple Targets Configuration
