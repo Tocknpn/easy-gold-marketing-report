@@ -68,7 +68,7 @@ export function CampaignSetupModal({
   const [ncTarget, setNcTarget] = useState<number>(17220);
   const [revenueTarget, setRevenueTarget] = useState<number>(2876304.2);
   const [goldWeightTarget, setGoldWeightTarget] = useState<number>(913509.7);
-  const [baselineDailyRr, setBaselineDailyRr] = useState<number | undefined>(79.0);
+  const [baselineDailyRr, setBaselineDailyRr] = useState<number | undefined>(undefined);
 
   const [isSaving, setIsSaving] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -419,109 +419,6 @@ export function CampaignSetupModal({
                 </div>
               </div>
             </div>
-
-            {/* Marketing Scale & Channel Details */}
-            <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200/90 grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                  Campaign Scale &amp; Type
-                </label>
-                <select
-                  value={scaleCategory}
-                  onChange={(e) => setScaleCategory(e.target.value)}
-                  className="w-full px-2.5 py-1.5 text-xs font-bold border border-slate-300 rounded-xl bg-white"
-                >
-                  <option value="VOLUME DRIVER — TICKET >= 500K">VOLUME DRIVER — TICKET &gt;= 500K</option>
-                  <option value="SPRINT PROMO — WEIGHT >= 2.0G">SPRINT PROMO — WEIGHT &gt;= 2.0G</option>
-                  <option value="VIP RETENTION — WEIGHT >= 15.0G">VIP RETENTION — WEIGHT &gt;= 15.0G</option>
-                  <option value="ACQUISITION — FIRST BUY >= 200K">ACQUISITION — FIRST BUY &gt;= 200K</option>
-                  <option value="SEASONAL FESTIVAL CAMPAIGN">SEASONAL FESTIVAL CAMPAIGN</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                  Channel / Desk
-                </label>
-                <select
-                  value={team}
-                  onChange={(e) => setTeam(e.target.value)}
-                  className="w-full px-2.5 py-1.5 text-xs font-bold border border-slate-300 rounded-xl bg-white"
-                >
-                  <option value="ALL BRANCHES">ALL BRANCHES</option>
-                  <option value="MOBILE APP">MOBILE APP</option>
-                  <option value="VIP DESK">VIP DESK</option>
-                  <option value="DIGITAL GROWTH">DIGITAL GROWTH</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                  Event Venue / Location
-                </label>
-                <input
-                  type="text"
-                  value={location}
-                  onChange={(e) => setLocation(e.target.value)}
-                  placeholder="e.g. Watchan or Landmark Hotel"
-                  className="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-xl bg-white"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                  Plan Budget (LAK)
-                </label>
-                <input
-                  type="number"
-                  value={planBudget || ''}
-                  onChange={(e) => setPlanBudget(Number(e.target.value))}
-                  placeholder="e.g. 395700000"
-                  className="w-full px-2.5 py-1.5 text-xs font-bold border border-slate-300 rounded-xl bg-white"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                  Total Spending Cost (LAK)
-                </label>
-                <input
-                  type="number"
-                  value={totalSpendingCost || ''}
-                  onChange={(e) => setTotalSpendingCost(Number(e.target.value))}
-                  placeholder="e.g. 72800000 or 0"
-                  className="w-full px-2.5 py-1.5 text-xs font-bold border border-slate-300 rounded-xl bg-white"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                  Target Customers vs Actual
-                </label>
-                <div className="flex items-center gap-1.5">
-                  <input
-                    type="number"
-                    value={customersActual || ''}
-                    onChange={(e) => setCustomersActual(Number(e.target.value))}
-                    placeholder="Act (e.g. 1731)"
-                    className="w-1/2 px-2 py-1.5 text-xs border border-slate-300 rounded-xl bg-white"
-                    title="Actual Customers"
-                  />
-                  <span>/</span>
-                  <input
-                    type="number"
-                    value={customersTarget || ''}
-                    onChange={(e) => {
-                      setCustomersTarget(Number(e.target.value));
-                      setEcTarget(Number(e.target.value));
-                    }}
-                    placeholder="Tgt (e.g. 1731)"
-                    className="w-1/2 px-2 py-1.5 text-xs border border-slate-300 rounded-xl bg-white"
-                    title="Target Customers"
-                  />
-                </div>
-              </div>
-            </div>
           </div>
 
           {/* 2. Timeline & Automatic Reverse Backward Window */}
@@ -862,20 +759,6 @@ export function CampaignSetupModal({
                   />
                 </div>
               )}
-
-              <div className="sm:col-span-2">
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Normal Baseline Daily Run-Rate (Optional, e.g. Q3 average 79.0 trans/day)
-                </label>
-                <input
-                  type="number"
-                  step="0.1"
-                  value={baselineDailyRr || ''}
-                  onChange={(e) => setBaselineDailyRr(e.target.value ? Number(e.target.value) : undefined)}
-                  placeholder="e.g. 79.0"
-                  className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-[#0c4ca3] focus:outline-hidden font-mono"
-                />
-              </div>
             </div>
           </div>
 
