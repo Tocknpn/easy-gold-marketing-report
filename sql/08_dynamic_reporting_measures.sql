@@ -75,10 +75,10 @@ BEGIN
     v_start_ts := COALESCE(p_start_date, date_trunc('month', now()));
     v_end_ts := COALESCE(p_end_date, now());
 
-    -- 2. Open Price & Close Price Calculation
+    -- 2. Open Price & Close Price Calculation (Normalized to 15g Baht benchmark)
     -- Open Price: First valid BUY_GOLD transaction with total_amount > 100,000 in the filtered window
     SELECT 
-        CASE WHEN gold_weight > 0 THEN ROUND(total_amount / gold_weight, 2) ELSE 0 END
+        CASE WHEN gold_weight > 0 THEN ROUND((total_amount / gold_weight) * 15.0, 0) ELSE 0 END
     INTO v_open_price
     FROM public.monthly_data
     WHERE (p_status IS NULL OR status = p_status)
@@ -94,7 +94,7 @@ BEGIN
 
     -- Close Price: Last valid BUY_GOLD transaction with total_amount > 100,000 in the filtered window
     SELECT 
-        CASE WHEN gold_weight > 0 THEN ROUND(total_amount / gold_weight, 2) ELSE 0 END
+        CASE WHEN gold_weight > 0 THEN ROUND((total_amount / gold_weight) * 15.0, 0) ELSE 0 END
     INTO v_close_price
     FROM public.monthly_data
     WHERE (p_status IS NULL OR status = p_status)

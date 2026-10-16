@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   Users, 
   ArrowLeftRight, 
@@ -25,6 +25,8 @@ interface DynamicKpiRibbonProps {
 }
 
 export function DynamicKpiRibbon({ measures, isComparingPoP = false }: DynamicKpiRibbonProps) {
+  const [priceUnit, setPriceUnit] = useState<'15g' | '1g'>('15g');
+
   const formatNumber = (val: number) => Math.round(val).toLocaleString('en-US');
   const formatDec = (val: number, dec: number = 2) => Number(val).toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec });
   const formatMil = (valLak: number) => (valLak / 1000000).toLocaleString('en-US', { maximumFractionDigits: 1 });
@@ -292,27 +294,111 @@ export function DynamicKpiRibbon({ measures, isComparingPoP = false }: DynamicKp
         </div>
 
         {/* Gold Trading Price Benchmark */}
-        <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
-          <div className="text-xs font-black uppercase text-slate-500 tracking-wider mb-3 flex items-center gap-1.5">
-            <Coins className="w-4 h-4 text-[#e5a812]" />
-            Price Dynamics (LAK / 15g Baht)
-          </div>
-          <div className="grid grid-cols-2 gap-3 text-xs mb-3">
-            <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-100">
-              <span className="text-slate-400 font-bold block text-[10px] uppercase">Period Open Price</span>
-              <span className="text-slate-800 font-black text-base">{formatNumber(measures.open_price)}</span>
+        <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <div className="text-xs font-black uppercase text-slate-700 tracking-wider flex items-center gap-1.5">
+                <Coins className="w-4 h-4 text-[#e5a812]" />
+                Price Dynamics
+              </div>
+
+              {/* Unit Toggle: 15g (1 Baht) vs 1g (Gram) */}
+              <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-[10px] font-black">
+                <button
+                  type="button"
+                  onClick={() => setPriceUnit('15g')}
+                  className={`px-2 py-0.5 rounded-md transition-all ${
+                    priceUnit === '15g'
+                      ? 'bg-[#0c4ca3] text-white shadow-2xs'
+                      : 'text-slate-500 hover:text-slate-900'
+                  }`}
+                  title="Standard Laos gold benchmark: 1 Baht (15g)"
+                >
+                  15g (1 Baht)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPriceUnit('1g')}
+                  className={`px-2 py-0.5 rounded-md transition-all ${
+                    priceUnit === '1g'
+                      ? 'bg-[#0c4ca3] text-white shadow-2xs'
+                      : 'text-slate-500 hover:text-slate-900'
+                  }`}
+                  title="Price per single gram (1g)"
+                >
+                  1g (Gram)
+                </button>
+              </div>
             </div>
-            <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-100">
-              <span className="text-slate-400 font-bold block text-[10px] uppercase">Period Close Price</span>
-              <span className="text-slate-800 font-black text-base">{formatNumber(measures.close_price)}</span>
+
+            <div className="grid grid-cols-2 gap-2.5 text-xs mb-3">
+              {/* Period Open Price */}
+              <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-100">
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400 font-bold block text-[10px] uppercase">
+                    Period Open {priceUnit === '15g' ? '(15g)' : '(1g)'}
+                  </span>
+                </div>
+                <span className="text-slate-800 font-black text-sm sm:text-base block">
+                  {priceUnit === '15g'
+                    ? `${formatNumber(measures.open_price)}`
+                    : `${formatNumber(Math.round(measures.open_price / 15))}`}
+                  <span className="text-[10px] font-bold text-slate-500 ml-1">LAK</span>
+                </span>
+                <span className="text-[10.5px] text-slate-400 font-semibold block mt-0.5">
+                  {priceUnit === '15g'
+                    ? `≈ ${formatNumber(Math.round(measures.open_price / 15))} LAK/g`
+                    : `≈ ${formatNumber(measures.open_price)} / 15g`}
+                </span>
+              </div>
+
+              {/* Period Close Price */}
+              <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-100">
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400 font-bold block text-[10px] uppercase">
+                    Period Close {priceUnit === '15g' ? '(15g)' : '(1g)'}
+                  </span>
+                </div>
+                <span className="text-slate-800 font-black text-sm sm:text-base block">
+                  {priceUnit === '15g'
+                    ? `${formatNumber(measures.close_price)}`
+                    : `${formatNumber(Math.round(measures.close_price / 15))}`}
+                  <span className="text-[10px] font-bold text-slate-500 ml-1">LAK</span>
+                </span>
+                <span className="text-[10.5px] text-slate-400 font-semibold block mt-0.5">
+                  {priceUnit === '15g'
+                    ? `≈ ${formatNumber(Math.round(measures.close_price / 15))} LAK/g`
+                    : `≈ ${formatNumber(measures.close_price)} / 15g`}
+                </span>
+              </div>
             </div>
           </div>
+
+          {/* Net Price Change with Percent */}
           <div className="p-2.5 rounded-xl border flex items-center justify-between text-xs font-bold bg-amber-50/70 border-amber-200">
-            <span className="text-amber-900">Net Price Change:</span>
-            <span className={`font-black flex items-center gap-1 ${measures.price_change >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-              {measures.price_change >= 0 ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
-              {measures.price_change >= 0 ? '+' : ''}{formatNumber(measures.price_change)} LAK
-            </span>
+            <div>
+              <span className="text-amber-900 block text-[11px]">Net Price Change:</span>
+              <span className="text-[10px] text-amber-700 font-medium">
+                {priceUnit === '15g'
+                  ? `(≈ ${measures.price_change >= 0 ? '+' : ''}${formatNumber(Math.round(measures.price_change / 15))} LAK/g)`
+                  : `(≈ ${measures.price_change >= 0 ? '+' : ''}${formatNumber(measures.price_change)} / 15g)`}
+              </span>
+            </div>
+            <div className="text-right">
+              <span className={`font-black flex items-center justify-end gap-1 ${measures.price_change >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                {measures.price_change >= 0 ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
+                {measures.price_change >= 0 ? '+' : ''}
+                {priceUnit === '15g'
+                  ? `${formatNumber(measures.price_change)} LAK`
+                  : `${formatNumber(Math.round(measures.price_change / 15))} LAK/g`}
+              </span>
+              <span className={`text-[10.5px] font-bold block ${measures.price_change >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+                {measures.price_change >= 0 ? '+' : ''}
+                {measures.open_price > 0
+                  ? ((measures.price_change / measures.open_price) * 100).toFixed(2)
+                  : '0.00'}%
+              </span>
+            </div>
           </div>
         </div>
 

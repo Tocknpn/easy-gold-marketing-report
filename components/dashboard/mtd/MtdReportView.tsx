@@ -532,68 +532,7 @@ export function MtdReportView({ initialData, onRefresh, loading = false }: MtdRe
             </div>
           </div>
 
-          {/* Senior Data Analyst Executive Intelligence Brief ("What to Know & Aware") */}
-          <div className="bg-gradient-to-r from-slate-900 via-[#0c4ca3] to-slate-900 rounded-2xl p-4 sm:p-5 text-white shadow-md relative overflow-hidden">
-            <div className="flex items-center justify-between pb-3 border-b border-white/15 mb-3 flex-wrap gap-2">
-              <div className="flex items-center gap-2">
-                <span className="p-1 rounded-lg bg-amber-400 text-slate-950">
-                  <Sparkles className="w-4 h-4 font-black" />
-                </span>
-                <h3 className="text-xs sm:text-sm font-black uppercase tracking-wider text-amber-300">
-                  Executive Brief &amp; Strategic Watchouts (ສິ່ງທີ່ຄວນຮູ້ ແລະ ລະວັງ)
-                </h3>
-              </div>
-              <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-white/20 text-white border border-white/30">
-                Senior Analyst AI Diagnosis
-              </span>
-            </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
-              {/* Insight 1: Pacing Pressure */}
-              <div className="bg-white/10 backdrop-blur-xs p-3 rounded-xl border border-white/10 space-y-1">
-                <div className="flex items-center justify-between text-emerald-300 font-extrabold text-[11px]">
-                  <span>⚡ Pacing &amp; Run-Rate</span>
-                  <span>+13% MTD</span>
-                </div>
-                <p className="text-white/90 text-[11px] leading-relaxed">
-                  Overall platform is averaging <strong>{Math.round(displayedData.metrics.total_transactions.current_mtd / displayedData.elapsed_days).toLocaleString()} tx/day</strong>. To beat {displayedData.comparison_month_label}'s record, platform requires <strong>{Math.round((displayedData.metrics.total_transactions.full_comp_month - displayedData.metrics.total_transactions.current_mtd) / Math.max(1, displayedData.total_days_current_month - displayedData.elapsed_days)).toLocaleString()} tx/day</strong> (Ahead of pace).
-                </p>
-              </div>
-
-              {/* Insight 2: Retail Buy vs Sell Dynamics */}
-              <div className="bg-white/10 backdrop-blur-xs p-3 rounded-xl border border-white/10 space-y-1">
-                <div className="flex items-center justify-between text-amber-300 font-extrabold text-[11px]">
-                  <span>📈 Bull Accumulation</span>
-                  <span>2.6x Buy/Sell</span>
-                </div>
-                <p className="text-white/90 text-[11px] leading-relaxed">
-                  Buy volume (<strong>{displayedData.metrics.buy_weight_g.current_mtd.toLocaleString()}g</strong>) outperforms Sell volume (<strong>{displayedData.metrics.sell_weight_g.current_mtd.toLocaleString()}g</strong>). Sell volume is -32% MTD, indicating customers are retaining gold rather than cashing out.
-                </p>
-              </div>
-
-              {/* Insight 3: Acquisition Bottleneck Alert */}
-              <div className="bg-white/10 backdrop-blur-xs p-3 rounded-xl border border-white/10 space-y-1">
-                <div className="flex items-center justify-between text-rose-300 font-extrabold text-[11px]">
-                  <span>⚠️ Acquisition Risk</span>
-                  <span>-34% MTD</span>
-                </div>
-                <p className="text-white/90 text-[11px] leading-relaxed">
-                  New customer onboarding (<strong>{displayedData.metrics.new_customers.current_mtd.toLocaleString()}</strong>) is trailing {displayedData.comparison_month_label} ({displayedData.metrics.new_customers.comp_mtd.toLocaleString()}). Requires marketing ad push or referral incentives to catch up to full month.
-                </p>
-              </div>
-
-              {/* Insight 4: Net Treasury Gold Flow */}
-              <div className="bg-white/10 backdrop-blur-xs p-3 rounded-xl border border-white/10 space-y-1">
-                <div className="flex items-center justify-between text-teal-300 font-extrabold text-[11px]">
-                  <span>🏦 Net Liquidity Position</span>
-                  <span>+{(displayedData.metrics.buy_weight_g.current_mtd - displayedData.metrics.sell_weight_g.current_mtd).toLocaleString()}g</span>
-                </div>
-                <p className="text-white/90 text-[11px] leading-relaxed">
-                  Platform holds a strong positive gold accumulation surplus of <strong>+{(displayedData.metrics.buy_weight_g.current_mtd - displayedData.metrics.sell_weight_g.current_mtd).toLocaleString()} grams</strong> MTD. Cash reserves at settlement banks are healthy with no liquidity strain.
-                </p>
-              </div>
-            </div>
-          </div>
 
           {/* 7 Cards across 3 Themed Containers with Pacing Props */}
           <div className="grid grid-cols-1 xl:grid-cols-7 gap-3 sm:gap-3.5 items-stretch">

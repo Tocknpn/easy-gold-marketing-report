@@ -499,76 +499,7 @@ export default function DashboardPage() {
                   </div>
                 )}
 
-                {/* 2. Senior Analyst Executive Brief ("What to Know & Aware") */}
-                <div className="bg-gradient-to-r from-slate-900 via-[#0c4ca3] to-slate-900 rounded-2xl p-4 sm:p-5 text-white shadow-md relative overflow-hidden">
-                  <div className="flex items-center justify-between pb-3 border-b border-white/15 mb-3 flex-wrap gap-2">
-                    <div className="flex items-center gap-2">
-                      <span className="p-1 rounded-lg bg-amber-400 text-slate-950">
-                        <Sparkles className="w-4 h-4 font-black" />
-                      </span>
-                      <h3 className="text-xs sm:text-sm font-black uppercase tracking-wider text-amber-300">
-                        Week over Week (WoW) Executive Brief &amp; Diagnosis
-                      </h3>
-                    </div>
-                    <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-white/20 text-white border border-white/30">
-                      Senior Analyst Insights
-                    </span>
-                  </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
-                    {/* Insight 1: Daily Velocity */}
-                    <div className="bg-white/10 backdrop-blur-xs p-3 rounded-xl border border-white/10 space-y-1">
-                      <div className="flex items-center justify-between text-emerald-300 font-extrabold text-[11px]">
-                        <span>⚡ Daily Velocity</span>
-                        <span>{activeWeeklyMetrics.isPartial ? 'Day 1 Tempo' : '7-Day Avg'}</span>
-                      </div>
-                      <p className="text-white/90 text-[11px] leading-relaxed">
-                        {activeWeeklyMetrics.isPartial ? (
-                          <>
-                            Day 1 recorded <strong>{activeWeeklyMetrics.rawWeek.all_transactions.toLocaleString()} tx/day</strong> vs W41 daily average of <strong>{Math.round((activeWeeklyMetrics.previousWeek?.all_transactions || 39744) / 7).toLocaleString()} tx/day</strong> (-10.6% normalized).
-                          </>
-                        ) : (
-                          <>
-                            Weekly daily average was <strong>{Math.round(activeWeeklyMetrics.currentWeek.all_transactions / 7).toLocaleString()} tx/day</strong> with strong trading volume.
-                          </>
-                        )}
-                      </p>
-                    </div>
-
-                    {/* Insight 2: Net Gold Flow Balance */}
-                    <div className="bg-white/10 backdrop-blur-xs p-3 rounded-xl border border-white/10 space-y-1">
-                      <div className="flex items-center justify-between text-amber-300 font-extrabold text-[11px]">
-                        <span>⚖️ Net Gold Flow</span>
-                        <span>{Number(activeWeeklyMetrics.currentWeek.buy_weight_15g) - Number(activeWeeklyMetrics.currentWeek.sell_weight_15g) >= 0 ? '+Net Inflow' : '-Net Outflow'}</span>
-                      </div>
-                      <p className="text-white/90 text-[11px] leading-relaxed">
-                        Buy Weight is <strong>{Number(activeWeeklyMetrics.currentWeek.buy_weight_15g).toLocaleString()} (15g)</strong> vs Sell Weight of <strong>{Number(activeWeeklyMetrics.currentWeek.sell_weight_15g).toLocaleString()} (15g)</strong> (Net flow: <strong>{(Number(activeWeeklyMetrics.currentWeek.buy_weight_15g) - Number(activeWeeklyMetrics.currentWeek.sell_weight_15g)).toLocaleString()} (15g)</strong>).
-                      </p>
-                    </div>
-
-                    {/* Insight 3: Ticket Size Dynamics */}
-                    <div className="bg-white/10 backdrop-blur-xs p-3 rounded-xl border border-white/10 space-y-1">
-                      <div className="flex items-center justify-between text-blue-300 font-extrabold text-[11px]">
-                        <span>🔍 Ticket Size Trends</span>
-                        <span>{activeWeeklyMetrics.currentWeek.buy_ticket_size_g}g Buy Avg</span>
-                      </div>
-                      <p className="text-white/90 text-[11px] leading-relaxed">
-                        Average buy ticket is <strong>{activeWeeklyMetrics.currentWeek.buy_ticket_size_g}g</strong> while sell ticket is <strong>{activeWeeklyMetrics.currentWeek.sell_ticket_size_g}g</strong>, demonstrating sustained retail micro-savings behavior.
-                      </p>
-                    </div>
-
-                    {/* Insight 4: User Base Momentum */}
-                    <div className="bg-white/10 backdrop-blur-xs p-3 rounded-xl border border-white/10 space-y-1">
-                      <div className="flex items-center justify-between text-teal-300 font-extrabold text-[11px]">
-                        <span>👥 User Participation</span>
-                        <span>{activeWeeklyMetrics.currentWeek.active_users.toLocaleString()} Active</span>
-                      </div>
-                      <p className="text-white/90 text-[11px] leading-relaxed">
-                        Engagement ratio stands at <strong>{(activeWeeklyMetrics.currentWeek.all_transactions / Math.max(1, activeWeeklyMetrics.currentWeek.active_users)).toFixed(2)} tx/user</strong> with <strong>+{activeWeeklyMetrics.currentWeek.new_registers.toLocaleString()}</strong> new signups.
-                      </p>
-                    </div>
-                  </div>
-                </div>
 
                 {/* 3. Three Themed Cards Sections */}
                 <section className="w-full">
