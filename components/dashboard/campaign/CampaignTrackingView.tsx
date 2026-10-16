@@ -10,7 +10,13 @@ import {
   INITIAL_PRESET_CAMPAIGNS 
 } from '@/lib/storage/campaignStorage';
 import { computeCampaignAnalytics } from '@/lib/campaign/campaignEngine';
-import { CampaignCardItem, formatKipShort } from './CampaignCardItem';
+import { 
+  CampaignCardItem, 
+  formatKipShort, 
+  formatWeightShort, 
+  formatTargetRevenue, 
+  formatEventDateRange 
+} from './CampaignCardItem';
 import { CampaignDetailModal } from './CampaignDetailModal';
 import { CampaignSetupModal } from './CampaignSetupModal';
 import { CampaignTargetTable } from './CampaignTargetTable';
@@ -27,7 +33,12 @@ import {
   Target,
   Clock,
   Calendar,
-  Layers
+  Layers,
+  Search,
+  CheckCircle2,
+  BarChart3,
+  Edit3,
+  Trash2
 } from 'lucide-react';
 
 interface CampaignTrackingViewProps {
@@ -68,9 +79,11 @@ export function CampaignTrackingView({
 
   const [isLoadingCampaigns, setIsLoadingCampaigns] = useState<boolean>(true);
   
-  // Filter state
+  // Filter & Search state
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
 
   // Modals
   const [isSetupModalOpen, setIsSetupModalOpen] = useState(false);
@@ -119,9 +132,17 @@ export function CampaignTrackingView({
         const itemCat = (c.category_tag || '').toLowerCase();
         if (!itemCat.includes(selectedCategory.toLowerCase())) return false;
       }
+      // Search query filter (matches name, condition, or tag)
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase().trim();
+        const matchName = (c.campaign_name || '').toLowerCase().includes(q);
+        const matchCond = (c.condition_label || '').toLowerCase().includes(q);
+        const matchTag = (c.category_tag || '').toLowerCase().includes(q);
+        if (!matchName && !matchCond && !matchTag) return false;
+      }
       return true;
     });
-  }, [allCampaigns, selectedStatus, selectedCategory]);
+  }, [allCampaigns, selectedStatus, selectedCategory, searchQuery]);
 
   // Primary active campaign target
   const currentTargetCampaign = useMemo(() => {
@@ -352,18 +373,34 @@ export function CampaignTrackingView({
         </div>
       </div>
 
-      {/* 2. Filter Bar with Fresh Data Up To Indicator */}
-      <div className="bg-white rounded-2xl border border-slate-200/90 p-3 shadow-2xs flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
-          <span className="text-xs font-black uppercase tracking-wider text-slate-400 pl-1">
-            Filter:
-          </span>
+      {/* 2. Enhanced Filter & Control Toolbar */}
+      <div className="bg-white rounded-2xl border border-slate-200/90 p-2.5 sm:p-3 shadow-2xs flex items-center justify-between gap-2.5 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap flex-1 min-w-[280px]">
+          {/* Quick Search Input for 30+ Campaigns */}
+          <div className="relative min-w-[180px] sm:min-w-[220px] flex-1 max-w-xs">
+            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <input
+              type="text"
+              placeholder="Search campaigns..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full bg-slate-50 hover:bg-slate-100 focus:bg-white border border-slate-200 text-slate-800 text-xs font-medium rounded-xl pl-8 pr-3 py-1.5 focus:ring-2 focus:ring-[#0c4ca3] focus:outline-hidden transition-all"
+            />
+            {searchQuery && (
+              <button 
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 hover:text-slate-700 font-bold"
+              >
+                ✕
+              </button>
+            )}
+          </div>
 
           {/* Status Filter */}
           <select
             value={selectedStatus}
             onChange={(e) => setSelectedStatus(e.target.value)}
-            className="bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-800 text-xs font-bold rounded-xl px-3 py-1.5 focus:ring-2 focus:ring-[#0c4ca3] focus:outline-hidden cursor-pointer"
+            className="bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-800 text-xs font-bold rounded-xl px-2.5 py-1.5 focus:ring-2 focus:ring-[#0c4ca3] focus:outline-hidden cursor-pointer"
           >
             <option value="all">All Statuses</option>
             <option value="active">Active Only</option>
@@ -375,7 +412,7 @@ export function CampaignTrackingView({
           <select
             value={selectedCategory}
             onChange={(e) => setSelectedCategory(e.target.value)}
-            className="bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-800 text-xs font-bold rounded-xl px-3 py-1.5 focus:ring-2 focus:ring-[#0c4ca3] focus:outline-hidden cursor-pointer"
+            className="bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-800 text-xs font-bold rounded-xl px-2.5 py-1.5 focus:ring-2 focus:ring-[#0c4ca3] focus:outline-hidden cursor-pointer"
           >
             <option value="all">All Categories</option>
             <option value="volume">Volume Driver</option>
@@ -384,34 +421,223 @@ export function CampaignTrackingView({
             <option value="acquisition">New Acquisition</option>
           </select>
 
+          {/* Campaign Count Badge */}
+          <span className="text-[11px] font-bold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-xl border border-slate-200 whitespace-nowrap">
+            {filteredCampaigns.length} {filteredCampaigns.length === 1 ? 'Campaign' : 'Campaigns'}
+          </span>
+        </div>
+
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* View Mode Switcher: Compact Cards vs Dense Table */}
+          <div className="flex items-center bg-slate-100 p-0.5 rounded-xl border border-slate-200">
+            <button
+              onClick={() => setViewMode('cards')}
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                viewMode === 'cards' 
+                  ? 'bg-white text-slate-900 shadow-2xs' 
+                  : 'text-slate-500 hover:text-slate-800'
+              }`}
+              title="Compact Card Grid"
+            >
+              <LayoutGrid className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Cards</span>
+            </button>
+            <button
+              onClick={() => setViewMode('table')}
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                viewMode === 'table' 
+                  ? 'bg-white text-slate-900 shadow-2xs' 
+                  : 'text-slate-500 hover:text-slate-800'
+              }`}
+              title="High-Density Table View (up to 30+ campaigns)"
+            >
+              <Table2 className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Table</span>
+            </button>
+          </div>
+
           {/* Prominent Latest Data Cutoff Chip in toolbar */}
-          <div className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-blue-50/80 border border-blue-200/80 text-[#0c4ca3] text-xs font-bold">
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-blue-50/80 border border-blue-200/80 text-[#0c4ca3] text-xs font-bold">
             <Calendar className="w-3.5 h-3.5 text-[#0c4ca3]" />
             <span>Data Up To: <strong className="font-mono text-blue-950 font-black">{formatDisplayDate(latestDataDate)}</strong></span>
           </div>
-        </div>
 
-        {/* Refresh Button */}
-        <button
-          onClick={refreshCampaigns}
-          disabled={isRefreshing}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 hover:text-slate-900 text-xs font-bold transition-all disabled:opacity-50 cursor-pointer"
-          title="Reload campaign list"
-        >
-          <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-[#0c4ca3]' : ''}`} />
-          <span>Refresh</span>
-        </button>
+          {/* Refresh Button */}
+          <button
+            onClick={refreshCampaigns}
+            disabled={isRefreshing}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 hover:text-slate-900 text-xs font-bold transition-all disabled:opacity-50 cursor-pointer"
+            title="Reload campaign list"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-[#0c4ca3]' : ''}`} />
+            <span className="hidden sm:inline">Refresh</span>
+          </button>
+        </div>
       </div>
 
-      {/* 3. Executive Campaign Cards Deck or Loading Spinner */}
+      {/* 3. Executive Campaign Deck (Cards or Dense Table for 30+ Campaigns) */}
       {isLoadingCampaigns && allCampaigns.length === 0 ? (
-        <div className="bg-white rounded-3xl p-16 text-center border border-slate-200/90 shadow-2xs flex flex-col items-center justify-center space-y-3 min-h-[320px]">
-          <div className="w-9 h-9 border-3 border-[#0c4ca3] border-t-transparent rounded-full animate-spin" />
+        <div className="bg-white rounded-2xl p-12 text-center border border-slate-200/90 shadow-2xs flex flex-col items-center justify-center space-y-3 min-h-[220px]">
+          <div className="w-8 h-8 border-3 border-[#0c4ca3] border-t-transparent rounded-full animate-spin" />
           <h4 className="text-sm font-black text-slate-800">Loading Campaign Portfolios...</h4>
           <p className="text-xs text-slate-500 font-medium">Synchronizing live profiles, configured targets, and actuals</p>
         </div>
+      ) : viewMode === 'table' ? (
+        /* Dense Table View for Easy Browsing of 30+ Campaigns */
+        <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden">
+          <div className="overflow-x-auto max-h-[440px] overflow-y-auto">
+            <table className="w-full text-xs text-left border-collapse select-text">
+              <thead className="bg-slate-100 text-slate-800 text-[10px] font-black uppercase sticky top-0 z-10 border-b border-slate-200">
+                <tr>
+                  <th className="py-2.5 px-3 whitespace-nowrap">Status</th>
+                  <th className="py-2.5 px-3 whitespace-nowrap">Campaign &amp; Rule</th>
+                  <th className="py-2.5 px-3 whitespace-nowrap">Timeline</th>
+                  <th className="py-2.5 px-3 text-right whitespace-nowrap">EC Target (Act / % Hit)</th>
+                  <th className="py-2.5 px-3 text-right whitespace-nowrap">New Cust (Act / Tgt)</th>
+                  <th className="py-2.5 px-3 text-right whitespace-nowrap">Buy Weight</th>
+                  <th className="py-2.5 px-3 text-right whitespace-nowrap">RR Projection</th>
+                  <th className="py-2.5 px-3 text-right whitespace-nowrap">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 font-mono text-xs">
+                {filteredCampaigns.map((camp) => {
+                  const isSelected = currentTargetCampaign?.id === camp.id;
+                  const itemAnalytics = computeCampaignAnalytics(camp);
+                  const { targetAchievement } = itemAnalytics;
+                  const isCompleted = targetAchievement.is_ended;
+                  const isUpcoming = targetAchievement.is_upcoming;
+                  const statusLabel = isCompleted ? 'Completed' : isUpcoming ? 'Upcoming' : 'Active';
+
+                  return (
+                    <tr 
+                      key={camp.id}
+                      onClick={() => {
+                        setActiveCampaign(camp);
+                        setLiveData(null);
+                      }}
+                      className={`hover:bg-blue-50/50 transition-colors cursor-pointer ${
+                        isSelected ? 'bg-blue-50/80 font-bold border-l-4 border-l-[#0c4ca3]' : ''
+                      }`}
+                    >
+                      {/* Status */}
+                      <td className="py-2 px-3 whitespace-nowrap">
+                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold ${
+                          isCompleted ? 'bg-emerald-100 text-emerald-800' : isUpcoming ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-[#0c4ca3]'
+                        }`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${
+                            isCompleted ? 'bg-emerald-500' : isUpcoming ? 'bg-amber-500' : 'bg-sky-500 animate-pulse'
+                          }`} />
+                          <span>{statusLabel}</span>
+                        </span>
+                      </td>
+
+                      {/* Name & Rule */}
+                      <td className="py-2 px-3 font-sans">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-bold text-slate-900 hover:text-[#0c4ca3]">{camp.campaign_name}</span>
+                          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[10px] font-bold bg-amber-50 text-amber-900 border border-amber-200">
+                            <Sparkles className="w-2.5 h-2.5 text-amber-600" />
+                            <span>{camp.condition_label || 'Buy Trans'}</span>
+                          </span>
+                        </div>
+                      </td>
+
+                      {/* Timeline */}
+                      <td className="py-2 px-3 whitespace-nowrap text-slate-500 text-[11px]">
+                        <span>{formatEventDateRange(camp.campaign_date_start, camp.campaign_date_end)}</span>
+                        <span className="text-slate-400 font-sans ml-1">({targetAchievement.total_days}d)</span>
+                      </td>
+
+                      {/* EC Target & Actual */}
+                      <td className="py-2 px-3 text-right whitespace-nowrap">
+                        <span className="text-slate-900 font-bold">
+                          {targetAchievement.ec_actual_mtd.toLocaleString()} / {targetAchievement.ec_target.toLocaleString()}
+                        </span>
+                        <span className={`ml-1.5 px-1.5 py-0.2 rounded text-[10px] font-bold ${
+                          targetAchievement.ec_pct_hit_mtd >= 100 ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-700'
+                        }`}>
+                          {targetAchievement.ec_pct_hit_mtd}%
+                        </span>
+                      </td>
+
+                      {/* NC Target & Actual */}
+                      <td className="py-2 px-3 text-right whitespace-nowrap">
+                        <span className="text-slate-800">
+                          {targetAchievement.nc_actual_mtd.toLocaleString()}
+                          {targetAchievement.nc_target > 0 && ` / ${targetAchievement.nc_target.toLocaleString()}`}
+                        </span>
+                        {targetAchievement.nc_target > 0 && (
+                          <span className={`ml-1.5 px-1.5 py-0.2 rounded text-[10px] font-bold ${
+                            targetAchievement.nc_pct_hit_mtd >= 100 ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-700'
+                          }`}>
+                            {targetAchievement.nc_pct_hit_mtd}%
+                          </span>
+                        )}
+                      </td>
+
+                      {/* Buy Weight */}
+                      <td className="py-2 px-3 text-right whitespace-nowrap text-slate-800 font-bold">
+                        {formatWeightShort(targetAchievement.mtd_buy_weight_g)}
+                      </td>
+
+                      {/* RR Projection */}
+                      <td className="py-2 px-3 text-right whitespace-nowrap">
+                        <span className="text-slate-900 font-bold">{targetAchievement.ec_rr_projected.toLocaleString()}</span>
+                        <span className="ml-1 text-[10px] text-emerald-600 font-bold">
+                          {targetAchievement.ec_target > 0 ? `(${Math.round((targetAchievement.ec_rr_projected / targetAchievement.ec_target) * 100)}%)` : ''}
+                        </span>
+                      </td>
+
+                      {/* Actions */}
+                      <td className="py-2 px-3 text-right whitespace-nowrap">
+                        <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+                          <button
+                            onClick={() => {
+                              setActiveCampaign(camp);
+                              setLiveData(null);
+                            }}
+                            className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
+                              isSelected 
+                                ? 'bg-[#0c4ca3] text-white border-[#0c4ca3]' 
+                                : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                            }`}
+                          >
+                            {isSelected ? 'Active' : 'Inspect'}
+                          </button>
+                          <button
+                            onClick={() => handleExecuteCalculate(camp)}
+                            disabled={recordingId === camp.id}
+                            className="px-2 py-0.5 rounded text-[10px] font-black bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50"
+                            title="Execute live Supabase calculation"
+                          >
+                            {recordingId === camp.id ? '...' : 'Calc'}
+                          </button>
+                          <button
+                            onClick={() => handleOpenEditModal(camp)}
+                            className="p-1 rounded text-slate-400 hover:text-slate-700"
+                            title="Edit"
+                          >
+                            <Edit3 className="w-3 h-3" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteCampaign(camp.id)}
+                            className="p-1 rounded text-rose-400 hover:text-rose-700"
+                            title="Delete"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-4 animate-in fade-in duration-200">
+        /* Compact Card Grid for 30+ Campaigns: 4-5 Columns with Low Height */
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3 animate-in fade-in duration-200">
           {filteredCampaigns.map((camp) => (
             <CampaignCardItem
               key={camp.id}
@@ -430,10 +656,10 @@ export function CampaignTrackingView({
           ))}
 
           {filteredCampaigns.length === 0 && (
-            <div className="col-span-full bg-white rounded-3xl p-12 text-center border-2 border-dashed border-slate-200 space-y-3">
-              <Sparkles className="w-8 h-8 text-slate-400 mx-auto" />
-              <h4 className="text-base font-bold text-slate-800">No campaigns found matching filter</h4>
-              <p className="text-xs text-slate-500">Reset the status or category dropdown to see all campaigns.</p>
+            <div className="col-span-full bg-white rounded-2xl p-10 text-center border-2 border-dashed border-slate-200 space-y-2">
+              <Sparkles className="w-7 h-7 text-slate-400 mx-auto" />
+              <h4 className="text-sm font-bold text-slate-800">No campaigns found matching filter</h4>
+              <p className="text-xs text-slate-500">Reset the search query, status, or category to see campaigns.</p>
             </div>
           )}
         </div>
@@ -486,8 +712,8 @@ export function CampaignTrackingView({
             </div>
           </div>
 
-          {/* Side-by-Side Detailed Analytics Tables with Compact Density & Clean Hierarchy */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3.5">
+          {/* Side-by-Side Detailed Analytics Tables: Content-Sized (No 100% Artificial Stretching) */}
+          <div className="flex flex-wrap items-start gap-4 justify-start">
             {/* Table 1: Target Achievement & Run Rate Projections */}
             <CampaignTargetTable 
               data={analytics.targetAchievement} 

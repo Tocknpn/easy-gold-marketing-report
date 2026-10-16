@@ -174,35 +174,40 @@ export function CampaignCardItem({
 
   return (
     <div 
-      className={`bg-white rounded-2xl border transition-all flex flex-col justify-between overflow-hidden relative ${badgeStyle.topBorder} ${
+      className={`bg-white rounded-xl border transition-all flex flex-col justify-between overflow-hidden relative ${badgeStyle.topBorder} ${
         isActive 
-          ? 'border-[#0c4ca3] ring-2 ring-[#0c4ca3]/30 shadow-md bg-blue-50/10' 
-          : 'border-slate-200/90 shadow-2xs hover:shadow-md'
+          ? 'border-[#0c4ca3] ring-2 ring-[#0c4ca3]/30 shadow-md bg-blue-50/15' 
+          : 'border-slate-200/90 shadow-2xs hover:shadow-md hover:border-slate-300'
       }`}
     >
-      <div className="p-4 sm:p-5 flex-1 flex flex-col justify-between space-y-3.5">
-        {/* 1. Header Badges: Category Tag, Condition Rule Pill, Lifecycle Status */}
-        <div className="flex items-center justify-between gap-2 flex-wrap">
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <span className={`px-2.5 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider ${badgeStyle.bg} ${badgeStyle.text} shadow-2xs`}>
+      <div className="p-3 flex-1 flex flex-col justify-between space-y-2">
+        {/* 1. Header Badges: Category Tag, Condition Pill, Status */}
+        <div className="flex items-center justify-between gap-1.5 flex-wrap">
+          <div className="flex items-center gap-1 flex-wrap min-w-0">
+            <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider ${badgeStyle.bg} ${badgeStyle.text} shadow-2xs shrink-0`}>
               {tagText}
             </span>
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-amber-50 text-amber-900 border border-amber-200/80">
-              <Sparkles className="w-3 h-3 text-amber-600 shrink-0" />
-              <span className="truncate max-w-[130px]">{campaign.condition_label || 'Buy Trans'}</span>
+            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-900 border border-amber-200/80 truncate max-w-[120px]">
+              <Sparkles className="w-2.5 h-2.5 text-amber-600 shrink-0" />
+              <span className="truncate">{campaign.condition_label || 'Buy Trans'}</span>
             </span>
           </div>
 
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1 shrink-0">
             {isActive && (
-              <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-blue-100 text-[#0c4ca3] border border-blue-200">
+              <span className="px-1.5 py-0.2 rounded text-[9px] font-black bg-blue-100 text-[#0c4ca3] border border-blue-200">
                 Active in View
               </span>
             )}
-            <span className={`text-xs font-bold ${
-              isCompleted ? 'text-emerald-600' : isUpcoming ? 'text-amber-600' : 'text-sky-700'
-            }`}>
-              {statusLabel}
+            <span className="inline-flex items-center gap-1 text-[10px] font-bold">
+              <span className={`w-1.5 h-1.5 rounded-full ${
+                isCompleted ? 'bg-emerald-500' : isUpcoming ? 'bg-amber-500' : 'bg-sky-500 animate-pulse'
+              }`} />
+              <span className={
+                isCompleted ? 'text-emerald-700' : isUpcoming ? 'text-amber-700' : 'text-sky-700'
+              }>
+                {statusLabel}
+              </span>
             </span>
           </div>
         </div>
@@ -211,186 +216,143 @@ export function CampaignCardItem({
         <div>
           <h3 
             onClick={() => onSelectCampaign(campaign)}
-            className="text-base sm:text-lg font-black text-slate-900 tracking-tight leading-snug cursor-pointer hover:text-[#0c4ca3] transition-colors"
+            className="text-xs sm:text-sm font-black text-slate-900 tracking-tight leading-snug cursor-pointer hover:text-[#0c4ca3] transition-colors truncate"
             title={campaign.campaign_name}
           >
             {campaign.campaign_name}
           </h3>
 
-          <div className="flex items-center gap-2 mt-1.5 text-xs text-slate-500 font-medium flex-wrap">
+          <div className="flex items-center gap-1.5 mt-0.5 text-[10px] text-slate-500 font-medium flex-wrap">
             <div className="flex items-center gap-1">
-              <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-              <span className="font-mono text-[11px]">{formatEventDateRange(campaign.campaign_date_start, campaign.campaign_date_end)}</span>
+              <Calendar className="w-3 h-3 text-slate-400 shrink-0" />
+              <span className="font-mono">{formatEventDateRange(campaign.campaign_date_start, campaign.campaign_date_end)}</span>
             </div>
             <span>&bull;</span>
-            <span className="text-[11px] font-semibold text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded-md">
-              {targetAchievement.total_days}d Horizon
-            </span>
-            <span className="text-[11px] font-semibold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded-md border border-blue-100">
-              {targetAchievement.pct_time_gone}% Elapsed
+            <span className="text-slate-600 font-semibold">
+              {targetAchievement.total_days}d ({targetAchievement.pct_time_gone}% gone)
             </span>
           </div>
         </div>
 
-        {/* 3. Campaign Plan Targets Overview (Directly from Plan Input) */}
-        <div className="flex items-end justify-between pt-2 pb-1 border-t border-slate-100">
-          <div>
-            <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider block">
-              PLANNED TRANSACTIONS (EC)
+        {/* 3. Compact Target Progress Bar Strip */}
+        <div className="pt-1 border-t border-slate-100">
+          <div className="flex items-center justify-between text-[10px]">
+            <span className="text-slate-500 font-medium">
+              Target: <strong className="font-mono text-slate-800">{tgtEc.toLocaleString()}</strong> trans
             </span>
-            <span className="text-base sm:text-lg font-black text-slate-900 font-mono">
-              {tgtEc.toLocaleString()} <span className="text-xs font-bold text-slate-500 font-sans">trans</span>
-            </span>
-            <span className="text-[11px] text-blue-700 font-semibold block">
+            <span className="font-mono font-bold text-blue-700">
               MTD: {actEc.toLocaleString()} ({ecHitPct}%)
             </span>
           </div>
-
-          <div className="text-right">
-            <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider block">
-              PLANNED VALUE / WEIGHT GOAL
-            </span>
-            <span className="text-base sm:text-lg font-black text-[#0c4ca3] font-mono">
-              {hasRevenueTarget 
-                ? formatTargetRevenue(tgtRevenue) 
-                : hasWeightTarget 
-                  ? formatWeightShort(tgtWeight) 
-                  : 'Condition Basis'}
-            </span>
-            <span className="text-[11px] text-slate-500 font-medium block">
-              {hasRevenueTarget
-                ? `MTD: ${formatTargetRevenue(actRevenue)}`
-                : hasWeightTarget
-                  ? `MTD: ${formatWeightShort(actWeight)}`
-                  : 'Active Tracking'}
-            </span>
+          {/* Visual Mini Progress Bar */}
+          <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden mt-1">
+            <div 
+              className={`h-full rounded-full transition-all ${
+                ecHitPct >= 100 ? 'bg-emerald-500' : 'bg-blue-600'
+              }`}
+              style={{ width: `${Math.min(ecHitPct, 100)}%` }}
+            />
           </div>
         </div>
 
-        {/* 4. 2x2 Metric Tiles based on data input on the Plan */}
-        <div className="grid grid-cols-2 gap-2">
-          {/* Tile 1: EC Transactions (Act / Target) */}
-          <div className="bg-[#f8fafc] rounded-xl p-2.5 border border-slate-100/90">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider truncate">
-                EC TRANS (ACT/TGT)
-              </span>
-            </div>
-            <div className="mt-0.5">
-              <span className={`text-sm font-black font-mono ${ecHitPct >= 100 ? 'text-emerald-600' : 'text-slate-900'}`}>
-                {actEc.toLocaleString()} / {tgtEc.toLocaleString()}
-              </span>
-              <span className={`block text-[11px] font-bold ${ecHitPct >= 100 ? 'text-emerald-600' : 'text-slate-500'}`}>
-                {ecHitPct}% target hit
-              </span>
-            </div>
-          </div>
-
-          {/* Tile 2: New Customers Target (Act / Target) */}
-          <div className="bg-[#f8fafc] rounded-xl p-2.5 border border-slate-100/90">
-            <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider truncate block">
-              NEW CUST. (ACT/TGT)
+        {/* 4. 2x2 Micro Metrics Grid - Lightweight & Compact */}
+        <div className="grid grid-cols-2 gap-1.5">
+          {/* Box 1: EC Trans */}
+          <div className="bg-[#f8fafc] rounded-lg p-1.5 border border-slate-100">
+            <span className="text-[8px] font-black uppercase text-slate-400 tracking-wider truncate block">
+              EC TRANS (ACT/TGT)
             </span>
-            <div className="mt-0.5">
-              <span className={`text-sm font-black font-mono ${hasNcTarget && ncHitPct >= 100 ? 'text-emerald-600' : 'text-slate-900'}`}>
-                {hasNcTarget ? `${actNc.toLocaleString()} / ${tgtNc.toLocaleString()}` : `${actNc.toLocaleString()} MTD`}
-              </span>
-              <span className={`block text-[11px] font-bold ${hasNcTarget ? (ncHitPct >= 100 ? 'text-emerald-600' : 'text-slate-500') : 'text-slate-400'}`}>
-                {hasNcTarget ? `${ncHitPct}% target hit` : 'No NC target set'}
-              </span>
+            <div className="text-[11px] font-black font-mono text-slate-900 truncate">
+              {actEc.toLocaleString()} / {tgtEc.toLocaleString()}
             </div>
-          </div>
-
-          {/* Tile 3: Buy Gold Weight */}
-          <div className="bg-[#f8fafc] rounded-xl p-2.5 border border-slate-100/90">
-            <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider truncate block">
-              BUY WEIGHT (ACT/TGT)
+            <span className={`block text-[9px] font-bold ${ecHitPct >= 100 ? 'text-emerald-600' : 'text-slate-500'}`}>
+              {ecHitPct}% hit
             </span>
-            <div className="mt-0.5">
-              <span className="text-sm font-black text-slate-900 font-mono">
-                {hasWeightTarget ? `${formatWeightShort(actWeight)} / ${formatWeightShort(tgtWeight)}` : formatWeightShort(actWeight)}
-              </span>
-              <span className="block text-[11px] font-bold text-slate-500">
-                {hasWeightTarget ? `${weightHitPct}% weight hit` : 'Volume basis'}
-              </span>
-            </div>
           </div>
 
-          {/* Tile 4: Run-Rate Projection */}
-          <div className="bg-[#f8fafc] rounded-xl p-2.5 border border-slate-100/90">
-            <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider truncate block">
+          {/* Box 2: New Customers */}
+          <div className="bg-[#f8fafc] rounded-lg p-1.5 border border-slate-100">
+            <span className="text-[8px] font-black uppercase text-slate-400 tracking-wider truncate block">
+              NEW CUST (ACT/TGT)
+            </span>
+            <div className="text-[11px] font-black font-mono text-slate-900 truncate">
+              {hasNcTarget ? `${actNc.toLocaleString()} / ${tgtNc.toLocaleString()}` : `${actNc.toLocaleString()} MTD`}
+            </div>
+            <span className={`block text-[9px] font-bold ${hasNcTarget ? (ncHitPct >= 100 ? 'text-emerald-600' : 'text-slate-500') : 'text-slate-400'}`}>
+              {hasNcTarget ? `${ncHitPct}% hit` : 'Volume basis'}
+            </span>
+          </div>
+
+          {/* Box 3: Weight / Value */}
+          <div className="bg-[#f8fafc] rounded-lg p-1.5 border border-slate-100">
+            <span className="text-[8px] font-black uppercase text-slate-400 tracking-wider truncate block">
+              BUY WEIGHT
+            </span>
+            <div className="text-[11px] font-black font-mono text-slate-900 truncate">
+              {formatWeightShort(actWeight)}
+            </div>
+            <span className="block text-[9px] font-bold text-slate-500 truncate">
+              {hasWeightTarget ? `${formatWeightShort(tgtWeight)} tgt (${weightHitPct}%)` : hasRevenueTarget ? formatTargetRevenue(actRevenue) : 'Volume basis'}
+            </span>
+          </div>
+
+          {/* Box 4: RR Projection */}
+          <div className="bg-[#f8fafc] rounded-lg p-1.5 border border-slate-100">
+            <span className="text-[8px] font-black uppercase text-slate-400 tracking-wider truncate block">
               RR PROJECTION
             </span>
-            <div className="mt-0.5">
-              <span className="text-sm font-black text-slate-900 font-mono">
-                {rrProjected.toLocaleString()}
-              </span>
-              <span className="block text-[11px] font-bold text-emerald-600">
-                {tgtEc > 0 ? `${Math.round((rrProjected / tgtEc) * 100)}% projected pace` : 'Pacing healthy'}
-              </span>
+            <div className="text-[11px] font-black font-mono text-slate-900 truncate">
+              {rrProjected.toLocaleString()}
             </div>
-          </div>
-        </div>
-
-        {/* 5. Timeline & Benchmark Ribbon */}
-        <div className="flex items-center justify-between text-[11px] text-slate-500 pt-1 border-t border-slate-100 flex-wrap gap-1">
-          <div className="flex items-center gap-1.5 font-semibold text-slate-600">
-            <Clock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-            <span>
-              {targetAchievement.elapsed_days}/{targetAchievement.total_days}d active ({targetAchievement.pct_time_gone}%)
+            <span className="block text-[9px] font-bold text-emerald-600 truncate">
+              {tgtEc > 0 ? `${Math.round((rrProjected / tgtEc) * 100)}% pace` : 'Healthy pace'}
             </span>
           </div>
-          <span className="text-slate-400 font-medium text-[10px]">
-            Baseline: Equal {backwardComparison.backward_days}d Backward
-          </span>
         </div>
       </div>
 
-      {/* 6. Footer Action Bar */}
-      <div className="px-4 py-2.5 bg-[#fafbfe] border-t border-slate-200/80 flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          {/* Select for Analysis Button */}
+      {/* 5. Footer Action Bar - Ultra Compact */}
+      <div className="px-2.5 py-1.5 bg-[#fafbfe] border-t border-slate-100 flex items-center justify-between gap-1.5">
+        <div className="flex items-center gap-1.5">
           <button
             onClick={() => onSelectCampaign(campaign)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-slate-300/90 hover:bg-slate-50 text-slate-700 text-xs font-bold shadow-2xs transition-all active:scale-95 cursor-pointer"
+            className="flex items-center gap-1 px-2 py-1 rounded-md bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-[10px] font-bold shadow-2xs transition-all active:scale-95 cursor-pointer"
             title="Inspect Target Achievement & Backward comparison tables below"
           >
-            <BarChart3 className="w-3.5 h-3.5 text-[#0c4ca3]" />
-            <span>Analysis Tables</span>
+            <BarChart3 className="w-3 h-3 text-[#0c4ca3]" />
+            <span>Analysis</span>
           </button>
 
-          {/* Live Supabase Calculate Button */}
           <button
             onClick={() => onRecord(campaign)}
             disabled={isRecording}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-500 hover:to-teal-600 text-white text-xs font-black shadow-xs ring-1 ring-emerald-400/30 transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
+            className="flex items-center gap-1 px-2.5 py-1 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-black shadow-2xs transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
             title="Execute live Supabase calculation for this campaign"
           >
             {isRecording ? (
-              <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              <span className="w-2.5 h-2.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
             ) : (
-              <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+              <Sparkles className="w-2.5 h-2.5 text-amber-200" />
             )}
             <span>Calculate</span>
           </button>
         </div>
 
-        {/* Edit and Delete Icons */}
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-0.5">
           <button
             onClick={() => onEdit(campaign)}
-            className="p-1.5 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-200/60 transition-colors cursor-pointer"
+            className="p-1 rounded-md text-slate-400 hover:text-slate-800 hover:bg-slate-200/60 transition-colors cursor-pointer"
             title="Edit campaign parameters"
           >
-            <Edit3 className="w-3.5 h-3.5" />
+            <Edit3 className="w-3 h-3" />
           </button>
 
           <button
             onClick={() => onDelete(campaign.id)}
-            className="p-1.5 rounded-lg text-rose-500 hover:text-rose-700 hover:bg-rose-50 transition-colors cursor-pointer"
+            className="p-1 rounded-md text-rose-400 hover:text-rose-700 hover:bg-rose-50 transition-colors cursor-pointer"
             title="Delete campaign"
           >
-            <Trash2 className="w-3.5 h-3.5" />
+            <Trash2 className="w-3 h-3" />
           </button>
         </div>
       </div>
