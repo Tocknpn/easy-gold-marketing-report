@@ -9,7 +9,81 @@
 -- 2. Run this script to install the schema updates and live campaign calculation RPC functions.
 -- ============================================================================
 
--- STEP 0: SAFE DATE PARSER FOR TEXT / TIMESTAMPTZ
+-- STEP 0: ENSURE EXTENSIONS
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+-- STEP 1: CREATE CAMPAIGN SETUPS TABLE IF NOT EXISTS
+CREATE TABLE IF NOT EXISTS public.campaign_setups (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID,
+    campaign_name VARCHAR(255) NOT NULL,
+    description TEXT,
+    campaign_start_date DATE NOT NULL,
+    campaign_end_date DATE NOT NULL,
+    as_of_date DATE NOT NULL DEFAULT CURRENT_DATE,
+    backward_start_date DATE NOT NULL DEFAULT CURRENT_DATE,
+    backward_end_date DATE NOT NULL DEFAULT CURRENT_DATE,
+    condition_type VARCHAR(64) NOT NULL DEFAULT 'amount_gte',
+    condition_value NUMERIC(18, 2) NOT NULL DEFAULT 500000,
+    condition_max_value NUMERIC(18, 2),
+    condition_operator VARCHAR(32) DEFAULT '>=',
+    condition_label VARCHAR(128) NOT NULL DEFAULT 'Buy trans >= 500k',
+    tx_type VARCHAR(64) NOT NULL DEFAULT 'BUY_GOLD',
+    ec_target NUMERIC(18, 2) NOT NULL DEFAULT 307500,
+    nc_target NUMERIC(18, 2) NOT NULL DEFAULT 17220,
+    revenue_target_mil NUMERIC(18, 2),
+    gold_weight_target_g NUMERIC(18, 2),
+    target_types JSONB DEFAULT '["ec", "nc"]'::jsonb,
+    category_tag VARCHAR(64) DEFAULT 'Volume Driver',
+    image_url TEXT,
+    bank VARCHAR(64) DEFAULT 'all',
+    auto_sync_max_date BOOLEAN DEFAULT true,
+    baseline_daily_rr NUMERIC(18, 2) DEFAULT 79.0,
+    status VARCHAR(32) DEFAULT 'active',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Ensure all enhanced columns exist
+ALTER TABLE public.campaign_setups 
+ADD COLUMN IF NOT EXISTS image_url TEXT,
+ADD COLUMN IF NOT EXISTS category_tag VARCHAR(64) DEFAULT 'Volume Driver',
+ADD COLUMN IF NOT EXISTS condition_operator VARCHAR(32) DEFAULT '>=',
+ADD COLUMN IF NOT EXISTS condition_max_value NUMERIC(18, 2),
+ADD COLUMN IF NOT EXISTS target_types JSONB DEFAULT '["ec", "nc"]'::jsonb,
+ADD COLUMN IF NOT EXISTS revenue_target_mil NUMERIC(18, 2),
+ADD COLUMN IF NOT EXISTS gold_weight_target_g NUMERIC(18, 2),
+ADD COLUMN IF NOT EXISTS auto_sync_max_date BOOLEAN DEFAULT true,
+ADD COLUMN IF NOT EXISTS bank VARCHAR(64) DEFAULT 'all',
+ADD COLUMN IF NOT EXISTS status VARCHAR(32) DEFAULT 'active';
+
+CREATE INDEX IF NOT EXISTS idx_campaign_setups_bank
+ON public.campaign_setups (bank);
+
+CREATE INDEX IF NOT EXISTS idx_campaign_setups_status
+ON public.campaign_setups (status);
+
+-- Enable RLS
+ALTER TABLE public.campaign_setups ENABLE ROW LEVEL SECURITY;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policies 
+        WHERE tablename = 'campaign_setups' 
+          AND policyname = 'Public read and write for campaign setups'
+    ) THEN
+        CREATE POLICY "Public read and write for campaign setups"
+        ON public.campaign_setups
+        FOR ALL
+        TO anon, authenticated, service_role
+        USING (true)
+        WITH CHECK (true);
+    END IF;
+END $$;
+
+
+-- STEP 2: SAFE DATE PARSER FOR TEXT / TIMESTAMPTZ
 CREATE OR REPLACE FUNCTION public.parse_tx_date(val TEXT)
 RETURNS TIMESTAMPTZ
 LANGUAGE plpgsql
@@ -35,7 +109,6 @@ BEGIN
     ELSIF val ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}' THEN
         RETURN val::timestamptz;
     ELSE
-        -- Fallback: extract date before comma or space
         RETURN to_date(split_part(split_part(val, ',', 1), ' ', 1), 'DD/MM/YYYY')::timestamptz;
     END IF;
 EXCEPTION WHEN OTHERS THEN
@@ -44,34 +117,32 @@ END;
 $$;
 
 
--- STEP 1: ENHANCE CAMPAIGN SETUPS TABLE COLUMNS
-ALTER TABLE IF EXISTS public.campaign_setups 
-ADD COLUMN IF NOT EXISTS image_url TEXT,
-ADD COLUMN IF NOT EXISTS category_tag VARCHAR(64) DEFAULT 'Volume Driver',
-ADD COLUMN IF NOT EXISTS condition_operator VARCHAR(32) DEFAULT '>=',
-ADD COLUMN IF NOT EXISTS condition_max_value NUMERIC(18, 2),
-ADD COLUMN IF NOT EXISTS target_types JSONB DEFAULT '["ec", "nc"]'::jsonb,
-ADD COLUMN IF NOT EXISTS revenue_target_mil NUMERIC(18, 2),
-ADD COLUMN IF NOT EXISTS gold_weight_target_g NUMERIC(18, 2),
-ADD COLUMN IF NOT EXISTS auto_sync_max_date BOOLEAN DEFAULT true,
-ADD COLUMN IF NOT EXISTS bank VARCHAR(64) DEFAULT 'all';
-
-
--- STEP 2: HELPER TO GET THE MAX DATA DATE IN SUPABASE
+-- STEP 3: HELPER TO GET THE MAX DATA DATE IN SUPABASE
 CREATE OR REPLACE FUNCTION public.get_max_monthly_data_date()
 RETURNS DATE
-LANGUAGE sql
-STABLE
+LANGUAGE plpgsql
+SECURITY DEFINER
 AS $$
-    SELECT COALESCE(
-        MAX(public.parse_tx_date(created_at::text))::date, 
-        CURRENT_DATE
-    )
+DECLARE
+    v_max_date DATE;
+BEGIN
+    SELECT MAX(public.parse_tx_date(created_at::text))::date
+    INTO v_max_date
     FROM public.monthly_data;
+    
+    RETURN COALESCE(v_max_date, CURRENT_DATE);
+EXCEPTION WHEN OTHERS THEN
+    RETURN CURRENT_DATE;
+END;
 $$;
 
 
--- STEP 3: RPC ENGINE FOR LIVE CAMPAIGN AGGREGATION & BACKWARD COMPARISON
+-- STEP 4: CLEAN UP ALL OLD OVERLOADS (Fixes 42725 function name is not unique)
+DROP FUNCTION IF EXISTS public.get_campaign_actual_metrics(DATE, DATE, DATE, DATE, TEXT, TEXT, NUMERIC, NUMERIC, TEXT);
+DROP FUNCTION IF EXISTS public.get_campaign_actual_metrics(DATE, DATE, DATE, DATE, TEXT, TEXT, NUMERIC, NUMERIC, TEXT, TEXT);
+
+
+-- STEP 5: CREATE CAMPAIGN CALCULATION ENGINE WITH BANK & CONDITION SUPPORT
 CREATE OR REPLACE FUNCTION public.get_campaign_actual_metrics(
     p_start_date DATE,
     p_as_of_date DATE,
@@ -154,13 +225,18 @@ BEGIN
       );
 
     -- 2. Compute New Customers (NC) for MTD:
-    -- Customers whose earliest ever transaction is in [v_mtd_start, v_mtd_end]
     WITH first_tx_per_customer AS (
         SELECT 
             phone,
             MIN(public.parse_tx_date(created_at::text)) AS earliest_tx
         FROM public.monthly_data
         WHERE phone IS NOT NULL AND trim(phone) <> ''
+          AND (
+              p_bank IS NULL 
+              OR p_bank = 'all' 
+              OR lower(bank) = lower(p_bank)
+              OR (bank ILIKE ('%' || p_bank || '%'))
+          )
         GROUP BY phone
     )
     SELECT COUNT(*) INTO v_mtd_nc
@@ -218,6 +294,7 @@ BEGIN
     -- Return structured JSON
     RETURN json_build_object(
         'status', 'SUCCESS',
+        'bank', p_bank,
         'mtd_transac', COALESCE(v_mtd_transac, 0),
         'mtd_users', COALESCE(v_mtd_users, 0),
         'mtd_new_customers', COALESCE(v_mtd_nc, 0),
@@ -231,5 +308,8 @@ BEGIN
 END;
 $$;
 
+
+-- STEP 6: GRANT PERMISSIONS WITH EXACT SIGNATURES
+GRANT EXECUTE ON FUNCTION public.get_campaign_actual_metrics(DATE, DATE, DATE, DATE, TEXT, TEXT, NUMERIC, NUMERIC, TEXT, TEXT) TO anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.get_max_monthly_data_date() TO anon, authenticated, service_role;
-GRANT EXECUTE ON FUNCTION public.get_campaign_actual_metrics TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.parse_tx_date(TEXT) TO anon, authenticated, service_role;

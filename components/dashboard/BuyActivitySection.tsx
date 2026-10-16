@@ -24,11 +24,21 @@ export function BuyActivitySection({
   const weightData = history.map((w) => ({ week: w.week_label, value: Number(w.buy_weight_15g) }));
   const txData = history.map((w) => ({ week: w.week_label, value: w.buy_transactions }));
   const ticketData = history.map((w) => ({ week: w.week_label, value: Number(w.buy_ticket_size_g) }));
+  const valueData = history.map((w) => ({
+    week: w.week_label,
+    value: w.buy_value_mil_lak ?? Math.round(Number(w.buy_weight_15g) * 15 * 3.14),
+  }));
+
+  // Current buy value in Mil LAK
+  const currentBuyValue =
+    currentWeek.buy_value_mil_lak ??
+    Math.round(Number(currentWeek.buy_weight_15g) * 15 * 3.14);
 
   // Prorated estimates for partial week
   const isPartial = isPartialWeek || currentWeek.week_label === 'W42';
   const proratedWeight = isPartial ? Math.round(Number(currentWeek.buy_weight_15g) * 7) : undefined;
   const proratedTx = isPartial ? Math.round(currentWeek.buy_transactions * 7) : undefined;
+  const proratedValue = isPartial ? Math.round(currentBuyValue * 7) : undefined;
 
   return (
     <div className="border border-emerald-200/80 rounded-2xl p-3 sm:p-3.5 bg-gradient-to-b from-[#f4fbf5] via-white to-[#f4fbf5] shadow-xs h-full flex flex-col justify-between">
@@ -49,7 +59,7 @@ export function BuyActivitySection({
         </span>
       </div>
 
-      {/* 3 Cards Grid - 2 Rows matching Platform Overview 2x2 footprint */}
+      {/* 4 Cards in 2x2 Grid: Equal 3-Pillar Row Alignment */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3 flex-1">
         {/* Card 1: Gold Weight (15g) */}
         <MetricKpiCard
@@ -77,19 +87,30 @@ export function BuyActivitySection({
           isPartialWeek={isPartial}
         />
 
-        {/* Card 3: Ticket Size (g) */}
-        <div className="sm:col-span-2">
-          <MetricKpiCard
-            title="Ticket Size (g)"
-            value={Number(currentWeek.buy_ticket_size_g)}
-            variancePercent={variances.buy_ticket_size_g}
-            historyData={ticketData}
-            themeColor="green"
-            isDecimal={true}
-            selectedWeek={selectedWeek || currentWeek.week_label}
-            subtitle="Avg/Tx"
-          />
-        </div>
+        {/* Card 3: Value (mil LAK) */}
+        <MetricKpiCard
+          title="Value (mil LAK)"
+          value={currentBuyValue}
+          variancePercent={variances.buy_value_mil_lak ?? variances.buy_weight_15g}
+          historyData={valueData}
+          themeColor="green"
+          selectedWeek={selectedWeek || currentWeek.week_label}
+          subtitle="Revenue"
+          proratedEstimate={proratedValue}
+          isPartialWeek={isPartial}
+        />
+
+        {/* Card 4: Ticket Size (g) */}
+        <MetricKpiCard
+          title="Ticket Size (g)"
+          value={Number(currentWeek.buy_ticket_size_g)}
+          variancePercent={variances.buy_ticket_size_g}
+          historyData={ticketData}
+          themeColor="green"
+          isDecimal={true}
+          selectedWeek={selectedWeek || currentWeek.week_label}
+          subtitle="Avg/Tx"
+        />
       </div>
     </div>
   );

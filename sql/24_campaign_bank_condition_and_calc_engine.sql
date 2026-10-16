@@ -1,18 +1,146 @@
 -- ============================================================================
 -- EASY GOLD MARKETING & BI EXECUTIVE DASHBOARD
--- Test Suite & Engine: 24_campaign_bank_condition_and_calc_engine.sql
--- Purpose: Support 'Bank' in Campaign Condition Rules, Eligibility & Live Calculate Engine
+-- Unified Complete Engine: 24_campaign_bank_condition_and_calc_engine.sql
+-- Target: Supabase (PostgreSQL 15+)
+-- Purpose: Complete, Self-Contained Campaign Tracking & Target Calculation Engine
+--          With 'Bank' Filter, Safe Table Creation & Zero-Error Function Grants
 -- ============================================================================
 
--- STEP 1: Add Bank column to campaign_setups table
-ALTER TABLE IF EXISTS public.campaign_setups 
-ADD COLUMN IF NOT EXISTS bank VARCHAR(64) DEFAULT 'all';
+-- STEP 0: ENSURE EXTENSIONS
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- Index for bank queries
+-- STEP 1: CREATE TABLE IF NOT EXISTS (Fixes 42P01 relation does not exist)
+CREATE TABLE IF NOT EXISTS public.campaign_setups (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID,
+    campaign_name VARCHAR(255) NOT NULL,
+    description TEXT,
+    campaign_start_date DATE NOT NULL,
+    campaign_end_date DATE NOT NULL,
+    as_of_date DATE NOT NULL DEFAULT CURRENT_DATE,
+    backward_start_date DATE NOT NULL DEFAULT CURRENT_DATE,
+    backward_end_date DATE NOT NULL DEFAULT CURRENT_DATE,
+    condition_type VARCHAR(64) NOT NULL DEFAULT 'amount_gte',
+    condition_value NUMERIC(18, 2) NOT NULL DEFAULT 500000,
+    condition_max_value NUMERIC(18, 2),
+    condition_operator VARCHAR(32) DEFAULT '>=',
+    condition_label VARCHAR(128) NOT NULL DEFAULT 'Buy trans >= 500k',
+    tx_type VARCHAR(64) NOT NULL DEFAULT 'BUY_GOLD',
+    ec_target NUMERIC(18, 2) NOT NULL DEFAULT 307500,
+    nc_target NUMERIC(18, 2) NOT NULL DEFAULT 17220,
+    revenue_target_mil NUMERIC(18, 2),
+    gold_weight_target_g NUMERIC(18, 2),
+    target_types JSONB DEFAULT '["ec", "nc"]'::jsonb,
+    category_tag VARCHAR(64) DEFAULT 'Volume Driver',
+    image_url TEXT,
+    bank VARCHAR(64) DEFAULT 'all',
+    auto_sync_max_date BOOLEAN DEFAULT true,
+    baseline_daily_rr NUMERIC(18, 2) DEFAULT 79.0,
+    status VARCHAR(32) DEFAULT 'active',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Ensure all enhanced columns exist if table was previously created with an older schema
+ALTER TABLE public.campaign_setups 
+ADD COLUMN IF NOT EXISTS image_url TEXT,
+ADD COLUMN IF NOT EXISTS category_tag VARCHAR(64) DEFAULT 'Volume Driver',
+ADD COLUMN IF NOT EXISTS condition_operator VARCHAR(32) DEFAULT '>=',
+ADD COLUMN IF NOT EXISTS condition_max_value NUMERIC(18, 2),
+ADD COLUMN IF NOT EXISTS target_types JSONB DEFAULT '["ec", "nc"]'::jsonb,
+ADD COLUMN IF NOT EXISTS revenue_target_mil NUMERIC(18, 2),
+ADD COLUMN IF NOT EXISTS gold_weight_target_g NUMERIC(18, 2),
+ADD COLUMN IF NOT EXISTS auto_sync_max_date BOOLEAN DEFAULT true,
+ADD COLUMN IF NOT EXISTS bank VARCHAR(64) DEFAULT 'all',
+ADD COLUMN IF NOT EXISTS status VARCHAR(32) DEFAULT 'active';
+
+-- Index for bank and status queries
 CREATE INDEX IF NOT EXISTS idx_campaign_setups_bank
 ON public.campaign_setups (bank);
 
--- STEP 2: Update get_campaign_actual_metrics function with p_bank parameter
+CREATE INDEX IF NOT EXISTS idx_campaign_setups_status
+ON public.campaign_setups (status);
+
+-- Enable RLS
+ALTER TABLE public.campaign_setups ENABLE ROW LEVEL SECURITY;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policies 
+        WHERE tablename = 'campaign_setups' 
+          AND policyname = 'Public read and write for campaign setups'
+    ) THEN
+        CREATE POLICY "Public read and write for campaign setups"
+        ON public.campaign_setups
+        FOR ALL
+        TO anon, authenticated, service_role
+        USING (true)
+        WITH CHECK (true);
+    END IF;
+END $$;
+
+
+-- STEP 2: SAFE DATE PARSER FOR TEXT / TIMESTAMPTZ
+CREATE OR REPLACE FUNCTION public.parse_tx_date(val TEXT)
+RETURNS TIMESTAMPTZ
+LANGUAGE plpgsql
+IMMUTABLE
+AS $$
+BEGIN
+    IF val IS NULL OR trim(val) = '' THEN
+        RETURN NULL;
+    END IF;
+    
+    -- Format A: 'DD/MM/YYYY, HH24:MI' or 'DD/MM/YYYY HH24:MI' or 'DD/MM/YYYY'
+    IF val ~ '^[0-9]{1,2}/[0-9]{1,2}/[0-9]{4}' THEN
+        BEGIN
+            RETURN to_timestamp(val, 'DD/MM/YYYY, HH24:MI:SS');
+        EXCEPTION WHEN OTHERS THEN
+            BEGIN
+                RETURN to_timestamp(val, 'DD/MM/YYYY HH24:MI');
+            EXCEPTION WHEN OTHERS THEN
+                RETURN to_date(split_part(split_part(val, ',', 1), ' ', 1), 'DD/MM/YYYY')::timestamptz;
+            END;
+        END;
+    -- Format B: ISO 'YYYY-MM-DD...'
+    ELSIF val ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}' THEN
+        RETURN val::timestamptz;
+    ELSE
+        RETURN to_date(split_part(split_part(val, ',', 1), ' ', 1), 'DD/MM/YYYY')::timestamptz;
+    END IF;
+EXCEPTION WHEN OTHERS THEN
+    RETURN NULL;
+END;
+$$;
+
+
+-- STEP 3: HELPER TO GET THE MAX DATA DATE IN SUPABASE
+CREATE OR REPLACE FUNCTION public.get_max_monthly_data_date()
+RETURNS DATE
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    v_max_date DATE;
+BEGIN
+    SELECT MAX(public.parse_tx_date(created_at::text))::date
+    INTO v_max_date
+    FROM public.monthly_data;
+    
+    RETURN COALESCE(v_max_date, CURRENT_DATE);
+EXCEPTION WHEN OTHERS THEN
+    RETURN CURRENT_DATE;
+END;
+$$;
+
+
+-- STEP 4: CLEAN UP ALL OLD OVERLOADS (Fixes 42725 function name is not unique)
+DROP FUNCTION IF EXISTS public.get_campaign_actual_metrics(DATE, DATE, DATE, DATE, TEXT, TEXT, NUMERIC, NUMERIC, TEXT);
+DROP FUNCTION IF EXISTS public.get_campaign_actual_metrics(DATE, DATE, DATE, DATE, TEXT, TEXT, NUMERIC, NUMERIC, TEXT, TEXT);
+
+
+-- STEP 5: CREATE CAMPAIGN CALCULATION ENGINE WITH BANK & CONDITION SUPPORT
 CREATE OR REPLACE FUNCTION public.get_campaign_actual_metrics(
     p_start_date DATE,
     p_as_of_date DATE,
@@ -182,4 +310,8 @@ BEGIN
 END;
 $$;
 
+
+-- STEP 6: GRANT EXECUTE PERMISSIONS WITH EXACT SIGNATURES (Disambiguated)
 GRANT EXECUTE ON FUNCTION public.get_campaign_actual_metrics(DATE, DATE, DATE, DATE, TEXT, TEXT, NUMERIC, NUMERIC, TEXT, TEXT) TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.get_max_monthly_data_date() TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.parse_tx_date(TEXT) TO anon, authenticated, service_role;

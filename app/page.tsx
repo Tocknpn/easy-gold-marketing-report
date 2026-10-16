@@ -183,6 +183,9 @@ export default function DashboardPage() {
     // Detect if current selected week is partial in-progress week (W42)
     const isPartial = rawWeek.week_label === 'W42';
 
+    const rawBuyVal = rawWeek.buy_value_mil_lak ?? Math.round(Number(rawWeek.buy_weight_15g) * 15 * 3.14);
+    const rawSellVal = rawWeek.sell_value_mil_lak ?? Math.round(Number(rawWeek.sell_weight_15g) * 15 * 3.14);
+
     // Prorated 7-day run-rate (assuming 1 day elapsed in W42 for normalized comparison)
     const currentWeek: WeeklyMetricRow = (isProratedWoW && isPartial)
       ? {
@@ -193,15 +196,24 @@ export default function DashboardPage() {
           withdraw_gold_grams: Number((Number(rawWeek.withdraw_gold_grams) * 7).toFixed(2)),
           buy_weight_15g: Math.round(Number(rawWeek.buy_weight_15g) * 7),
           buy_transactions: Math.round(rawWeek.buy_transactions * 7),
+          buy_value_mil_lak: Math.round(rawBuyVal * 7),
           sell_weight_15g: Math.round(Number(rawWeek.sell_weight_15g) * 7),
           sell_transactions: Math.round(rawWeek.sell_transactions * 7),
+          sell_value_mil_lak: Math.round(rawSellVal * 7),
         }
-      : rawWeek;
+      : {
+          ...rawWeek,
+          buy_value_mil_lak: rawBuyVal,
+          sell_value_mil_lak: rawSellVal,
+        };
 
     const calcVariance = (curr: number, prev: number | undefined): number => {
       if (prev === undefined || prev === 0) return 0;
       return Math.round(((curr - prev) / prev) * 100);
     };
+
+    const prevBuyVal = previousWeek ? (previousWeek.buy_value_mil_lak ?? Math.round(Number(previousWeek.buy_weight_15g) * 15 * 3.14)) : undefined;
+    const prevSellVal = previousWeek ? (previousWeek.sell_value_mil_lak ?? Math.round(Number(previousWeek.sell_weight_15g) * 15 * 3.14)) : undefined;
 
     const variances: MetricVariances = {
       all_transactions: calcVariance(currentWeek.all_transactions, previousWeek?.all_transactions),
@@ -220,6 +232,7 @@ export default function DashboardPage() {
         Number(currentWeek.buy_ticket_size_g),
         previousWeek ? Number(previousWeek.buy_ticket_size_g) : undefined
       ),
+      buy_value_mil_lak: calcVariance(Number(currentWeek.buy_value_mil_lak), prevBuyVal),
       sell_weight_15g: calcVariance(
         Number(currentWeek.sell_weight_15g),
         previousWeek ? Number(previousWeek.sell_weight_15g) : undefined
@@ -229,6 +242,7 @@ export default function DashboardPage() {
         Number(currentWeek.sell_ticket_size_g),
         previousWeek ? Number(previousWeek.sell_ticket_size_g) : undefined
       ),
+      sell_value_mil_lak: calcVariance(Number(currentWeek.sell_value_mil_lak), prevSellVal),
     };
 
     const effectiveIndex = activeIndex >= 0 ? activeIndex : history.length - 1;

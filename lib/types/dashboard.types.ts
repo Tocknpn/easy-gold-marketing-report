@@ -12,9 +12,11 @@ export interface WeeklyMetricRow {
   buy_weight_15g: number;
   buy_transactions: number;
   buy_ticket_size_g: number;
+  buy_value_mil_lak?: number;
   sell_weight_15g: number;
   sell_transactions: number;
   sell_ticket_size_g: number;
+  sell_value_mil_lak?: number;
 }
 
 export interface MetricVariances {
@@ -25,9 +27,11 @@ export interface MetricVariances {
   buy_weight_15g: number;
   buy_transactions: number;
   buy_ticket_size_g: number;
+  buy_value_mil_lak?: number;
   sell_weight_15g: number;
   sell_transactions: number;
   sell_ticket_size_g: number;
+  sell_value_mil_lak?: number;
 }
 
 export interface ExecutiveDashboardData {
