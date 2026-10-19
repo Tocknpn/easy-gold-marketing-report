@@ -1,10 +1,11 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   CampaignSetupConfig, 
   CampaignConditionType, 
-  CampaignOperator 
+  CampaignOperator,
+  CampaignConditionRule
 } from '@/lib/types/campaign.types';
 import { 
   X, 
@@ -13,14 +14,14 @@ import {
   Settings, 
   Sparkles,
   ArrowRight,
-  Upload,
-  Image as ImageIcon,
   Check,
+  CheckCircle2,
   Trash2,
   Copy,
   Clock,
   Layers,
-  Landmark
+  Landmark,
+  Plus
 } from 'lucide-react';
 import { calculateDateDiffDays, computeBackwardDates } from '@/lib/campaign/campaignEngine';
 
@@ -43,6 +44,7 @@ interface CampaignSetupModalProps {
   campaignToEdit?: CampaignSetupConfig | null;
   onSave: (config: CampaignSetupConfig) => Promise<void>;
   onDelete?: (campaignId: string) => Promise<void>;
+  latestDataDate?: string;
 }
 
 export function CampaignSetupModal({
@@ -51,24 +53,29 @@ export function CampaignSetupModal({
   campaignToEdit,
   onSave,
   onDelete,
+  latestDataDate = '2026-10-18',
 }: CampaignSetupModalProps) {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [categoryTag, setCategoryTag] = useState('Volume Driver');
-  const [imageUrl, setImageUrl] = useState('');
   
   // Dates
   const [startDate, setStartDate] = useState('2026-08-24');
   const [endDate, setEndDate] = useState('2026-12-25');
-  const [asOfDate, setAsOfDate] = useState('2026-10-14');
+  const [asOfDate, setAsOfDate] = useState(latestDataDate || '2026-10-18');
   const [autoSyncMaxDate, setAutoSyncMaxDate] = useState(true);
 
-  // Conditions
-  const [conditionType, setConditionType] = useState<CampaignConditionType>('amount_gte');
-  const [conditionOperator, setConditionOperator] = useState<CampaignOperator>('>=');
-  const [conditionValue, setConditionValue] = useState<number>(500000);
-  const [conditionMaxValue, setConditionMaxValue] = useState<number>(2000000);
+  // Dynamic Conditions Rules
+  const [conditions, setConditions] = useState<CampaignConditionRule[]>([
+    {
+      id: 'cond-1',
+      metric: 'amount',
+      operator: '>=',
+      value: 500000,
+    }
+  ]);
   const [conditionLabel, setConditionLabel] = useState('Buy trans >= 500k');
+  const [isCustomLabelUserEdited, setIsCustomLabelUserEdited] = useState(false);
   const [txType, setTxType] = useState('BUY_GOLD');
   const [bank, setBank] = useState<string>('all');
 
@@ -110,9 +117,8 @@ export function CampaignSetupModal({
   const [baselineDailyRr, setBaselineDailyRr] = useState<number | undefined>(undefined);
 
   const [isSaving, setIsSaving] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Event Plan & Scale Tracking (Image 2 style)
+  // Event Plan & Scale Tracking
   const [scaleCategory, setScaleCategory] = useState('MEDIUM — H2H BOOTH');
   const [team, setTeam] = useState('KPV');
   const [location, setLocation] = useState('');
@@ -132,20 +138,42 @@ export function CampaignSetupModal({
 
   // Load existing campaign data or defaults
   useEffect(() => {
+    const effectiveLatestDate = latestDataDate || '2026-10-18';
+
     if (campaignToEdit) {
       setName(campaignToEdit.campaign_name);
       setDescription(campaignToEdit.description || '');
       setCategoryTag(campaignToEdit.category_tag || 'Volume Driver');
-      setImageUrl(campaignToEdit.image_url || '');
       setStartDate(campaignToEdit.campaign_date_start);
       setEndDate(campaignToEdit.campaign_date_end);
-      setAsOfDate((campaignToEdit.auto_sync_max_date ?? true) ? '2026-10-18' : (campaignToEdit.data_update_on || '2026-10-18'));
-      setAutoSyncMaxDate(campaignToEdit.auto_sync_max_date ?? true);
-      setConditionType(campaignToEdit.condition_type || 'amount_gte');
-      setConditionOperator(campaignToEdit.condition_operator || '>=');
-      setConditionValue(campaignToEdit.condition_value || 500000);
-      setConditionMaxValue(campaignToEdit.condition_max_value || 2000000);
+
+      const shouldAutoSync = campaignToEdit.auto_sync_max_date ?? true;
+      setAutoSyncMaxDate(shouldAutoSync);
+      setAsOfDate(shouldAutoSync ? effectiveLatestDate : (campaignToEdit.data_update_on || effectiveLatestDate));
+
+      // Restore condition rules
+      if (Array.isArray(campaignToEdit.conditions)) {
+        setConditions(campaignToEdit.conditions);
+      } else if (
+        campaignToEdit.condition_operator === 'all' || 
+        (campaignToEdit.condition_label && campaignToEdit.condition_label.toLowerCase().includes('no condition'))
+      ) {
+        setConditions([]);
+      } else {
+        const isWeight = (campaignToEdit.condition_type || '').includes('weight');
+        setConditions([
+          {
+            id: 'cond-1',
+            metric: isWeight ? 'weight' : 'amount',
+            operator: campaignToEdit.condition_operator || '>=',
+            value: Number(campaignToEdit.condition_value) || 500000,
+            max_value: campaignToEdit.condition_max_value ? Number(campaignToEdit.condition_max_value) : undefined,
+          }
+        ]);
+      }
       setConditionLabel(campaignToEdit.condition_label || 'Buy trans >= 500k');
+      setIsCustomLabelUserEdited(true);
+
       setTxType(campaignToEdit.tx_type || 'BUY_GOLD');
       setBank(campaignToEdit.bank || 'all');
       setSelectedTargets(campaignToEdit.target_types || ['ec', 'nc']);
@@ -159,6 +187,7 @@ export function CampaignSetupModal({
       setLocation(campaignToEdit.location || '');
       setPlanBudget(campaignToEdit.plan_budget || 0);
       setTotalSpendingCost(campaignToEdit.total_spending_cost || 0);
+
       // Clean contaminated 1731 dummy value if target differs
       const cleanedActual = campaignToEdit.customers_actual === 1731 && campaignToEdit.ec_target !== 1731 ? 0 : (campaignToEdit.customers_actual || 0);
       setCustomersActual(cleanedActual);
@@ -177,16 +206,20 @@ export function CampaignSetupModal({
       setName('New Marketing Event / Campaign');
       setDescription('Customer activation and booth event');
       setCategoryTag('Event');
-      setImageUrl('https://images.unsplash.com/photo-1610375461246-83df859d849d?w=150&auto=format&fit=crop&q=80');
       setStartDate('2026-10-21');
       setEndDate('2026-10-27');
-      setAsOfDate('2026-10-14');
+      setAsOfDate(effectiveLatestDate);
       setAutoSyncMaxDate(true);
-      setConditionType('amount_gte');
-      setConditionOperator('>=');
-      setConditionValue(500000);
-      setConditionMaxValue(2000000);
+      setConditions([
+        {
+          id: `cond-${Date.now()}`,
+          metric: 'amount',
+          operator: '>=',
+          value: 500000,
+        }
+      ]);
       setConditionLabel('Buy trans >= 500k');
+      setIsCustomLabelUserEdited(false);
       setTxType('BUY_GOLD');
       setBank('all');
       setSelectedTargets(['ec', 'nc']);
@@ -212,7 +245,50 @@ export function CampaignSetupModal({
       setYear(2026);
       setQuarter('Q4');
     }
-  }, [campaignToEdit, isOpen]);
+  }, [campaignToEdit, isOpen, latestDataDate]);
+
+  // Compute automatic descriptive label for condition rules
+  const computedConditionLabel = React.useMemo(() => {
+    if (conditions.length === 0) {
+      if (bank && bank !== 'all') {
+        return `All Trans (${bank})`;
+      }
+      return 'No Condition (All Trans)';
+    }
+
+    const parts = conditions.map((c) => {
+      const isW = c.metric === 'weight';
+      const valStr = isW 
+        ? `${c.value}g` 
+        : c.value >= 1_000_000 
+        ? `${(c.value / 1_000_000).toFixed(1).replace(/\.0$/, '')}M` 
+        : c.value >= 1000 
+        ? `${c.value / 1000}k` 
+        : `${c.value}`;
+
+      if (c.operator === 'between') {
+        const maxStr = isW 
+          ? `${c.max_value || c.value}g` 
+          : `${(c.max_value || c.value) / 1000}k`;
+        return isW ? `Weight ${c.value}-${maxStr}` : `Amount ${valStr}-${maxStr}`;
+      }
+      const opSym = c.operator === '==' ? '=' : c.operator;
+      return isW ? `Weight ${opSym} ${valStr}` : `Buy trans ${opSym} ${valStr}`;
+    });
+
+    const base = parts.join(' & ');
+    if (bank && bank !== 'all') {
+      return `${base} (${bank})`;
+    }
+    return base;
+  }, [conditions, bank]);
+
+  // Sync auto label when condition rules or bank changes unless user typed a custom label
+  useEffect(() => {
+    if (!isCustomLabelUserEdited) {
+      setConditionLabel(computedConditionLabel);
+    }
+  }, [computedConditionLabel, isCustomLabelUserEdited]);
 
   // Dynamic calculations for preview
   const totalDays = calculateDateDiffDays(startDate, endDate);
@@ -223,58 +299,42 @@ export function CampaignSetupModal({
 
   // Dynamic backward dates
   const backwardWindow = computeBackwardDates(startDate, elapsedDays);
-  const backwardDays = calculateDateDiffDays(backwardWindow.start, backwardWindow.end);
 
   if (!isOpen) return null;
 
-  // Handle local image file upload -> Base64 Data URL
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImageUrl(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-    }
+  // Condition Handlers
+  const handleAddCondition = () => {
+    const newMetric = conditions.length === 0 
+      ? 'amount' 
+      : (conditions[conditions.length - 1].metric === 'amount' ? 'weight' : 'amount');
+    const newRule: CampaignConditionRule = {
+      id: `cond-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      metric: newMetric,
+      operator: '>=',
+      value: newMetric === 'weight' ? 2.0 : 500000,
+      max_value: newMetric === 'weight' ? 5.0 : 2000000,
+    };
+    setConditions((prev) => [...prev, newRule]);
+    setIsCustomLabelUserEdited(false);
   };
 
-  // Quick preset selector
-  const handleConditionPreset = (type: '500k' | '2g' | '15g' | 'range_1_5g' | 'ldb' | 'bcel') => {
-    if (type === '500k') {
-      setConditionType('amount_gte');
-      setConditionOperator('>=');
-      setConditionValue(500000);
-      setConditionLabel(bank !== 'all' ? `Buy trans >= 500k (${bank})` : 'Buy trans >= 500k');
-    } else if (type === '2g') {
-      setConditionType('weight_gte');
-      setConditionOperator('>=');
-      setConditionValue(2.0);
-      setConditionLabel(bank !== 'all' ? `Buy trans >= 2g (${bank})` : 'Buy trans >= 2g');
-    } else if (type === '15g') {
-      setConditionType('weight_gte');
-      setConditionOperator('>=');
-      setConditionValue(15.0);
-      setConditionLabel(bank !== 'all' ? `Buy trans >= 15g (${bank})` : 'Buy trans >= 15g');
-    } else if (type === 'range_1_5g') {
-      setConditionType('weight_between');
-      setConditionOperator('between');
-      setConditionValue(1.0);
-      setConditionMaxValue(5.0);
-      setConditionLabel(bank !== 'all' ? `Gold weight 1-5g (${bank})` : 'Gold weight between 1.0g - 5.0g');
-    } else if (type === 'ldb') {
-      setBank('LDB');
-      setConditionType('bank');
-      setConditionOperator('==');
-      setConditionValue(100000);
-      setConditionLabel('Buy trans >= 100k (LDB)');
-    } else if (type === 'bcel') {
-      setBank('BCEL');
-      setConditionType('bank');
-      setConditionOperator('==');
-      setConditionValue(100000);
-      setConditionLabel('Buy trans >= 100k (BCEL)');
-    }
+  const handleUpdateCondition = (index: number, updates: Partial<CampaignConditionRule>) => {
+    setConditions((prev) => {
+      const next = [...prev];
+      next[index] = { ...next[index], ...updates };
+      return next;
+    });
+    setIsCustomLabelUserEdited(false);
+  };
+
+  const handleRemoveCondition = (index: number) => {
+    setConditions((prev) => prev.filter((_, idx) => idx !== index));
+    setIsCustomLabelUserEdited(false);
+  };
+
+  const handleRemoveAllConditions = () => {
+    setConditions([]);
+    setIsCustomLabelUserEdited(false);
   };
 
   const toggleTargetType = (type: 'ec' | 'nc' | 'revenue' | 'weight') => {
@@ -298,23 +358,27 @@ export function CampaignSetupModal({
         ? crypto.randomUUID() 
         : `10000000-0000-0000-0000-${Date.now().toString().padStart(12, '0').slice(-12)}`;
 
+      const effectiveLabel = conditionLabel.trim() || computedConditionLabel;
+      const firstCond = conditions[0];
+
       const config: CampaignSetupConfig = {
         id: isDuplicate || !campaignToEdit ? generatedId : (isUuid ? campaignToEdit.id : generatedId),
         campaign_name: isDuplicate ? `${name.trim()} (Copy)` : name.trim(),
         description: description.trim(),
         category_tag: categoryTag,
-        image_url: imageUrl,
+        image_url: campaignToEdit?.image_url || '',
         campaign_date_start: startDate,
         campaign_date_end: endDate,
         data_update_on: asOfDate,
         auto_sync_max_date: autoSyncMaxDate,
         same_period_backward_start: backwardWindow.start,
         same_period_backward_end: backwardWindow.end,
-        condition_type: conditionType,
-        condition_operator: conditionOperator,
-        condition_value: Number(conditionValue),
-        condition_max_value: conditionOperator === 'between' ? Number(conditionMaxValue) : undefined,
-        condition_label: conditionLabel.trim(),
+        conditions: conditions,
+        condition_type: conditions.length === 0 ? 'custom' : (firstCond.metric === 'weight' ? 'weight_gte' : 'amount_gte'),
+        condition_operator: conditions.length === 0 ? 'all' : firstCond.operator,
+        condition_value: conditions.length === 0 ? 0 : Number(firstCond.value),
+        condition_max_value: (firstCond && firstCond.operator === 'between') ? Number(firstCond.max_value) : undefined,
+        condition_label: effectiveLabel,
         tx_type: txType,
         bank: bank || 'all',
         target_types: selectedTargets,
@@ -372,112 +436,64 @@ export function CampaignSetupModal({
             </h3>
           </div>
           <p className="text-xs text-blue-100/80">
-            Set campaign profile image, date timeline, reverse backward duration, condition thresholds, and multi-targets.
+            Set campaign date timeline, condition thresholds, and multi-targets.
           </p>
         </div>
 
         {/* Scrollable Form Body */}
         <form onSubmit={(e) => handleSubmit(e, false)} className="p-6 space-y-5 overflow-y-auto">
           
-          {/* 1. Identity & Profile Picture */}
+          {/* 1. Identity & Details */}
           <div className="space-y-3">
             <h4 className="text-xs font-black uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
-              <span>1. Campaign Profile & Visual Identity</span>
+              <Sparkles className="w-4 h-4 text-[#0c4ca3]" />
+              <span>1. Campaign Profile & Details</span>
             </h4>
 
-            <div className="flex flex-col sm:flex-row gap-4 items-start">
-              {/* Avatar Preview & Upload */}
-              <div className="flex flex-col items-center gap-2 shrink-0">
-                <div className="w-20 h-20 rounded-2xl overflow-hidden border-2 border-slate-200 shadow-md bg-slate-100 flex items-center justify-center relative group">
-                  {imageUrl ? (
-                    <img src={imageUrl} alt="Campaign Logo" className="w-full h-full object-cover" />
-                  ) : (
-                    <ImageIcon className="w-8 h-8 text-slate-400" />
-                  )}
-                  <div 
-                    onClick={() => fileInputRef.current?.click()}
-                    className="absolute inset-0 bg-slate-900/60 text-white opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center cursor-pointer text-[10px] font-bold"
-                  >
-                    <Upload className="w-4 h-4 mb-0.5" />
-                    <span>Upload</span>
-                  </div>
-                </div>
-
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Campaign Name *
+                </label>
                 <input
-                  type="file"
-                  ref={fileInputRef}
-                  onChange={handleFileUpload}
-                  accept="image/*"
-                  className="hidden"
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="e.g. Hero Campaign 2026 (500K)"
+                  className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-[#0c4ca3] focus:outline-hidden"
+                  required
                 />
-                
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="text-[10px] font-bold text-[#0c4ca3] hover:underline"
-                >
-                  Upload Photo
-                </button>
               </div>
 
-              {/* Name & URL & Category */}
-              <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-3 w-full">
-                <div className="sm:col-span-2">
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Campaign Name *
-                  </label>
-                  <input
-                    type="text"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="e.g. Mega Buy Gold >= 500K Campaign"
-                    className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-[#0c4ca3] focus:outline-hidden"
-                    required
-                  />
-                </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Category Tag
+                </label>
+                <select
+                  value={categoryTag}
+                  onChange={(e) => setCategoryTag(e.target.value)}
+                  className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-[#0c4ca3] focus:outline-hidden bg-white"
+                >
+                  <option value="Volume Driver">Volume Driver</option>
+                  <option value="Sprint Promo">Sprint Promo</option>
+                  <option value="High Ticket Retention">High Ticket Retention</option>
+                  <option value="New User Acquisition">New User Acquisition</option>
+                  <option value="Seasonal Festival">Seasonal Festival</option>
+                  <option value="Event">Event</option>
+                </select>
+              </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Category Tag
-                  </label>
-                  <select
-                    value={categoryTag}
-                    onChange={(e) => setCategoryTag(e.target.value)}
-                    className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-[#0c4ca3] focus:outline-hidden bg-white"
-                  >
-                    <option value="Volume Driver">Volume Driver</option>
-                    <option value="Sprint Promo">Sprint Promo</option>
-                    <option value="High Ticket Retention">High Ticket Retention</option>
-                    <option value="New User Acquisition">New User Acquisition</option>
-                    <option value="Seasonal Festival">Seasonal Festival</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Image Link (URL)
-                  </label>
-                  <input
-                    type="url"
-                    value={imageUrl}
-                    onChange={(e) => setImageUrl(e.target.value)}
-                    placeholder="https://... or paste image link"
-                    className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-[#0c4ca3] focus:outline-hidden font-mono"
-                  />
-                </div>
-
-                <div className="sm:col-span-2">
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Campaign Objective / Description
-                  </label>
-                  <input
-                    type="text"
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    placeholder="e.g. Volume driver incentivizing transactions of 500,000 LAK and above"
-                    className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-[#0c4ca3] focus:outline-hidden"
-                  />
-                </div>
+              <div className="sm:col-span-3">
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Campaign Objective / Description
+                </label>
+                <input
+                  type="text"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="e.g. Hero Campaign Nationwide with 500K MOV"
+                  className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-[#0c4ca3] focus:outline-hidden"
+                />
               </div>
             </div>
           </div>
@@ -534,11 +550,17 @@ export function CampaignSetupModal({
                   <label className="block text-xs font-bold text-slate-700">
                     Data Update On (As-Of)
                   </label>
-                  <label className="flex items-center gap-1 text-[10px] text-blue-700 cursor-pointer font-bold">
+                  <label className="flex items-center gap-1 text-[10px] text-blue-700 cursor-pointer font-bold select-none">
                     <input
                       type="checkbox"
                       checked={autoSyncMaxDate}
-                      onChange={(e) => setAutoSyncMaxDate(e.target.checked)}
+                      onChange={(e) => {
+                        const isChecked = e.target.checked;
+                        setAutoSyncMaxDate(isChecked);
+                        if (isChecked) {
+                          setAsOfDate(latestDataDate || '2026-10-18');
+                        }
+                      }}
                       className="rounded-xs text-[#0c4ca3]"
                     />
                     <span>Auto-Sync DB</span>
@@ -553,179 +575,208 @@ export function CampaignSetupModal({
                 />
               </div>
             </div>
-
-            {/* Calculated Reverse Backward Window Ribbon */}
-            <div className="bg-pink-50/70 border border-pink-200/80 rounded-2xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
-              <div className="flex items-center gap-2">
-                <span className="font-bold text-pink-900">Computed Backward Period:</span>
-                <span className="font-mono font-bold text-pink-950 bg-white px-2 py-0.5 rounded-md border border-pink-200">
-                  {backwardWindow.start} → {backwardWindow.end}
-                </span>
-                <span className="text-[11px] text-pink-800 font-semibold">({backwardDays} Days duration)</span>
-              </div>
-              <span className="text-[10px] text-pink-700 italic">
-                *Exact same period backward calculated from timegone reversed from campaign start
-              </span>
-            </div>
           </div>
 
-          {/* 3. Flexible Condition Rules (Weight, Value, Operators Min/Max/Between) */}
+          {/* 3. Flexible Condition Rules (Dynamic Multi-Condition & Zero Condition Support) */}
           <div className="space-y-3 pt-3 border-t border-slate-200">
             <div className="flex items-center justify-between flex-wrap gap-2">
-              <h4 className="text-xs font-black uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
-                <Settings className="w-4 h-4 text-[#0c4ca3]" />
-                <span>3. Condition Rules & Eligibility</span>
-              </h4>
+              <div>
+                <h4 className="text-xs font-black uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                  <Settings className="w-4 h-4 text-[#0c4ca3]" />
+                  <span>3. Condition Rules & Eligibility</span>
+                </h4>
+                <p className="text-[10px] text-slate-500 mt-0.5">
+                  {conditions.length === 0 
+                    ? 'No conditions active (matching all transactions)' 
+                    : `${conditions.length} condition rule${conditions.length > 1 ? 's' : ''} combined with AND logic`}
+                </p>
+              </div>
 
-              {/* Presets */}
-              <div className="flex items-center gap-1 flex-wrap">
+              {/* Action buttons to add or remove conditions */}
+              <div className="flex items-center gap-1.5">
                 <button
                   type="button"
-                  onClick={() => handleConditionPreset('500k')}
-                  className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-50 text-amber-900 border border-amber-200 hover:bg-amber-100 cursor-pointer"
+                  onClick={handleAddCondition}
+                  className="flex items-center gap-1 px-2.5 py-1 rounded-xl text-xs font-bold bg-[#0c4ca3] text-white hover:bg-[#093d84] transition-colors shadow-2xs cursor-pointer"
                 >
-                  &gt;= 500k
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Add Condition</span>
                 </button>
-                <button
-                  type="button"
-                  onClick={() => handleConditionPreset('2g')}
-                  className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-blue-50 text-blue-900 border border-blue-200 hover:bg-blue-100 cursor-pointer"
-                >
-                  &gt;= 2.0g
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleConditionPreset('15g')}
-                  className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-purple-50 text-purple-900 border border-purple-200 hover:bg-purple-100 cursor-pointer"
-                >
-                  &gt;= 15.0g
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleConditionPreset('range_1_5g')}
-                  className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-50 text-emerald-900 border border-emerald-200 hover:bg-emerald-100 cursor-pointer"
-                >
-                  Between 1-5g
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleConditionPreset('ldb')}
-                  className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-50 text-indigo-900 border border-indigo-200 hover:bg-indigo-100 cursor-pointer flex items-center gap-1"
-                >
-                  <Landmark className="w-2.5 h-2.5 text-indigo-600" />
-                  <span>LDB Bank</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleConditionPreset('bcel')}
-                  className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-sky-50 text-sky-900 border border-sky-200 hover:bg-sky-100 cursor-pointer flex items-center gap-1"
-                >
-                  <Landmark className="w-2.5 h-2.5 text-sky-600" />
-                  <span>BCEL Bank</span>
-                </button>
+                {conditions.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleRemoveAllConditions}
+                    className="flex items-center gap-1 px-2.5 py-1 rounded-xl text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 transition-colors cursor-pointer"
+                    title="Remove all conditions to track all transactions without filter (e.g. NC only)"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Remove All</span>
+                  </button>
+                )}
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Condition Metric
-                </label>
-                <select
-                  value={conditionType}
-                  onChange={(e) => {
-                    const val = e.target.value as CampaignConditionType;
-                    setConditionType(val);
-                    if (val === 'bank') {
-                      if (bank === 'all') setBank('LDB');
-                      setConditionOperator('==');
-                      setConditionLabel(`Bank: ${bank !== 'all' ? bank : 'LDB'} Promo`);
-                    } else if (val.includes('weight')) {
-                      setConditionValue(2.0);
-                      setConditionLabel(bank !== 'all' ? `Buy trans >= 2g (${bank})` : 'Buy trans >= 2g');
-                    } else {
-                      setConditionValue(500000);
-                      setConditionLabel(bank !== 'all' ? `Buy trans >= 500k (${bank})` : 'Buy trans >= 500k');
-                    }
-                  }}
-                  className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-[#0c4ca3] focus:outline-hidden bg-white"
-                >
-                  <option value="amount_gte">Total Buy Value (LAK)</option>
-                  <option value="weight_gte">Gold Weight (Grams)</option>
-                  <option value="weight_between">Weight Range (Between)</option>
-                  <option value="amount_between">Amount Range (Between)</option>
-                  <option value="bank">Bank (Partner / Channel)</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Operator
-                </label>
-                <select
-                  value={conditionOperator}
-                  onChange={(e) => setConditionOperator(e.target.value as CampaignOperator)}
-                  className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-[#0c4ca3] focus:outline-hidden bg-white font-mono"
-                >
-                  <option value=">=">&gt;= (Greater or Equal / Min)</option>
-                  <option value="<=">&lt;= (Less or Equal / Max)</option>
-                  <option value="between">BETWEEN (Min and Max)</option>
-                  <option value="==">== (Exact Bank / Match)</option>
-                  <option value="all">ALL (No threshold filter)</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  {conditionType === 'bank' 
-                    ? 'Target Bank Channel' 
-                    : conditionOperator === 'between' 
-                    ? 'Min Value' 
-                    : 'Threshold Value'}
-                </label>
-                {conditionType === 'bank' ? (
-                  <div className="w-full px-3 py-2 text-xs border border-indigo-200 bg-indigo-50/70 rounded-xl font-bold text-indigo-950 flex items-center justify-between">
-                    <span className="truncate">{bank === 'all' ? 'All Banks' : bank}</span>
-                    <span className="text-[10px] text-indigo-600 font-semibold shrink-0 ml-1">(See bank filter)</span>
+            {/* Zero Conditions Empty State Callout */}
+            {conditions.length === 0 ? (
+              <div className="bg-amber-50/70 border border-amber-200/90 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-1.5 text-xs font-black text-amber-900">
+                    <CheckCircle2 className="w-4 h-4 text-amber-600 shrink-0" />
+                    <span>No Condition Filter Applied (Tracking All Transactions)</span>
                   </div>
-                ) : (
-                  <input
-                    type="number"
-                    value={conditionValue}
-                    onChange={(e) => setConditionValue(Number(e.target.value))}
-                    className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-[#0c4ca3] focus:outline-hidden font-mono"
-                    required
-                  />
-                )}
+                  <p className="text-[11px] text-amber-800 leading-relaxed">
+                    All transactions in the selected date range and bank channel will qualify without any threshold restriction. Perfect for overall NC (New Customer) campaigns or generic volume tracking.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleAddCondition}
+                  className="shrink-0 px-3 py-1.5 rounded-xl text-xs font-bold bg-[#0c4ca3] text-white hover:bg-[#093d84] flex items-center gap-1 shadow-2xs cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>+ Add Condition</span>
+                </button>
               </div>
+            ) : (
+              /* Dynamic Condition Rows */
+              <div className="space-y-2.5">
+                {conditions.map((cond, idx) => (
+                  <div key={cond.id || idx} className="bg-slate-50 border border-slate-200 rounded-2xl p-3 space-y-2 relative">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="w-5 h-5 rounded-full bg-[#0c4ca3] text-white text-[10px] font-black flex items-center justify-center">
+                          {idx + 1}
+                        </span>
+                        <span className="text-xs font-bold text-slate-700">
+                          Condition #{idx + 1} {idx > 0 && <span className="text-[10px] font-black text-blue-600 ml-1">(AND)</span>}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveCondition(idx)}
+                        className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                        title="Remove this condition"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
 
-              {conditionOperator === 'between' ? (
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Max Value (Upper Bound)
-                  </label>
-                  <input
-                    type="number"
-                    value={conditionMaxValue}
-                    onChange={(e) => setConditionMaxValue(Number(e.target.value))}
-                    className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-[#0c4ca3] focus:outline-hidden font-mono"
-                    required
-                  />
-                </div>
-              ) : (
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Condition Display Label
-                  </label>
-                  <input
-                    type="text"
-                    value={conditionLabel}
-                    onChange={(e) => setConditionLabel(e.target.value)}
-                    className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-[#0c4ca3] focus:outline-hidden"
-                    required
-                  />
-                </div>
-              )}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                          Condition Metric
+                        </label>
+                        <select
+                          value={cond.metric}
+                          onChange={(e) => {
+                            const m = e.target.value as 'amount' | 'weight';
+                            handleUpdateCondition(idx, { 
+                              metric: m, 
+                              value: m === 'weight' ? 2.0 : 500000,
+                              max_value: m === 'weight' ? 5.0 : 2000000 
+                            });
+                          }}
+                          className="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-[#0c4ca3] focus:outline-hidden"
+                        >
+                          <option value="amount">Total Buy Value (LAK)</option>
+                          <option value="weight">Gold Weight (Grams)</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                          Operator
+                        </label>
+                        <select
+                          value={cond.operator}
+                          onChange={(e) => handleUpdateCondition(idx, { operator: e.target.value as any })}
+                          className="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-[#0c4ca3] focus:outline-hidden font-mono"
+                        >
+                          <option value=">=">&gt;= (Greater or Equal / Min)</option>
+                          <option value="<=">&lt;= (Less or Equal / Max)</option>
+                          <option value="between">BETWEEN (Min and Max)</option>
+                          <option value="==">== (Exact Value)</option>
+                        </select>
+                      </div>
+
+                      {cond.operator === 'between' ? (
+                        <div className="grid grid-cols-2 gap-1.5">
+                          <div>
+                            <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                              Min {cond.metric === 'weight' ? '(g)' : '(LAK)'}
+                            </label>
+                            <input
+                              type="number"
+                              step={cond.metric === 'weight' ? '0.1' : '1000'}
+                              value={cond.value}
+                              onChange={(e) => handleUpdateCondition(idx, { value: Number(e.target.value) })}
+                              className="w-full px-2 py-1.5 text-xs border border-slate-300 rounded-xl font-mono focus:ring-2 focus:ring-[#0c4ca3] focus:outline-hidden"
+                              required
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                              Max {cond.metric === 'weight' ? '(g)' : '(LAK)'}
+                            </label>
+                            <input
+                              type="number"
+                              step={cond.metric === 'weight' ? '0.1' : '1000'}
+                              value={cond.max_value ?? (cond.metric === 'weight' ? 5.0 : 2000000)}
+                              onChange={(e) => handleUpdateCondition(idx, { max_value: Number(e.target.value) })}
+                              className="w-full px-2 py-1.5 text-xs border border-slate-300 rounded-xl font-mono focus:ring-2 focus:ring-[#0c4ca3] focus:outline-hidden"
+                              required
+                            />
+                          </div>
+                        </div>
+                      ) : (
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                            Threshold Value {cond.metric === 'weight' ? '(g)' : '(LAK)'}
+                          </label>
+                          <input
+                            type="number"
+                            step={cond.metric === 'weight' ? '0.1' : '1000'}
+                            value={cond.value}
+                            onChange={(e) => handleUpdateCondition(idx, { value: Number(e.target.value) })}
+                            className="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-xl font-mono focus:ring-2 focus:ring-[#0c4ca3] focus:outline-hidden"
+                            required
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Condition Display Label */}
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-bold text-slate-700">
+                  Condition Display Label
+                </label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setConditionLabel(computedConditionLabel);
+                    setIsCustomLabelUserEdited(false);
+                  }}
+                  className="text-[10px] text-blue-700 hover:underline font-bold cursor-pointer"
+                >
+                  Reset to Auto Label
+                </button>
+              </div>
+              <input
+                type="text"
+                value={conditionLabel}
+                onChange={(e) => {
+                  setConditionLabel(e.target.value);
+                  setIsCustomLabelUserEdited(true);
+                }}
+                placeholder={computedConditionLabel}
+                className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-[#0c4ca3] focus:outline-hidden"
+                required
+              />
             </div>
 
             {/* Dedicated Multi-Select Bank Channel Scope & Filter Selector */}

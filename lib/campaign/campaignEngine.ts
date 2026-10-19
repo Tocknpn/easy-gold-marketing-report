@@ -136,60 +136,80 @@ export function computeCampaignAnalytics(
     bankFactor = Math.min(1.0, Math.max(0.04, combinedFactor || 1.0));
   }
 
-  const condType = (config.condition_type || '').toLowerCase();
-  const condVal = Number(config.condition_value) || 0;
-  const condMax = config.condition_max_value ? Number(config.condition_max_value) : null;
-  const isWeight = condType.includes('weight') || config.condition_label.toLowerCase().includes('g');
+  // Support dynamic condition rules list or single legacy condition
+  const rules = Array.isArray(config.conditions)
+    ? config.conditions
+    : (config.condition_operator !== 'all' && Number(config.condition_value) > 0 && !config.condition_label?.toLowerCase().includes('no condition'))
+      ? [{
+          id: 'cond_default',
+          metric: ((config.condition_type || '').toLowerCase().includes('weight') || (config.condition_label || '').toLowerCase().includes('g')) ? ('weight' as const) : ('amount' as const),
+          operator: config.condition_operator || '>=',
+          value: Number(config.condition_value) || 0,
+          max_value: config.condition_max_value ? Number(config.condition_max_value) : undefined,
+        }]
+      : [];
 
   let thresholdSelectivity = 1.0;
   let avgTicketWeightG = 2.8;
   let avgTicketValueLak = 1350000;
 
-  if (isWeight) {
-    if (condVal >= 15.0) {
-      thresholdSelectivity = 0.035;
-      avgTicketWeightG = 16.5;
-      avgTicketValueLak = 15200000;
-    } else if (condVal >= 5.0) {
-      thresholdSelectivity = 0.09;
-      avgTicketWeightG = 6.2;
-      avgTicketValueLak = 5800000;
-    } else if (condVal >= 2.0) {
-      thresholdSelectivity = 0.25;
-      avgTicketWeightG = 2.7;
-      avgTicketValueLak = 2450000;
-    } else if (condMax && condMax <= 5.0) {
-      thresholdSelectivity = 0.38;
-      avgTicketWeightG = 2.2;
-      avgTicketValueLak = 1950000;
-    } else {
-      thresholdSelectivity = 0.48;
-      avgTicketWeightG = 2.4;
-      avgTicketValueLak = 2100000;
+  if (rules.length > 0) {
+    let minSel = 1.0;
+    for (const r of rules) {
+      const isWeight = r.metric === 'weight';
+      const condVal = Number(r.value) || 0;
+      const condMax = r.max_value ? Number(r.max_value) : null;
+      let sel = 1.0;
+
+      if (isWeight) {
+        if (condVal >= 15.0) {
+          sel = 0.035;
+          avgTicketWeightG = Math.max(avgTicketWeightG, 16.5);
+          avgTicketValueLak = Math.max(avgTicketValueLak, 15200000);
+        } else if (condVal >= 5.0) {
+          sel = 0.09;
+          avgTicketWeightG = Math.max(avgTicketWeightG, 6.2);
+          avgTicketValueLak = Math.max(avgTicketValueLak, 5800000);
+        } else if (condVal >= 2.0) {
+          sel = 0.25;
+          avgTicketWeightG = Math.max(avgTicketWeightG, 2.7);
+          avgTicketValueLak = Math.max(avgTicketValueLak, 2450000);
+        } else if (condMax && condMax <= 5.0) {
+          sel = 0.38;
+          avgTicketWeightG = Math.max(avgTicketWeightG, 2.2);
+          avgTicketValueLak = Math.max(avgTicketValueLak, 1950000);
+        } else {
+          sel = 0.48;
+          avgTicketWeightG = Math.max(avgTicketWeightG, 2.4);
+          avgTicketValueLak = Math.max(avgTicketValueLak, 2100000);
+        }
+      } else {
+        // Total Amount condition
+        if (condVal >= 1000000) {
+          sel = 0.24;
+          avgTicketWeightG = Math.max(avgTicketWeightG, 3.5);
+          avgTicketValueLak = Math.max(avgTicketValueLak, 2800000);
+        } else if (condVal >= 500000) {
+          sel = 0.46;
+          avgTicketWeightG = Math.max(avgTicketWeightG, 3.0);
+          avgTicketValueLak = Math.max(avgTicketValueLak, 1850000);
+        } else if (condVal >= 200000) {
+          sel = 0.72;
+          avgTicketWeightG = Math.max(avgTicketWeightG, 2.8);
+          avgTicketValueLak = Math.max(avgTicketValueLak, 1250000);
+        } else if (condVal >= 100000) {
+          sel = 0.88;
+          avgTicketWeightG = Math.max(avgTicketWeightG, 2.6);
+          avgTicketValueLak = Math.max(avgTicketValueLak, 980000);
+        } else {
+          sel = 0.95;
+          avgTicketWeightG = Math.max(avgTicketWeightG, 2.5);
+          avgTicketValueLak = Math.max(avgTicketValueLak, 880000);
+        }
+      }
+      minSel = Math.min(minSel, sel);
     }
-  } else {
-    // Total Amount condition
-    if (condVal >= 1000000) {
-      thresholdSelectivity = 0.24;
-      avgTicketWeightG = 3.5;
-      avgTicketValueLak = 2800000;
-    } else if (condVal >= 500000) {
-      thresholdSelectivity = 0.46;
-      avgTicketWeightG = 3.0;
-      avgTicketValueLak = 1850000;
-    } else if (condVal >= 200000) {
-      thresholdSelectivity = 0.72;
-      avgTicketWeightG = 2.8;
-      avgTicketValueLak = 1250000;
-    } else if (condVal >= 100000) {
-      thresholdSelectivity = 0.88;
-      avgTicketWeightG = 2.6;
-      avgTicketValueLak = 980000;
-    } else {
-      thresholdSelectivity = 0.95;
-      avgTicketWeightG = 2.5;
-      avgTicketValueLak = 880000;
-    }
+    thresholdSelectivity = minSel;
   }
 
   // Base daily system volume in Easy Gold (~2,850 buy transactions/day across all branches and app)

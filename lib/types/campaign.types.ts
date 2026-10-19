@@ -2,6 +2,14 @@ export type CampaignConditionType = 'amount_gte' | 'weight_gte' | 'weight_betwee
 export type CampaignOperator = '>=' | '<=' | 'between' | '==' | 'all';
 export type CampaignStatus = 'active' | 'completed' | 'upcoming' | 'draft';
 
+export interface CampaignConditionRule {
+  id: string;
+  metric: 'amount' | 'weight';
+  operator: '>=' | '<=' | 'between' | '==';
+  value: number;
+  max_value?: number;
+}
+
 export interface CampaignSetupConfig {
   id: string;
   user_id?: string;
@@ -19,6 +27,7 @@ export interface CampaignSetupConfig {
   same_period_backward_end: string;   // YYYY-MM-DD (Reverse calculated)
 
   // Conditions & Thresholds
+  conditions?: CampaignConditionRule[]; // Dynamic multi-condition list (AND logic, 0 = no condition / all trans)
   condition_type: CampaignConditionType;
   condition_operator: CampaignOperator;
   condition_value: number;            // Min threshold (e.g. 500000 LAK or 2.0g)

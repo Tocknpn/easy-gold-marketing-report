@@ -210,34 +210,66 @@ export async function loadCampaignSetups(userId?: string): Promise<CampaignSetup
 
       if (!error && data && data.length > 0) {
         // Map database fields to CampaignSetupConfig
-        const list = data.map((d: any) => ({
-          id: d.id,
-          user_id: d.user_id,
-          campaign_name: d.campaign_name,
-          description: d.description,
-          image_url: d.image_url,
-          category_tag: d.category_tag || 'Standard Promo',
-          campaign_date_start: d.campaign_start_date,
-          campaign_date_end: d.campaign_end_date,
-          data_update_on: d.as_of_date,
-          auto_sync_max_date: d.auto_sync_max_date ?? true,
-          same_period_backward_start: d.backward_start_date,
-          same_period_backward_end: d.backward_end_date,
-          condition_type: d.condition_type || 'amount_gte',
-          condition_operator: d.condition_operator || '>=',
-          condition_value: Number(d.condition_value) || 0,
-          condition_max_value: d.condition_max_value ? Number(d.condition_max_value) : undefined,
-          condition_label: d.condition_label || 'Custom',
-          tx_type: d.tx_type || 'BUY_GOLD',
-          bank: d.bank || 'all',
-          target_types: d.target_types || ['ec', 'nc'],
-          ec_target: Number(d.ec_target) || 0,
-          nc_target: Number(d.nc_target) || 0,
-          revenue_target_mil: d.revenue_target_mil ? Number(d.revenue_target_mil) : undefined,
-          gold_weight_target_g: d.gold_weight_target_g ? Number(d.gold_weight_target_g) : undefined,
-          baseline_daily_rr: d.baseline_daily_rr ? Number(d.baseline_daily_rr) : undefined,
-          status: d.status || 'active',
-          scale_category: d.scale_category,
+        const list = data.map((d: any) => {
+          let parsedConditions: any = undefined;
+          if (d.sql_script && d.sql_script.includes('/* CONDITIONS_CONFIG:')) {
+            try {
+              const match = d.sql_script.match(/\/\* CONDITIONS_CONFIG:\s*(\[[\s\S]*?\])\s*\*\//);
+              if (match && match[1]) {
+                parsedConditions = JSON.parse(match[1]);
+              }
+            } catch (e) {
+              console.warn('Could not parse encoded conditions:', e);
+            }
+          }
+          if (!parsedConditions) {
+            if (Array.isArray(d.conditions)) {
+              parsedConditions = d.conditions;
+            } else if (d.condition_operator === 'all' || (d.condition_label && d.condition_label.toLowerCase().includes('no condition'))) {
+              parsedConditions = [];
+            } else if (d.condition_value && Number(d.condition_value) > 0) {
+              const isW = (d.condition_type || '').includes('weight');
+              parsedConditions = [{
+                id: 'cond_default',
+                metric: isW ? 'weight' : 'amount',
+                operator: d.condition_operator || '>=',
+                value: Number(d.condition_value) || 0,
+                max_value: d.condition_max_value ? Number(d.condition_max_value) : undefined,
+              }];
+            } else {
+              parsedConditions = [];
+            }
+          }
+
+          return {
+            id: d.id,
+            user_id: d.user_id,
+            campaign_name: d.campaign_name,
+            description: d.description,
+            image_url: d.image_url,
+            category_tag: d.category_tag || 'Standard Promo',
+            campaign_date_start: d.campaign_start_date,
+            campaign_date_end: d.campaign_end_date,
+            data_update_on: d.as_of_date,
+            auto_sync_max_date: d.auto_sync_max_date ?? true,
+            same_period_backward_start: d.backward_start_date,
+            same_period_backward_end: d.backward_end_date,
+            conditions: parsedConditions,
+            condition_type: d.condition_type || 'amount_gte',
+            condition_operator: d.condition_operator || '>=',
+            condition_value: Number(d.condition_value) || 0,
+            condition_max_value: d.condition_max_value ? Number(d.condition_max_value) : undefined,
+            condition_label: d.condition_label || 'Custom',
+            tx_type: d.tx_type || 'BUY_GOLD',
+            bank: d.bank || 'all',
+            target_types: d.target_types || ['ec', 'nc'],
+            ec_target: Number(d.ec_target) || 0,
+            nc_target: Number(d.nc_target) || 0,
+            revenue_target_mil: d.revenue_target_mil ? Number(d.revenue_target_mil) : undefined,
+            gold_weight_target_g: d.gold_weight_target_g ? Number(d.gold_weight_target_g) : undefined,
+            baseline_daily_rr: d.baseline_daily_rr ? Number(d.baseline_daily_rr) : undefined,
+            status: d.status || 'active',
+            scale_category: d.scale_category,
           team: d.team || 'KPV',
           location: d.location,
           total_spending_cost: d.total_spending_cost !== undefined ? Number(d.total_spending_cost) : undefined,
@@ -254,7 +286,8 @@ export async function loadCampaignSetups(userId?: string): Promise<CampaignSetup
           execution_status_label: d.execution_status_label,
           year: d.year || 2026,
           quarter: d.quarter || 'Q4',
-        }));
+        };
+      });
 
         const sanitizedList = list.map(sanitizeLoadedCampaign);
 
@@ -351,6 +384,13 @@ export async function saveCampaignSetup(campaign: CampaignSetupConfig, userId?: 
     user_id: userId || campaign.user_id,
   };
 
+  let sqlScriptWithConfig = toSave.sql_script || '';
+  if (toSave.conditions !== undefined) {
+    sqlScriptWithConfig = sqlScriptWithConfig.replace(/\/\* CONDITIONS_CONFIG:[\s\S]*? \*\/\n?/, '');
+    sqlScriptWithConfig = `/* CONDITIONS_CONFIG: ${JSON.stringify(toSave.conditions)} */\n` + sqlScriptWithConfig;
+    toSave.sql_script = sqlScriptWithConfig;
+  }
+
   if (supabaseUrl && !supabaseUrl.includes('placeholder')) {
     try {
       const supabase = createClient();
@@ -382,7 +422,7 @@ export async function saveCampaignSetup(campaign: CampaignSetupConfig, userId?: 
         status: toSave.status || 'active',
         actual_ec: toSave.customers_actual ?? 0,
         actual_nc: toSave.new_cust_actual ?? 0,
-        sql_script: toSave.sql_script || null,
+        sql_script: sqlScriptWithConfig || null,
         updated_at: new Date().toISOString(),
       };
 

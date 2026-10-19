@@ -449,24 +449,33 @@ export default {
       const bwdStart = toYMD(bwdStartMs);
       const bwdEnd = toYMD(bwdEndMs);
 
-      const condVal = Number(config.condition_value) || 0;
-      const rawBank = config.bank || (config.condition_type === 'bank' ? config.condition_label : 'all');
-      const effectiveBank = (!rawBank || String(rawBank).toLowerCase() === 'all') ? 'all' : String(rawBank);
-      const txType = config.tx_type || config.transaction_type || 'BUY_GOLD';
-      const isWeight = (config.condition_type || '').includes('weight');
+      const rules = Array.isArray(config.conditions)
+        ? config.conditions
+        : (config.condition_operator !== 'all' && Number(config.condition_value) > 0 && !String(config.condition_label || '').toLowerCase().includes('no condition'))
+          ? [{
+              id: 'cond_default',
+              metric: (String(config.condition_type || '').toLowerCase().includes('weight') || String(config.condition_label || '').toLowerCase().includes('g')) ? 'weight' : 'amount',
+              operator: config.condition_operator || '>=',
+              value: Number(config.condition_value) || 0,
+              max_value: config.condition_max_value ? Number(config.condition_max_value) : undefined,
+            }]
+          : [];
 
-      // Support multiple banks
-      const banks = effectiveBank !== 'all' 
-        ? effectiveBank.split(',').map((b) => b.trim()).filter(Boolean)
-        : [];
-      const bankSql = banks.length === 1 
-        ? `\n  AND bank ILIKE '%${banks[0]}%'` 
-        : banks.length > 1 
-        ? `\n  AND (${banks.map((b) => `bank ILIKE '%${b}%'`).join(' OR ')})` 
-        : '';
-      const condCol = isWeight ? 'gold_weight' : 'total_amount';
-      const condOp = config.condition_operator || '>=';
-      const condSql = condVal > 0 ? `\n  AND ${condCol} ${condOp} ${condVal}` : '';
+      let condSql = '';
+      for (const r of rules) {
+        const col = r.metric === 'weight' ? 'gold_weight' : 'total_amount';
+        const val = Number(r.value) || 0;
+        if (r.operator === 'between') {
+          const maxV = r.max_value !== undefined ? Number(r.max_value) : val;
+          condSql += `\n  AND ${col} >= ${val} AND ${col} <= ${maxV}`;
+        } else if (r.operator === '<=') {
+          condSql += `\n  AND ${col} <= ${val}`;
+        } else if (r.operator === '==') {
+          condSql += `\n  AND ${col} = ${val}`;
+        } else {
+          condSql += `\n  AND ${col} >= ${val}`;
+        }
+      }
 
       const sqlScript = `-- ============================================================================
 -- CAMPAIGN INTELLIGENCE: ${config.campaign_name || 'Campaign Target'}

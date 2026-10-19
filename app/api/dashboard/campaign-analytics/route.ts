@@ -70,9 +70,6 @@ export async function POST(req: NextRequest) {
     // 4. Run Live Campaign Aggregation Query directly in parallel for blazing speed
     const rawBank = config.bank || (config.condition_type === 'bank' ? config.condition_label : 'all');
     const effectiveBank = (!rawBank || String(rawBank).toLowerCase() === 'all') ? 'all' : String(rawBank);
-    const isWeight = (config.condition_type || '').includes('weight');
-    const condVal = Number(config.condition_value) || 0;
-    const condOp = config.condition_operator || '>=';
     const txType = config.tx_type || (config as any).transaction_type || 'BUY_GOLD';
 
     // Support multiple banks
@@ -84,12 +81,39 @@ export async function POST(req: NextRequest) {
       : banks.length > 1 
       ? `\n  AND (${banks.map((b: string) => `bank ILIKE '%${b}%'`).join(' OR ')})` 
       : '';
-    const condCol = isWeight ? 'gold_weight' : 'total_amount';
-    const condSql = condVal > 0 ? `\n  AND ${condCol} ${condOp} ${condVal}` : '';
+
+    // Support multiple condition rules or zero conditions
+    const rules = Array.isArray(config.conditions)
+      ? config.conditions
+      : (config.condition_operator !== 'all' && Number(config.condition_value) > 0 && !config.condition_label?.toLowerCase().includes('no condition'))
+        ? [{
+            id: 'cond_default',
+            metric: ((config.condition_type || '').toLowerCase().includes('weight') || (config.condition_label || '').toLowerCase().includes('g')) ? ('weight' as const) : ('amount' as const),
+            operator: config.condition_operator || '>=',
+            value: Number(config.condition_value) || 0,
+            max_value: config.condition_max_value ? Number(config.condition_max_value) : undefined,
+          }]
+        : [];
+
+    let condSql = '';
+    for (const r of rules) {
+      const col = r.metric === 'weight' ? 'gold_weight' : 'total_amount';
+      const val = Number(r.value) || 0;
+      if (r.operator === 'between') {
+        const maxV = r.max_value !== undefined ? Number(r.max_value) : val;
+        condSql += `\n  AND ${col} >= ${val} AND ${col} <= ${maxV}`;
+      } else if (r.operator === '<=') {
+        condSql += `\n  AND ${col} <= ${val}`;
+      } else if (r.operator === '==') {
+        condSql += `\n  AND ${col} = ${val}`;
+      } else {
+        condSql += `\n  AND ${col} >= ${val}`;
+      }
+    }
 
     const sqlScript = `-- ============================================================================
 -- CAMPAIGN INTELLIGENCE: ${config.campaign_name || 'Campaign Target'}
--- Rule: ${config.condition_label || 'Buy trans'} | Bank: ${effectiveBank.toUpperCase()}
+-- Rule: ${config.condition_label || (rules.length === 0 ? 'No Condition (All Trans)' : 'Custom Filter')} | Bank: ${effectiveBank.toUpperCase()}
 -- ============================================================================
 
 -- 1. Actual MTD Performance (${config.campaign_date_start} to ${asOfDate})
@@ -117,26 +141,34 @@ WHERE created_at >= '${backwardWindow.start}'
 
     let liveAgg: any = null;
 
-    try {
-      // 1. Ultra-fast exact aggregation directly via Supabase RPC
-      const { data: rpcData, error: rpcError } = await supabase.rpc('get_campaign_actual_metrics', {
-        p_start_date: config.campaign_date_start,
-        p_as_of_date: asOfDate,
-        p_backward_start: backwardWindow.start,
-        p_backward_end: backwardWindow.end,
-        p_cond_type: config.condition_type || 'amount_gte',
-        p_cond_op: condOp,
-        p_cond_val: condVal > 0 ? condVal : 100000,
-        p_cond_max: config.condition_max_value ? Number(config.condition_max_value) : null,
-        p_tx_type: txType,
-        p_bank: effectiveBank || 'all',
-      });
+    // Use RPC only for 0 conditions (op='all') or single condition
+    if (rules.length <= 1) {
+      try {
+        const singleRule = rules[0];
+        const rpcCondType = singleRule ? (singleRule.metric === 'weight' ? 'weight_gte' : 'amount_gte') : 'amount_gte';
+        const rpcCondOp = singleRule ? singleRule.operator : 'all';
+        const rpcCondVal = singleRule ? Number(singleRule.value) : 0;
+        const rpcCondMax = singleRule && singleRule.max_value ? Number(singleRule.max_value) : null;
 
-      if (!rpcError && rpcData && rpcData.mtd_transac !== undefined) {
-        liveAgg = rpcData;
+        const { data: rpcData, error: rpcError } = await supabase.rpc('get_campaign_actual_metrics', {
+          p_start_date: config.campaign_date_start,
+          p_as_of_date: asOfDate,
+          p_backward_start: backwardWindow.start,
+          p_backward_end: backwardWindow.end,
+          p_cond_type: rpcCondType,
+          p_cond_op: rpcCondOp,
+          p_cond_val: rpcCondVal,
+          p_cond_max: rpcCondMax,
+          p_tx_type: txType,
+          p_bank: effectiveBank || 'all',
+        });
+
+        if (!rpcError && rpcData && rpcData.mtd_transac !== undefined) {
+          liveAgg = rpcData;
+        }
+      } catch (rpcErr) {
+        console.warn('RPC campaign calculation failed, falling back to table queries:', rpcErr);
       }
-    } catch (rpcErr) {
-      console.warn('RPC campaign calculation failed, falling back to table queries:', rpcErr);
     }
 
     if (!liveAgg) {
@@ -154,48 +186,50 @@ WHERE created_at >= '${backwardWindow.start}'
           .gte('created_at', config.campaign_date_start)
           .lte('created_at', `${asOfDate} 23:59:59`);
 
-      if (banks.length === 1) {
-        mtdQuery = mtdQuery.ilike('bank', `%${banks[0]}%`);
-      } else if (banks.length > 1) {
-        mtdQuery = mtdQuery.or(banks.map((b: string) => `bank.ilike.%${b}%`).join(','));
-      }
-      if (condVal > 0) {
-        if (condOp === '<=') {
-          mtdQuery = mtdQuery.lte(condCol, condVal);
-        } else if (condOp === 'between' && config.condition_max_value) {
-          mtdQuery = mtdQuery.gte(condCol, condVal).lte(condCol, Number(config.condition_max_value));
-        } else {
-          mtdQuery = mtdQuery.gte(condCol, condVal);
+        if (banks.length === 1) {
+          mtdQuery = mtdQuery.ilike('bank', `%${banks[0]}%`);
+        } else if (banks.length > 1) {
+          mtdQuery = mtdQuery.or(banks.map((b: string) => `bank.ilike.%${b}%`).join(','));
         }
-      }
 
-      // Build Backward Query
-      let bwdQuery = supabase
-        .from('monthly_data')
-        .select('gold_weight, total_amount', { count: 'exact' })
-        .eq('status', 'ສໍາເລັດ');
+        // Build Backward Query
+        let bwdQuery = supabase
+          .from('monthly_data')
+          .select('gold_weight, total_amount', { count: 'exact' })
+          .eq('status', 'ສໍາເລັດ');
 
-      if (txType !== 'all') {
-        bwdQuery = bwdQuery.eq('transaction_type', txType);
-      }
-      bwdQuery = bwdQuery
-        .gte('created_at', backwardWindow.start)
-        .lte('created_at', `${backwardWindow.end} 23:59:59`);
-
-      if (banks.length === 1) {
-        bwdQuery = bwdQuery.ilike('bank', `%${banks[0]}%`);
-      } else if (banks.length > 1) {
-        bwdQuery = bwdQuery.or(banks.map((b: string) => `bank.ilike.%${b}%`).join(','));
-      }
-      if (condVal > 0) {
-        if (condOp === '<=') {
-          bwdQuery = bwdQuery.lte(condCol, condVal);
-        } else if (condOp === 'between' && config.condition_max_value) {
-          bwdQuery = bwdQuery.gte(condCol, condVal).lte(condCol, Number(config.condition_max_value));
-        } else {
-          bwdQuery = bwdQuery.gte(condCol, condVal);
+        if (txType !== 'all') {
+          bwdQuery = bwdQuery.eq('transaction_type', txType);
         }
-      }
+        bwdQuery = bwdQuery
+          .gte('created_at', backwardWindow.start)
+          .lte('created_at', `${backwardWindow.end} 23:59:59`);
+
+        if (banks.length === 1) {
+          bwdQuery = bwdQuery.ilike('bank', `%${banks[0]}%`);
+        } else if (banks.length > 1) {
+          bwdQuery = bwdQuery.or(banks.map((b: string) => `bank.ilike.%${b}%`).join(','));
+        }
+
+        // Apply all condition rules
+        for (const r of rules) {
+          const col = r.metric === 'weight' ? 'gold_weight' : 'total_amount';
+          const val = Number(r.value) || 0;
+          if (r.operator === '<=') {
+            mtdQuery = mtdQuery.lte(col, val);
+            bwdQuery = bwdQuery.lte(col, val);
+          } else if (r.operator === 'between') {
+            const maxVal = r.max_value !== undefined ? Number(r.max_value) : val;
+            mtdQuery = mtdQuery.gte(col, val).lte(col, maxVal);
+            bwdQuery = bwdQuery.gte(col, val).lte(col, maxVal);
+          } else if (r.operator === '==') {
+            mtdQuery = mtdQuery.eq(col, val);
+            bwdQuery = bwdQuery.eq(col, val);
+          } else {
+            mtdQuery = mtdQuery.gte(col, val);
+            bwdQuery = bwdQuery.gte(col, val);
+          }
+        }
 
       // Execute MTD and BWD in parallel
       const [mtdRes, bwdRes] = await Promise.all([

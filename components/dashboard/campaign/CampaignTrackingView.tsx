@@ -314,16 +314,38 @@ export function CampaignTrackingView({
   const defaultGeneratedSql = useMemo(() => {
     if (!currentTargetCampaign) return '';
     const camp = currentTargetCampaign;
-    const condCol = (camp.condition_type || '').includes('weight') ? 'gold_weight' : 'total_amount';
-    const condOp = camp.condition_operator || '>=';
-    const condVal = camp.condition_value ?? 100000;
     const banks = camp.bank && camp.bank !== 'all' ? camp.bank.split(',').map((b: string) => b.trim()).filter(Boolean) : [];
     const bankFilter = banks.length === 1 
       ? `\n  AND bank ILIKE '%${banks[0]}%'` 
       : banks.length > 1 
       ? `\n  AND (${banks.map((b: string) => `bank ILIKE '%${b}%'`).join(' OR ')})` 
       : '';
-    const condFilter = `\n  AND ${condCol} ${condOp} ${condVal}`;
+
+    const rules = Array.isArray(camp.conditions)
+      ? camp.conditions
+      : (camp.condition_operator !== 'all' && Number(camp.condition_value) > 0 && !camp.condition_label?.toLowerCase().includes('no condition'))
+        ? [{
+            id: '1',
+            metric: ((camp.condition_type || '').includes('weight') || (camp.condition_label || '').toLowerCase().includes('g')) ? ('weight' as const) : ('amount' as const),
+            operator: camp.condition_operator || '>=',
+            value: Number(camp.condition_value) || 0,
+            max_value: camp.condition_max_value,
+          }]
+        : [];
+
+    let condFilter = '';
+    for (const r of rules) {
+      const col = r.metric === 'weight' ? 'gold_weight' : 'total_amount';
+      if (r.operator === 'between') {
+        condFilter += `\n  AND ${col} >= ${r.value} AND ${col} <= ${r.max_value || r.value}`;
+      } else if (r.operator === '<=') {
+        condFilter += `\n  AND ${col} <= ${r.value}`;
+      } else if (r.operator === '==') {
+        condFilter += `\n  AND ${col} = ${r.value}`;
+      } else {
+        condFilter += `\n  AND ${col} >= ${r.value}`;
+      }
+    }
 
     return `-- 1. Actual MTD Performance Query (${camp.campaign_name})
 SELECT 
@@ -978,6 +1000,7 @@ WHERE created_at >= '${camp.campaign_date_start}'
         campaignToEdit={editingCampaign}
         onSave={handleSaveCampaign}
         onDelete={handleDeleteCampaign}
+        latestDataDate={latestDataDate}
       />
     </div>
   );
