@@ -52,12 +52,12 @@ RESET = "\033[0m"
 # SUPABASE_URL = "https://your-project-id.supabase.co"
 # SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
 #
-SUPABASE_URL = ""
-SUPABASE_KEY = ""
+SUPABASE_URL = "https://wlufvvawlbyvpyaubzph.supabase.co"
+SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndsdWZ2dmF3bGJ5dnB5YXVienBoIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MTg1MDY0MSwiZXhwIjoyMTA3NDI2NjQxfQ.CN2Omnb-aAuxAW80EqFZubEZhilRdOlwHg8VzPn2AHk"
 
 # Default Excel folder path and batch size
 DEFAULT_DATA_FOLDER = r"D:\Monthly Data"
-DEFAULT_BATCH_SIZE = 500
+DEFAULT_BATCH_SIZE = 250
 HISTORY_FILE = ".upload_history.json"
 ENV_FILE = ".env"
 ENV_LOCAL_FILE = ".env.local"
@@ -507,6 +507,11 @@ def main():
         help="Supabase Service Role Key or Anon Key",
     )
     parser.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="Overwrite existing records for these dates in Supabase (Default: False, appends new data)",
+    )
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="Parse and validate files without uploading to Supabase",
@@ -602,8 +607,9 @@ def main():
             log(f"    [DRY RUN] Validation successful for '{fname}'. (No database upload)", YELLOW)
             continue
 
-        # Clean existing data for these dates to prevent duplicates
-        if distinct_dates:
+        # Clean existing data only if explicitly requested (--overwrite)
+        if args.overwrite and distinct_dates:
+            log(f"    -> Overwrite mode: cleaning existing rows for dates: {distinct_dates}...", YELLOW)
             delete_existing_dates_in_supabase(sb_url, sb_key, distinct_dates)
 
         # Batch upload
