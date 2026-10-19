@@ -16,7 +16,9 @@ import {
   Sparkles,
   ArrowUpRight,
   ArrowDownRight,
-  Check
+  Check,
+  Layers,
+  Activity
 } from 'lucide-react';
 import { 
   HourlyMetric, 
@@ -106,6 +108,34 @@ const BASELINE_DAY_TREND: TrendPoint[] = [
   { label: 'Oct 12', subLabel: 'Sun', buy_val: 8760, sell_val: 3340, total_val: 12100, buy_tx: 3612, sell_tx: 1462, total_tx: 5074, buy_weight_g: 388, sell_weight_g: 154, net_weight_g: 234, nc: 490 },
 ];
 
+// Smooth cubic Bezier spline path generator for Pinterest-grade curves
+function getSmoothSplinePath(points: { x: number; y: number }[]): string {
+  if (points.length === 0) return '';
+  if (points.length === 1) return `M ${points[0].x.toFixed(1)} ${points[0].y.toFixed(1)}`;
+  let d = `M ${points[0].x.toFixed(1)} ${points[0].y.toFixed(1)}`;
+  for (let i = 0; i < points.length - 1; i++) {
+    const p0 = points[i === 0 ? 0 : i - 1];
+    const p1 = points[i];
+    const p2 = points[i + 1];
+    const p3 = points[i + 2 < points.length ? i + 2 : i + 1];
+    const cp1x = p1.x + (p2.x - p0.x) / 6;
+    const cp1y = p1.y + (p2.y - p0.y) / 6;
+    const cp2x = p2.x - (p3.x - p1.x) / 6;
+    const cp2y = p2.y - (p3.y - p1.y) / 6;
+    d += ` C ${cp1x.toFixed(1)} ${cp1y.toFixed(1)}, ${cp2x.toFixed(1)} ${cp2y.toFixed(1)}, ${p2.x.toFixed(1)} ${p2.y.toFixed(1)}`;
+  }
+  return d;
+}
+
+// Generate closed area polygon under cubic Bezier spline down to baseline
+function getSmoothAreaPath(points: { x: number; y: number }[], baseline: number): string {
+  if (points.length <= 1) return '';
+  const linePath = getSmoothSplinePath(points);
+  const firstX = points[0].x;
+  const lastX = points[points.length - 1].x;
+  return `${linePath} L ${lastX.toFixed(1)} ${baseline.toFixed(1)} L ${firstX.toFixed(1)} ${baseline.toFixed(1)} Z`;
+}
+
 export function DynamicChartsSection({
   hourly,
   banks,
@@ -115,6 +145,9 @@ export function DynamicChartsSection({
 }: DynamicChartsSectionProps) {
   // Chart Global Metric Mode: 'tx' (Transactions) | 'weight' (Gold Grams) | 'amount' (Revenue M LAK)
   const [metricMode, setMetricMode] = useState<'tx' | 'weight' | 'amount'>('tx');
+
+  // Trend Chart Visualization Style: 'stacked' (Power BI Ref 1) | 'spline_waves' (Pinterest Ref 2) | 'clustered' (Combo)
+  const [trendChartStyle, setTrendChartStyle] = useState<'stacked' | 'spline_waves' | 'clustered'>('stacked');
 
   // Trend Chart Granularity State: 'day' | 'week' | 'month'
   const [trendGranularity, setTrendGranularity] = useState<'day' | 'week' | 'month'>('month');
@@ -308,15 +341,26 @@ export function DynamicChartsSection({
   const trendUnitLabel = trendMetric === 'value' ? 'M LAK' : trendMetric === 'tx' ? 'tx' : 'g';
 
   const maxPrimaryVal = useMemo(() => {
-    const vals: number[] = [];
-    activeTrendData.forEach((p) => {
-      if (showBuySeries) vals.push(getTrendPointVal(p, 'buy'));
-      if (showSellSeries) vals.push(getTrendPointVal(p, 'sell'));
-      if (showNetSeries) vals.push(Math.abs(getTrendPointVal(p, 'buy') - getTrendPointVal(p, 'sell')));
-    });
-    const peak = Math.max(...vals, 1);
-    return Math.ceil(peak * 1.15);
-  }, [activeTrendData, trendMetric, showBuySeries, showSellSeries, showNetSeries]);
+    if (trendChartStyle === 'stacked') {
+      const peaks = activeTrendData.map((p) => {
+        let sum = 0;
+        if (showBuySeries) sum += getTrendPointVal(p, 'buy');
+        if (showSellSeries) sum += getTrendPointVal(p, 'sell');
+        return sum;
+      });
+      const peak = Math.max(...peaks, 1);
+      return Math.ceil(peak * 1.15);
+    } else {
+      const vals: number[] = [];
+      activeTrendData.forEach((p) => {
+        if (showBuySeries) vals.push(getTrendPointVal(p, 'buy'));
+        if (showSellSeries) vals.push(getTrendPointVal(p, 'sell'));
+        if (showNetSeries) vals.push(Math.abs(getTrendPointVal(p, 'buy') - getTrendPointVal(p, 'sell')));
+      });
+      const peak = Math.max(...vals, 1);
+      return Math.ceil(peak * 1.15);
+    }
+  }, [activeTrendData, trendMetric, trendChartStyle, showBuySeries, showSellSeries, showNetSeries]);
 
   const maxTxVal = useMemo(() => {
     const peak = Math.max(...activeTrendData.map((p) => p.total_tx), 1);
@@ -347,31 +391,52 @@ export function DynamicChartsSection({
   const nPoints = activeTrendData.length;
   const stepWidth = plotWidth / nPoints;
 
-  // Build SVG Paths for Total Transactions & New Customers (NC)
-  const txLinePath = useMemo(() => {
-    if (!showTxLine) return '';
+  // Pre-calculate geometric coordinates for curves and nodes
+  const buyPoints = useMemo(() => {
     return activeTrendData.map((pt, i) => {
       const cx = marginLeft + (i + 0.5) * stepWidth;
-      const cy = plotBaseline - (pt.total_tx / maxTxVal) * plotHeight;
-      return `${i === 0 ? 'M' : 'L'} ${cx.toFixed(1)} ${cy.toFixed(1)}`;
-    }).join(' ');
-  }, [activeTrendData, showTxLine, stepWidth, plotBaseline, maxTxVal, plotHeight, marginLeft]);
+      const val = getTrendPointVal(pt, 'buy');
+      const cy = maxPrimaryVal > 0 ? plotBaseline - (val / maxPrimaryVal) * plotHeight : plotBaseline;
+      return { x: cx, y: cy };
+    });
+  }, [activeTrendData, marginLeft, stepWidth, maxPrimaryVal, plotBaseline, plotHeight, trendMetric]);
 
-  const txAreaPath = useMemo(() => {
-    if (!showTxLine || !txLinePath) return '';
-    const firstX = marginLeft + 0.5 * stepWidth;
-    const lastX = marginLeft + (nPoints - 0.5) * stepWidth;
-    return `${txLinePath} L ${lastX.toFixed(1)} ${plotBaseline} L ${firstX.toFixed(1)} ${plotBaseline} Z`;
-  }, [txLinePath, showTxLine, marginLeft, stepWidth, nPoints, plotBaseline]);
-
-  const ncLinePath = useMemo(() => {
-    if (!showNcLine) return '';
+  const sellPoints = useMemo(() => {
     return activeTrendData.map((pt, i) => {
       const cx = marginLeft + (i + 0.5) * stepWidth;
-      const cy = plotBaseline - (pt.nc / maxNcVal) * plotHeight;
-      return `${i === 0 ? 'M' : 'L'} ${cx.toFixed(1)} ${cy.toFixed(1)}`;
-    }).join(' ');
-  }, [activeTrendData, showNcLine, stepWidth, plotBaseline, maxNcVal, plotHeight, marginLeft]);
+      const val = getTrendPointVal(pt, 'sell');
+      const cy = maxPrimaryVal > 0 ? plotBaseline - (val / maxPrimaryVal) * plotHeight : plotBaseline;
+      return { x: cx, y: cy };
+    });
+  }, [activeTrendData, marginLeft, stepWidth, maxPrimaryVal, plotBaseline, plotHeight, trendMetric]);
+
+  const txPoints = useMemo(() => {
+    return activeTrendData.map((pt, i) => {
+      const cx = marginLeft + (i + 0.5) * stepWidth;
+      const cy = maxTxVal > 0 ? plotBaseline - (pt.total_tx / maxTxVal) * plotHeight : plotBaseline;
+      return { x: cx, y: cy };
+    });
+  }, [activeTrendData, marginLeft, stepWidth, maxTxVal, plotBaseline, plotHeight]);
+
+  const ncPoints = useMemo(() => {
+    return activeTrendData.map((pt, i) => {
+      const cx = marginLeft + (i + 0.5) * stepWidth;
+      const cy = maxNcVal > 0 ? plotBaseline - (pt.nc / maxNcVal) * plotHeight : plotBaseline;
+      return { x: cx, y: cy };
+    });
+  }, [activeTrendData, marginLeft, stepWidth, maxNcVal, plotBaseline, plotHeight]);
+
+  // Smooth Bezier spline curves and glowing gradient areas
+  const txSplinePath = useMemo(() => showTxLine ? getSmoothSplinePath(txPoints) : '', [txPoints, showTxLine]);
+  const txSplineArea = useMemo(() => showTxLine ? getSmoothAreaPath(txPoints, plotBaseline) : '', [txPoints, showTxLine, plotBaseline]);
+
+  const ncSplinePath = useMemo(() => showNcLine ? getSmoothSplinePath(ncPoints) : '', [ncPoints, showNcLine]);
+
+  const buySplinePath = useMemo(() => showBuySeries ? getSmoothSplinePath(buyPoints) : '', [buyPoints, showBuySeries]);
+  const buySplineArea = useMemo(() => showBuySeries ? getSmoothAreaPath(buyPoints, plotBaseline) : '', [buyPoints, showBuySeries, plotBaseline]);
+
+  const sellSplinePath = useMemo(() => showSellSeries ? getSmoothSplinePath(sellPoints) : '', [sellPoints, showSellSeries]);
+  const sellSplineArea = useMemo(() => showSellSeries ? getSmoothAreaPath(sellPoints, plotBaseline) : '', [sellPoints, showSellSeries, plotBaseline]);
 
   return (
     <div className="space-y-5 mb-6">
@@ -380,28 +445,80 @@ export function DynamicChartsSection({
       {/* ========================================================================= */}
       <div className="bg-white rounded-3xl border border-slate-200 p-4 sm:p-5 shadow-sm">
         {/* Trend Chart Control Header */}
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between pb-3.5 mb-4 border-b border-slate-100 gap-3">
+        <div className="flex flex-col xl:flex-row xl:items-center justify-between pb-3.5 mb-4 border-b border-slate-100 gap-3">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-xl bg-blue-50 text-[#0c4ca3] flex items-center justify-center border border-blue-200">
               <TrendingUp className="w-4 h-4 font-black" />
             </div>
             <div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <h3 className="text-xs sm:text-sm font-black uppercase text-slate-800 tracking-wider flex items-center gap-1.5">
-                  Multi-Period Combo Dynamics (Dual-Axis)
+                  Multi-Period Dynamics (Dual-Axis)
                 </h3>
                 <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
-                  Cluster &amp; Line Combo
+                  {trendChartStyle === 'stacked'
+                    ? 'Stacked & Line (Ref 1)'
+                    : trendChartStyle === 'spline_waves'
+                    ? 'Spline Waves (Ref 2)'
+                    : 'Clustered Combo'}
                 </span>
               </div>
               <p className="text-[11px] text-slate-400 font-medium">
-                Primary Axis: Clustered Turnover &amp; Volume ({trendUnitLabel}) · Secondary Axis: Total Transactions &amp; NC Acquisition Curve
+                {trendChartStyle === 'stacked'
+                  ? `Primary Axis: Stacked Turnover Flow (${trendUnitLabel}) · Secondary Axis: Transactions & Customer Acquisition`
+                  : trendChartStyle === 'spline_waves'
+                  ? `Primary Axis: Fluid Spline Wave Area (${trendUnitLabel}) · Secondary Axis: Volume & Acquisition Waves`
+                  : `Primary Axis: Clustered Turnover & Volume (${trendUnitLabel}) · Secondary Axis: Total Transactions & NC Acquisition`}
               </p>
             </div>
           </div>
 
-          {/* Granularity & Metric Selectors */}
-          <div className="flex flex-wrap items-center gap-2 self-start lg:self-auto">
+          {/* Granularity, Style & Metric Selectors */}
+          <div className="flex flex-wrap items-center gap-2 self-start xl:self-auto">
+            {/* Chart Style Switcher (Stacked Ref 1 vs Spline Waves Ref 2 vs Clustered) */}
+            <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 text-[11px] font-black text-slate-600">
+              <span className="text-[10px] text-slate-400 font-bold px-1.5 uppercase">Style:</span>
+              <button
+                type="button"
+                onClick={() => setTrendChartStyle('stacked')}
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-lg transition-all ${
+                  trendChartStyle === 'stacked'
+                    ? 'bg-[#0c4ca3] text-white shadow-2xs'
+                    : 'hover:text-slate-900 hover:bg-slate-50'
+                }`}
+                title="Stacked Column + Dual-Axis Trend (Pinterest Ref 1)"
+              >
+                <Layers className="w-3.5 h-3.5" />
+                <span>Stacked &amp; Line</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setTrendChartStyle('spline_waves')}
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-lg transition-all ${
+                  trendChartStyle === 'spline_waves'
+                    ? 'bg-[#0c4ca3] text-white shadow-2xs'
+                    : 'hover:text-slate-900 hover:bg-slate-50'
+                }`}
+                title="Smooth Spline Curves & Gradient Glow Waves (Pinterest Ref 2)"
+              >
+                <Activity className="w-3.5 h-3.5" />
+                <span>Spline Waves</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setTrendChartStyle('clustered')}
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-lg transition-all ${
+                  trendChartStyle === 'clustered'
+                    ? 'bg-[#0c4ca3] text-white shadow-2xs'
+                    : 'hover:text-slate-900 hover:bg-slate-50'
+                }`}
+                title="Side-by-side Clustered Bars"
+              >
+                <BarChart3 className="w-3.5 h-3.5" />
+                <span>Clustered</span>
+              </button>
+            </div>
+
             {/* Metric Selector: Value / Tx / Weight */}
             <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 text-[11px] font-black text-slate-600">
               <span className="text-[10px] text-slate-400 font-bold px-1.5 uppercase">Left Axis:</span>
@@ -485,7 +602,7 @@ export function DynamicChartsSection({
           <div className="flex flex-wrap items-center gap-2.5">
             <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Series &amp; Axes:</span>
             
-            {/* Buy Series Legend Toggle (Bar) */}
+            {/* Buy Series Legend Toggle */}
             <button
               type="button"
               onClick={() => setShowBuySeries(!showBuySeries)}
@@ -496,11 +613,17 @@ export function DynamicChartsSection({
               }`}
             >
               <span className="w-2.5 h-2.5 rounded-sm bg-[#0c4ca3]" />
-              <span>Buy Bar (Left):</span>
+              <span>
+                {trendChartStyle === 'stacked'
+                  ? 'Buy Stack (Base):'
+                  : trendChartStyle === 'spline_waves'
+                  ? 'Buy Wave (Sky):'
+                  : 'Buy Bar (Left):'}
+              </span>
               <span className="text-[#0c4ca3]">{totalBuyTrendSum.toLocaleString()} {trendUnitLabel}</span>
             </button>
 
-            {/* Sell Series Legend Toggle (Bar) */}
+            {/* Sell Series Legend Toggle */}
             <button
               type="button"
               onClick={() => setShowSellSeries(!showSellSeries)}
@@ -511,7 +634,13 @@ export function DynamicChartsSection({
               }`}
             >
               <span className="w-2.5 h-2.5 rounded-sm bg-rose-600" />
-              <span>Sell Bar (Left):</span>
+              <span>
+                {trendChartStyle === 'stacked'
+                  ? 'Sell Stack (Top):'
+                  : trendChartStyle === 'spline_waves'
+                  ? 'Sell Wave (Rose):'
+                  : 'Sell Bar (Left):'}
+              </span>
               <span className="text-rose-700">{totalSellTrendSum.toLocaleString()} {trendUnitLabel}</span>
             </button>
 
@@ -526,7 +655,7 @@ export function DynamicChartsSection({
               }`}
             >
               <span className="w-3 h-1 bg-indigo-600 rounded-full" />
-              <span>Total Transactions (Line 2nd):</span>
+              <span>Total Transactions (Curve 2nd):</span>
               <span className="text-indigo-700">{totalTxTrendSum.toLocaleString()} tx</span>
             </button>
 
@@ -541,7 +670,7 @@ export function DynamicChartsSection({
               }`}
             >
               <span className="w-3 h-1 bg-emerald-600 rounded-full" />
-              <span>Total NC (Line 2nd):</span>
+              <span>Total NC (Curve 2nd):</span>
               <span className="text-emerald-700">{totalNcTrendSum.toLocaleString()} NC</span>
             </button>
 
@@ -566,13 +695,13 @@ export function DynamicChartsSection({
         </div>
 
         {/* ========================================================================= */}
-        {/* COMBO CHART VISUAL CANVAS (PRECISION SVG CLUSTER BARS + DUAL-AXIS LINES) */}
+        {/* COMBO CHART VISUAL CANVAS (PRECISION SVG DUAL-AXIS VISUALIZATION)          */}
         {/* ========================================================================= */}
         <div className="relative w-full bg-gradient-to-b from-slate-50/50 to-white rounded-2xl border border-slate-100 p-2 sm:p-3 overflow-hidden">
           {/* Dual Axis Header Badges */}
           <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-wider px-2 mb-1 text-slate-400">
             <span className="flex items-center gap-1 text-[#0c4ca3]">
-              ◀ Left Axis: Clustered Volume ({trendUnitLabel})
+              ◀ Left Axis: {trendChartStyle === 'stacked' ? 'Stacked Flow' : trendChartStyle === 'spline_waves' ? 'Spline Curves' : 'Clustered Volume'} ({trendUnitLabel})
             </span>
             <span className="flex items-center gap-2 text-indigo-700">
               <span className="text-indigo-600 font-extrabold">🟣 Total Tx ({maxTxVal.toLocaleString()} max)</span>
@@ -602,11 +731,23 @@ export function DynamicChartsSection({
                 <stop offset="100%" stopColor="#9f1239" />
               </linearGradient>
 
-              {/* Indigo Tx Area Glow */}
-              <linearGradient id="txAreaGradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#6366f1" stopOpacity="0.22" />
-                <stop offset="85%" stopColor="#818cf8" stopOpacity="0.03" />
-                <stop offset="100%" stopColor="#ffffff" stopOpacity="0" />
+              {/* Spline Wave Soft Gradients (Pinterest Ref 2) */}
+              <linearGradient id="buyWaveGradient" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#0284c7" stopOpacity="0.30" />
+                <stop offset="65%" stopColor="#38bdf8" stopOpacity="0.10" />
+                <stop offset="100%" stopColor="#ffffff" stopOpacity="0.0" />
+              </linearGradient>
+
+              <linearGradient id="sellWaveGradient" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#f43f5e" stopOpacity="0.25" />
+                <stop offset="65%" stopColor="#fda4af" stopOpacity="0.08" />
+                <stop offset="100%" stopColor="#ffffff" stopOpacity="0.0" />
+              </linearGradient>
+
+              <linearGradient id="txWaveGradient" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#6366f1" stopOpacity="0.20" />
+                <stop offset="65%" stopColor="#818cf8" stopOpacity="0.05" />
+                <stop offset="100%" stopColor="#ffffff" stopOpacity="0.0" />
               </linearGradient>
             </defs>
 
@@ -656,136 +797,394 @@ export function DynamicChartsSection({
               );
             })}
 
-            {/* Area Fill for Total Transactions Curve */}
-            {showTxLine && txAreaPath && (
-              <path d={txAreaPath} fill="url(#txAreaGradient)" />
+            {/* Translucent Tx Glow Area for Stacked & Clustered Modes */}
+            {trendChartStyle !== 'spline_waves' && showTxLine && txSplineArea && (
+              <path d={txSplineArea} fill="url(#txWaveGradient)" className="pointer-events-none" />
             )}
 
-            {/* Clustered Columns (Left Axis) */}
-            {activeTrendData.map((pt, i) => {
-              const buyVal = getTrendPointVal(pt, 'buy');
-              const sellVal = getTrendPointVal(pt, 'sell');
-              const cx = marginLeft + (i + 0.5) * stepWidth;
+            {/* ========================================================================= */}
+            {/* OPTION 1: STACKED COLUMN & LINE COMBO (Pinterest Ref 1)                    */}
+            {/* ========================================================================= */}
+            {trendChartStyle === 'stacked' && (
+              activeTrendData.map((pt, i) => {
+                const buyVal = getTrendPointVal(pt, 'buy');
+                const sellVal = getTrendPointVal(pt, 'sell');
+                const totalStackedVal = (showBuySeries ? buyVal : 0) + (showSellSeries ? sellVal : 0);
+                const cx = marginLeft + (i + 0.5) * stepWidth;
+                const colWidth = Math.min(46, stepWidth * 0.44);
+                const xCol = cx - colWidth / 2;
 
-              const clusterWidth = Math.min(52, stepWidth * 0.52);
-              const showBoth = showBuySeries && showSellSeries;
-              const barWidth = showBoth ? Math.max(8, clusterWidth / 2 - 2) : clusterWidth;
+                const hBuy = (maxPrimaryVal > 0 && showBuySeries) ? (buyVal / maxPrimaryVal) * plotHeight : 0;
+                const hSell = (maxPrimaryVal > 0 && showSellSeries) ? (sellVal / maxPrimaryVal) * plotHeight : 0;
 
-              const hBuy = maxPrimaryVal > 0 ? (buyVal / maxPrimaryVal) * plotHeight : 0;
-              const hSell = maxPrimaryVal > 0 ? (sellVal / maxPrimaryVal) * plotHeight : 0;
+                const yBuy = plotBaseline - hBuy;
+                const ySell = yBuy - hSell;
 
-              const xBuy = showBoth ? cx - barWidth - 1.5 : cx - barWidth / 2;
-              const yBuy = plotBaseline - Math.max(4, hBuy);
+                const isHovered = hoveredTrendIndex === i;
+                const peakStackedVal = Math.max(
+                  ...activeTrendData.map((p) => (showBuySeries ? getTrendPointVal(p, 'buy') : 0) + (showSellSeries ? getTrendPointVal(p, 'sell') : 0))
+                );
+                const isPeak = totalStackedVal > 0 && totalStackedVal === peakStackedVal;
 
-              const xSell = showBoth ? cx + 1.5 : cx - barWidth / 2;
-              const ySell = plotBaseline - Math.max(4, hSell);
-
-              const isPeak = buyVal === Math.max(...activeTrendData.map((p) => getTrendPointVal(p, 'buy')));
-              const isHovered = hoveredTrendIndex === i;
-
-              return (
-                <g key={`bar-${i}`}>
-                  {/* Hover Backdrop Highlight */}
-                  <rect
-                    x={marginLeft + i * stepWidth}
-                    y={marginTop}
-                    width={stepWidth}
-                    height={plotHeight}
-                    fill={isHovered ? 'rgba(99, 102, 241, 0.08)' : 'transparent'}
-                    className="cursor-pointer transition-colors"
-                    onMouseEnter={() => setHoveredTrendIndex(i)}
-                    onMouseLeave={() => setHoveredTrendIndex(null)}
-                  />
-
-                  {/* Buy Bar (Cluster Left) */}
-                  {showBuySeries && (
+                return (
+                  <g key={`stacked-col-${i}`}>
+                    {/* Hover Column Backdrop */}
                     <rect
-                      x={xBuy}
-                      y={yBuy}
-                      width={barWidth}
-                      height={Math.max(4, hBuy)}
-                      rx="3.5"
-                      ry="3.5"
-                      fill="url(#buyComboGradient)"
-                      className={`transition-all duration-200 cursor-pointer ${
-                        isHovered ? 'opacity-100 brightness-110 filter drop-shadow-md' : 'opacity-95'
-                      }`}
+                      x={marginLeft + i * stepWidth}
+                      y={marginTop}
+                      width={stepWidth}
+                      height={plotHeight}
+                      fill={isHovered ? 'rgba(99, 102, 241, 0.08)' : 'transparent'}
+                      className="cursor-pointer transition-colors"
                       onMouseEnter={() => setHoveredTrendIndex(i)}
                       onMouseLeave={() => setHoveredTrendIndex(null)}
                     />
-                  )}
 
-                  {/* Sell Bar (Cluster Right) */}
-                  {showSellSeries && (
-                    <rect
-                      x={xSell}
-                      y={ySell}
-                      width={barWidth}
-                      height={Math.max(4, hSell)}
-                      rx="3.5"
-                      ry="3.5"
-                      fill="url(#sellComboGradient)"
-                      className={`transition-all duration-200 cursor-pointer ${
-                        isHovered ? 'opacity-100 brightness-110 filter drop-shadow-md' : 'opacity-90'
-                      }`}
-                      onMouseEnter={() => setHoveredTrendIndex(i)}
-                      onMouseLeave={() => setHoveredTrendIndex(null)}
-                    />
-                  )}
-
-                  {/* Peak Marker Badge */}
-                  {isPeak && (
-                    <g transform={`translate(${cx}, ${Math.min(yBuy, ySell) - 10})`}>
+                    {/* Buy Segment (Bottom of Stack) */}
+                    {showBuySeries && hBuy > 0 && (
                       <rect
-                        x="-18"
-                        y="-10"
-                        width="36"
-                        height="12"
-                        rx="3"
-                        fill="#fef3c7"
-                        stroke="#f59e0b"
-                        strokeWidth="1"
+                        x={xCol}
+                        y={yBuy}
+                        width={colWidth}
+                        height={Math.max(3, hBuy)}
+                        rx={showSellSeries && hSell > 0 ? "0" : "5"}
+                        ry={showSellSeries && hSell > 0 ? "0" : "5"}
+                        fill="url(#buyComboGradient)"
+                        className={`transition-all duration-200 cursor-pointer ${
+                          isHovered ? 'opacity-100 brightness-110 filter drop-shadow-md' : 'opacity-95'
+                        }`}
+                        onMouseEnter={() => setHoveredTrendIndex(i)}
+                        onMouseLeave={() => setHoveredTrendIndex(null)}
                       />
-                      <text
-                        x="0"
-                        y="-1"
-                        textAnchor="middle"
-                        className="text-[8px] font-black fill-amber-800 uppercase tracking-tighter"
-                      >
-                        PEAK
-                      </text>
-                    </g>
-                  )}
+                    )}
 
-                  {/* Period X-Axis Label */}
-                  <text
-                    x={cx}
-                    y={plotBaseline + 16}
-                    textAnchor="middle"
-                    className={`text-[10px] select-none transition-all ${
-                      isHovered ? 'font-black fill-[#0c4ca3]' : 'font-bold fill-slate-600'
-                    }`}
-                  >
-                    {pt.label}
-                  </text>
-                  {pt.subLabel && (
+                    {/* Sell Segment (Top of Stack) */}
+                    {showSellSeries && hSell > 0 && (
+                      <rect
+                        x={xCol}
+                        y={ySell}
+                        width={colWidth}
+                        height={Math.max(3, hSell)}
+                        rx="5"
+                        ry="5"
+                        fill="url(#sellComboGradient)"
+                        className={`transition-all duration-200 cursor-pointer ${
+                          isHovered ? 'opacity-100 brightness-110 filter drop-shadow-md' : 'opacity-90'
+                        }`}
+                        onMouseEnter={() => setHoveredTrendIndex(i)}
+                        onMouseLeave={() => setHoveredTrendIndex(null)}
+                      />
+                    )}
+
+                    {/* Total Value Pill Label on Top of Stack */}
+                    {totalStackedVal > 0 && (
+                      <text
+                        x={cx}
+                        y={Math.min(ySell, yBuy) - 6}
+                        textAnchor="middle"
+                        className={`text-[9px] select-none transition-all ${
+                          isHovered ? 'font-black fill-[#0c4ca3]' : 'font-bold fill-slate-500'
+                        }`}
+                      >
+                        {totalStackedVal >= 1000 ? `${(totalStackedVal / 1000).toFixed(0)}k` : totalStackedVal.toLocaleString()}
+                      </text>
+                    )}
+
+                    {/* Peak Badge */}
+                    {isPeak && (
+                      <g transform={`translate(${cx}, ${Math.min(ySell, yBuy) - 18})`}>
+                        <rect x="-17" y="-8" width="34" height="11" rx="3" fill="#fef3c7" stroke="#f59e0b" strokeWidth="1" />
+                        <text x="0" y="0" textAnchor="middle" className="text-[7.5px] font-black fill-amber-800 uppercase tracking-tighter">
+                          PEAK
+                        </text>
+                      </g>
+                    )}
+
+                    {/* Period X-Axis Label */}
                     <text
                       x={cx}
-                      y={plotBaseline + 28}
+                      y={plotBaseline + 16}
                       textAnchor="middle"
-                      className="text-[8.5px] font-medium fill-slate-400 select-none"
+                      className={`text-[10px] select-none transition-all ${
+                        isHovered ? 'font-black fill-[#0c4ca3]' : 'font-bold fill-slate-600'
+                      }`}
                     >
-                      {pt.subLabel}
+                      {pt.label}
                     </text>
-                  )}
-                </g>
-              );
-            })}
+                    {pt.subLabel && (
+                      <text
+                        x={cx}
+                        y={plotBaseline + 28}
+                        textAnchor="middle"
+                        className="text-[8.5px] font-medium fill-slate-400 select-none"
+                      >
+                        {pt.subLabel}
+                      </text>
+                    )}
+                  </g>
+                );
+              })
+            )}
 
+            {/* ========================================================================= */}
+            {/* OPTION 2: SMOOTH SPLINE AREA WAVES (Pinterest Ref 2)                      */}
+            {/* ========================================================================= */}
+            {trendChartStyle === 'spline_waves' && (
+              <g>
+                {/* Hover Backdrop Columns & Interactive Vertical Guides */}
+                {activeTrendData.map((pt, i) => {
+                  const cx = marginLeft + (i + 0.5) * stepWidth;
+                  const isHovered = hoveredTrendIndex === i;
+
+                  return (
+                    <g key={`spline-backdrop-${i}`}>
+                      <rect
+                        x={marginLeft + i * stepWidth}
+                        y={marginTop}
+                        width={stepWidth}
+                        height={plotHeight}
+                        fill={isHovered ? 'rgba(99, 102, 241, 0.08)' : 'transparent'}
+                        className="cursor-pointer transition-colors"
+                        onMouseEnter={() => setHoveredTrendIndex(i)}
+                        onMouseLeave={() => setHoveredTrendIndex(null)}
+                      />
+                      {isHovered && (
+                        <line
+                          x1={cx}
+                          y1={marginTop}
+                          x2={cx}
+                          y2={plotBaseline}
+                          stroke="#6366f1"
+                          strokeDasharray="3 3"
+                          strokeWidth="1.2"
+                          className="pointer-events-none"
+                        />
+                      )}
+                      {/* Period X-Axis Label */}
+                      <text
+                        x={cx}
+                        y={plotBaseline + 16}
+                        textAnchor="middle"
+                        className={`text-[10px] select-none transition-all ${
+                          isHovered ? 'font-black fill-[#0c4ca3]' : 'font-bold fill-slate-600'
+                        }`}
+                      >
+                        {pt.label}
+                      </text>
+                      {pt.subLabel && (
+                        <text
+                          x={cx}
+                          y={plotBaseline + 28}
+                          textAnchor="middle"
+                          className="text-[8.5px] font-medium fill-slate-400 select-none"
+                        >
+                          {pt.subLabel}
+                        </text>
+                      )}
+                    </g>
+                  );
+                })}
+
+                {/* Translucent Area Fills Under Spline Curves */}
+                {showBuySeries && buySplineArea && (
+                  <path d={buySplineArea} fill="url(#buyWaveGradient)" className="pointer-events-none" />
+                )}
+                {showSellSeries && sellSplineArea && (
+                  <path d={sellSplineArea} fill="url(#sellWaveGradient)" className="pointer-events-none" />
+                )}
+                {showTxLine && txSplineArea && (
+                  <path d={txSplineArea} fill="url(#txWaveGradient)" className="pointer-events-none" />
+                )}
+
+                {/* Smooth Spline Stroke Lines (Pinterest Ref 2) */}
+                {showBuySeries && buySplinePath && (
+                  <path
+                    d={buySplinePath}
+                    fill="none"
+                    stroke="#0284c7"
+                    strokeWidth="3.2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="pointer-events-none filter drop-shadow-sm"
+                  />
+                )}
+                {showSellSeries && sellSplinePath && (
+                  <path
+                    d={sellSplinePath}
+                    fill="none"
+                    stroke="#f43f5e"
+                    strokeWidth="3.0"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="pointer-events-none filter drop-shadow-sm"
+                  />
+                )}
+
+                {/* Circular Nodes for Buy & Sell Curves (Pinterest White-Center Nodes) */}
+                {activeTrendData.map((pt, i) => {
+                  const buyPt = buyPoints[i];
+                  const sellPt = sellPoints[i];
+                  const isHovered = hoveredTrendIndex === i;
+
+                  return (
+                    <g key={`spline-nodes-${i}`} className="pointer-events-none">
+                      {showBuySeries && buyPt && (
+                        <g>
+                          <circle
+                            cx={buyPt.x}
+                            cy={buyPt.y}
+                            r={isHovered ? 6.5 : 4.5}
+                            fill="#ffffff"
+                            stroke="#0284c7"
+                            strokeWidth={isHovered ? 3.2 : 2.5}
+                            className="transition-all"
+                          />
+                          {isHovered && (
+                            <circle cx={buyPt.x} cy={buyPt.y} r="10" fill="none" stroke="#38bdf8" strokeWidth="1.5" strokeOpacity="0.7" />
+                          )}
+                        </g>
+                      )}
+
+                      {showSellSeries && sellPt && (
+                        <g>
+                          <circle
+                            cx={sellPt.x}
+                            cy={sellPt.y}
+                            r={isHovered ? 6.5 : 4.5}
+                            fill="#ffffff"
+                            stroke="#f43f5e"
+                            strokeWidth={isHovered ? 3.2 : 2.5}
+                            className="transition-all"
+                          />
+                          {isHovered && (
+                            <circle cx={sellPt.x} cy={sellPt.y} r="10" fill="none" stroke="#fda4af" strokeWidth="1.5" strokeOpacity="0.7" />
+                          )}
+                        </g>
+                      )}
+                    </g>
+                  );
+                })}
+              </g>
+            )}
+
+            {/* ========================================================================= */}
+            {/* OPTION 3: CLUSTERED COLUMNS (Original Upgraded)                            */}
+            {/* ========================================================================= */}
+            {trendChartStyle === 'clustered' && (
+              activeTrendData.map((pt, i) => {
+                const buyVal = getTrendPointVal(pt, 'buy');
+                const sellVal = getTrendPointVal(pt, 'sell');
+                const cx = marginLeft + (i + 0.5) * stepWidth;
+
+                const clusterWidth = Math.min(52, stepWidth * 0.52);
+                const showBoth = showBuySeries && showSellSeries;
+                const barWidth = showBoth ? Math.max(8, clusterWidth / 2 - 2) : clusterWidth;
+
+                const hBuy = maxPrimaryVal > 0 ? (buyVal / maxPrimaryVal) * plotHeight : 0;
+                const hSell = maxPrimaryVal > 0 ? (sellVal / maxPrimaryVal) * plotHeight : 0;
+
+                const xBuy = showBoth ? cx - barWidth - 1.5 : cx - barWidth / 2;
+                const yBuy = plotBaseline - Math.max(4, hBuy);
+
+                const xSell = showBoth ? cx + 1.5 : cx - barWidth / 2;
+                const ySell = plotBaseline - Math.max(4, hSell);
+
+                const isPeak = buyVal === Math.max(...activeTrendData.map((p) => getTrendPointVal(p, 'buy')));
+                const isHovered = hoveredTrendIndex === i;
+
+                return (
+                  <g key={`bar-${i}`}>
+                    {/* Hover Backdrop Highlight */}
+                    <rect
+                      x={marginLeft + i * stepWidth}
+                      y={marginTop}
+                      width={stepWidth}
+                      height={plotHeight}
+                      fill={isHovered ? 'rgba(99, 102, 241, 0.08)' : 'transparent'}
+                      className="cursor-pointer transition-colors"
+                      onMouseEnter={() => setHoveredTrendIndex(i)}
+                      onMouseLeave={() => setHoveredTrendIndex(null)}
+                    />
+
+                    {/* Buy Bar (Cluster Left) */}
+                    {showBuySeries && (
+                      <rect
+                        x={xBuy}
+                        y={yBuy}
+                        width={barWidth}
+                        height={Math.max(4, hBuy)}
+                        rx="4"
+                        ry="4"
+                        fill="url(#buyComboGradient)"
+                        className={`transition-all duration-200 cursor-pointer ${
+                          isHovered ? 'opacity-100 brightness-110 filter drop-shadow-md' : 'opacity-95'
+                        }`}
+                        onMouseEnter={() => setHoveredTrendIndex(i)}
+                        onMouseLeave={() => setHoveredTrendIndex(null)}
+                      />
+                    )}
+
+                    {/* Sell Bar (Cluster Right) */}
+                    {showSellSeries && (
+                      <rect
+                        x={xSell}
+                        y={ySell}
+                        width={barWidth}
+                        height={Math.max(4, hSell)}
+                        rx="4"
+                        ry="4"
+                        fill="url(#sellComboGradient)"
+                        className={`transition-all duration-200 cursor-pointer ${
+                          isHovered ? 'opacity-100 brightness-110 filter drop-shadow-md' : 'opacity-90'
+                        }`}
+                        onMouseEnter={() => setHoveredTrendIndex(i)}
+                        onMouseLeave={() => setHoveredTrendIndex(null)}
+                      />
+                    )}
+
+                    {/* Peak Marker Badge */}
+                    {isPeak && (
+                      <g transform={`translate(${cx}, ${Math.min(yBuy, ySell) - 10})`}>
+                        <rect x="-18" y="-10" width="36" height="12" rx="3" fill="#fef3c7" stroke="#f59e0b" strokeWidth="1" />
+                        <text x="0" y="-1" textAnchor="middle" className="text-[8px] font-black fill-amber-800 uppercase tracking-tighter">
+                          PEAK
+                        </text>
+                      </g>
+                    )}
+
+                    {/* Period X-Axis Label */}
+                    <text
+                      x={cx}
+                      y={plotBaseline + 16}
+                      textAnchor="middle"
+                      className={`text-[10px] select-none transition-all ${
+                        isHovered ? 'font-black fill-[#0c4ca3]' : 'font-bold fill-slate-600'
+                      }`}
+                    >
+                      {pt.label}
+                    </text>
+                    {pt.subLabel && (
+                      <text
+                        x={cx}
+                        y={plotBaseline + 28}
+                        textAnchor="middle"
+                        className="text-[8.5px] font-medium fill-slate-400 select-none"
+                      >
+                        {pt.subLabel}
+                      </text>
+                    )}
+                  </g>
+                );
+              })
+            )}
+
+            {/* ========================================================================= */}
+            {/* DUAL AXIS OVERLAY TREND CURVES (SMOOTH BEZIER SPLINES ACROSS ALL MODES)   */}
+            {/* ========================================================================= */}
             {/* Line 1: Total Transactions Curve (Right Axis) */}
-            {showTxLine && txLinePath && (
+            {showTxLine && txSplinePath && (
               <path
-                d={txLinePath}
+                d={txSplinePath}
                 fill="none"
                 stroke="#6366f1"
                 strokeWidth="3.2"
@@ -796,9 +1195,9 @@ export function DynamicChartsSection({
             )}
 
             {/* Line 2: New Customers (NC) Curve (Right Axis) */}
-            {showNcLine && ncLinePath && (
+            {showNcLine && ncSplinePath && (
               <path
-                d={ncLinePath}
+                d={ncSplinePath}
                 fill="none"
                 stroke="#10b981"
                 strokeWidth="2.6"
@@ -809,45 +1208,47 @@ export function DynamicChartsSection({
               />
             )}
 
-            {/* Nodes on Total Tx Line and NC Line */}
+            {/* Nodes on Total Tx Curve and NC Curve (Pinterest Solid White Center) */}
             {activeTrendData.map((pt, i) => {
-              const cx = marginLeft + (i + 0.5) * stepWidth;
-              const cyTx = plotBaseline - (pt.total_tx / maxTxVal) * plotHeight;
-              const cyNc = plotBaseline - (pt.nc / maxNcVal) * plotHeight;
+              const txPt = txPoints[i];
+              const ncPt = ncPoints[i];
               const isHovered = hoveredTrendIndex === i;
 
               return (
-                <g key={`nodes-${i}`} className="pointer-events-none">
+                <g key={`trend-nodes-${i}`} className="pointer-events-none">
                   {/* Total Transactions Node */}
-                  {showTxLine && (
+                  {showTxLine && txPt && (
                     <g>
                       <circle
-                        cx={cx}
-                        cy={cyTx}
-                        r={isHovered ? 6 : 4}
+                        cx={txPt.x}
+                        cy={txPt.y}
+                        r={isHovered ? 6.5 : 4.5}
                         fill="#ffffff"
                         stroke="#4f46e5"
-                        strokeWidth={isHovered ? 3 : 2.5}
+                        strokeWidth={isHovered ? 3.2 : 2.5}
                         className="transition-all"
                       />
                       {isHovered && (
-                        <circle cx={cx} cy={cyTx} r="9" fill="none" stroke="#818cf8" strokeWidth="1.5" strokeOpacity="0.6" />
+                        <circle cx={txPt.x} cy={txPt.y} r="10" fill="none" stroke="#818cf8" strokeWidth="1.5" strokeOpacity="0.7" />
                       )}
                     </g>
                   )}
 
                   {/* NC Node */}
-                  {showNcLine && (
+                  {showNcLine && ncPt && (
                     <g>
                       <circle
-                        cx={cx}
-                        cy={cyNc}
-                        r={isHovered ? 5.5 : 3.5}
+                        cx={ncPt.x}
+                        cy={ncPt.y}
+                        r={isHovered ? 6 : 4}
                         fill="#ffffff"
                         stroke="#059669"
-                        strokeWidth={isHovered ? 2.8 : 2}
+                        strokeWidth={isHovered ? 3 : 2.2}
                         className="transition-all"
                       />
+                      {isHovered && (
+                        <circle cx={ncPt.x} cy={ncPt.y} r="9" fill="none" stroke="#34d399" strokeWidth="1.5" strokeOpacity="0.7" />
+                      )}
                     </g>
                   )}
                 </g>
