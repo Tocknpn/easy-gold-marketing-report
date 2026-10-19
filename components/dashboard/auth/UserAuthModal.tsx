@@ -87,10 +87,12 @@ export function UserAuthModal({
   const handleDemoLogin = async (role: 'admin' | 'manager') => {
     setLoading(true);
     const demoEmail = role === 'admin' ? 'director@easygold.la' : 'manager@easygold.la';
-    const res = await signIn(demoEmail, 'demo123456');
+    const res = await signIn(demoEmail, 'EasyGold2026!');
     if (res.user) {
       onAuthChange(res.user);
       onClose();
+    } else if (res.error) {
+      setErrorMsg(res.error);
     }
     setLoading(false);
   };

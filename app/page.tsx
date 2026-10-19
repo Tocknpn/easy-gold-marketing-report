@@ -11,6 +11,7 @@ import { PowerPivotStudio } from '@/components/dashboard/pivot/PowerPivotStudio'
 import { CampaignTrackingView } from '@/components/dashboard/campaign/CampaignTrackingView';
 import { WeeklyHistoricalMatrix } from '@/components/dashboard/weekly/WeeklyHistoricalMatrix';
 import { UserAuthModal } from '@/components/dashboard/auth/UserAuthModal';
+import { CorporateLoginView } from '@/components/dashboard/auth/CorporateLoginView';
 import { AdminUserManagementModal } from '@/components/dashboard/admin/AdminUserManagementModal';
 import { SystemCheckAndValidationModal } from '@/components/dashboard/audit/SystemCheckAndValidationModal';
 import { FreshnessBadge } from '@/components/dashboard/FreshnessBadge';
@@ -56,6 +57,7 @@ export default function DashboardPage() {
 
   // User authentication & Admin management modal state
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
+  const [isAuthChecking, setIsAuthChecking] = useState<boolean>(true);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
   const [isUserManagementModalOpen, setIsUserManagementModalOpen] = useState<boolean>(false);
   const [isValidatorModalOpen, setIsValidatorModalOpen] = useState<boolean>(false);
@@ -158,9 +160,20 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => {
-    getCurrentUser().then(setCurrentUser);
-    fetchMtdData();
-    fetchWeeklySummary();
+    getCurrentUser()
+      .then((user) => {
+        setCurrentUser(user);
+        if (user) {
+          fetchMtdData();
+          fetchWeeklySummary();
+        }
+      })
+      .catch((err) => {
+        console.warn('Failed to verify current user session:', err);
+      })
+      .finally(() => {
+        setIsAuthChecking(false);
+      });
   }, []);
 
   // Sorted list of all weeks available in history (oldest to newest: W14 ... W41)
@@ -317,6 +330,35 @@ export default function DashboardPage() {
     if (sortedHistory.length <= 5) return sortedHistory;
     return sortedHistory.slice(-5);
   }, [sortedHistory]);
+
+  if (isAuthChecking) {
+    return (
+      <div className="min-h-screen bg-[#051329] flex flex-col items-center justify-center text-white select-none">
+        <div className="flex flex-col items-center gap-4">
+          <div className="flex items-baseline gap-1 font-black leading-none">
+            <span className="text-3xl sm:text-4xl text-[#e5a812] tracking-wider font-black">EASY</span>
+            <span className="text-3xl sm:text-4xl text-white tracking-wider font-black">GOLD</span>
+          </div>
+          <div className="flex items-center gap-2 text-xs text-blue-200">
+            <RefreshCw className="w-4 h-4 animate-spin text-[#e5a812]" />
+            <span>Verifying Corporate Security Session...</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!currentUser) {
+    return (
+      <CorporateLoginView
+        onLoginSuccess={(user) => {
+          setCurrentUser(user);
+          fetchMtdData();
+          fetchWeeklySummary();
+        }}
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#f3f5f9] text-slate-900 flex flex-col select-none">
