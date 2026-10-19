@@ -158,17 +158,17 @@ export default {
       }
 
       let payload = {
-        as_of_date: '2026-10-11',
-        display_as_of_date: '11/10/2026',
+        as_of_date: '2026-10-18',
+        display_as_of_date: '18/10/2026',
         current_month_label: "Oct'26",
         current_month_year: 2026,
         current_month_num: 10,
         comparison_month_label: "Sep'26",
         comparison_month_year: 2026,
         comparison_month_num: 9,
-        elapsed_days: 11,
+        elapsed_days: 18,
         total_days_current_month: 31,
-        elapsed_working_days: 8,
+        elapsed_working_days: 13,
         total_working_days_current_month: 22,
         calculation_mode: 'calendar_days',
         metrics: {
@@ -263,7 +263,7 @@ export default {
       if (supabaseUrl && supabaseKey && !supabaseUrl.includes('placeholder')) {
         try {
           const rpcUrl = `${supabaseUrl}/rest/v1/rpc/get_mtd_forecast_report`;
-          const asOfDate = url.searchParams.get('as_of_date') || '2026-10-11';
+          const asOfDate = url.searchParams.get('as_of_date') || '2026-10-18';
           const mode = url.searchParams.get('mode') || 'calendar_days';
           const compMonth = parseInt(url.searchParams.get('comp_month') || '9', 10);
           const compYear = parseInt(url.searchParams.get('comp_year') || '2026', 10);
@@ -319,7 +319,7 @@ export default {
       }
 
       const startDate = url.searchParams.get('start_date') || '2026-10-01';
-      const endDate = url.searchParams.get('end_date') || '2026-10-12';
+      const endDate = url.searchParams.get('end_date') || '2026-10-18';
       const quickPreset = url.searchParams.get('quick_preset') || 'custom';
 
       const supabaseUrl = env.NEXT_PUBLIC_SUPABASE_URL;
@@ -399,8 +399,8 @@ export default {
     // 4. API Route: /api/dashboard/health (Connection, Freshness & Sync Status)
     if (url.pathname === '/api/dashboard/health') {
       const now = new Date();
-      // Freshness: default to 8 minutes ago for recent sync simulation if database cold
-      const defaultSyncTime = new Date(now.getTime() - 8 * 60 * 1000).toISOString();
+      // Freshness: default to now if database cold
+      const defaultSyncTime = now.toISOString();
 
       let lastRefreshed = defaultSyncTime;
       let refreshJob = 'INTRADAY_TODAY';
@@ -474,7 +474,7 @@ export default {
       const dimensionsParam = url.searchParams.get('dimensions') || 'date';
       const dimensions = dimensionsParam.split(',');
       const startDate = url.searchParams.get('start_date') || '2026-10-01';
-      const endDate = url.searchParams.get('end_date') || '2026-10-12';
+      const endDate = url.searchParams.get('end_date') || '2026-10-18';
       const txType = url.searchParams.get('tx_type');
       const branch = url.searchParams.get('branch');
       const bank = url.searchParams.get('bank');

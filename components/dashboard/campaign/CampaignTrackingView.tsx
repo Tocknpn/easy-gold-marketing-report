@@ -10,6 +10,7 @@ import {
   INITIAL_PRESET_CAMPAIGNS 
 } from '@/lib/storage/campaignStorage';
 import { computeCampaignAnalytics } from '@/lib/campaign/campaignEngine';
+import { createClient } from '@/lib/supabase/client';
 import { 
   CampaignCardItem, 
   formatKipShort, 
@@ -97,6 +98,37 @@ export function CampaignTrackingView({
   const [liveDataMap, setLiveDataMap] = useState<Record<string, any>>({});
   const [isExporting, setIsExporting] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [dbLatestDate, setDbLatestDate] = useState<string>('2026-10-18');
+
+  // Dynamically discover true latest data date from Supabase
+  useEffect(() => {
+    async function fetchLatestDate() {
+      try {
+        const supabase = createClient();
+        const { data: latestRows } = await supabase
+          .from('monthly_data')
+          .select('created_at')
+          .order('id', { ascending: false })
+          .limit(50);
+        if (latestRows && latestRows.length > 0) {
+          const dates: string[] = [];
+          for (const row of latestRows) {
+            const raw = String(row.created_at || '').split('T')[0].split(' ')[0];
+            if (raw.includes('-')) {
+              dates.push(raw);
+            }
+          }
+          if (dates.length > 0) {
+            dates.sort().reverse();
+            setDbLatestDate(dates[0]);
+          }
+        }
+      } catch (err) {
+        console.warn('Could not fetch latest monthly_data date:', err);
+      }
+    }
+    fetchLatestDate();
+  }, []);
 
   // Load campaigns from Supabase / localStorage on mount
   const refreshCampaigns = useCallback(async () => {
@@ -246,21 +278,21 @@ export function CampaignTrackingView({
     setIsDetailModalOpen(true);
   };
 
-  // Format date helper: 2026-10-14 -> 14 Oct 2026
+  // Format date helper: 2026-10-18 -> 18 Oct 2026
   const formatDisplayDate = (dStr?: string) => {
-    if (!dStr) return '14 Oct 2026';
-    const parts = dStr.split('-');
+    const target = dStr || dbLatestDate || '2026-10-18';
+    const parts = target.split('-');
     if (parts.length === 3) {
       const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
       const day = parseInt(parts[2], 10);
       const month = months[parseInt(parts[1], 10) - 1] || parts[1];
       return `${day} ${month} ${parts[0]}`;
     }
-    return dStr;
+    return target;
   };
 
   // Latest data date for report
-  const latestDataDate = liveData?.max_db_date || currentTargetCampaign?.data_update_on || '2026-10-14';
+  const latestDataDate = liveData?.max_db_date || dbLatestDate || currentTargetCampaign?.data_update_on || '2026-10-18';
 
   // Export report to CSV
   const handleExportCsv = () => {

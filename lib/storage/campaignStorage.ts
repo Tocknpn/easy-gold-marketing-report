@@ -16,7 +16,7 @@ export const INITIAL_PRESET_CAMPAIGNS: CampaignSetupConfig[] = [
     image_url: 'https://images.unsplash.com/photo-1610375461246-83df859d849d?w=150&auto=format&fit=crop&q=80',
     campaign_date_start: '2026-08-24',
     campaign_date_end: '2026-12-25',
-    data_update_on: '2026-10-14',
+    data_update_on: '2026-10-18',
     auto_sync_max_date: true,
     same_period_backward_start: '2026-07-03',
     same_period_backward_end: '2026-08-23',

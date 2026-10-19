@@ -34,7 +34,7 @@ export function TargetReportView() {
   const [currYear] = useState<number>(2026);
   const [currMonth, setCurrMonth] = useState<number>(10); // Oct
   const [compMonth, setCompMonth] = useState<number>(9);  // Sep
-  const [asOfDay, setAsOfDay] = useState<number>(15);     // Day 15
+  const [asOfDay, setAsOfDay] = useState<number>(18);     // Day 18 (Latest uploaded date)
   const [viewMode, setViewMode] = useState<'combined' | 'tables' | 'visuals'>('combined');
   
   // Targets state (seeded with DEFAULT_2026_TARGETS, updated from API or localStorage)

@@ -4,19 +4,19 @@ import { MtdReportPayload } from '@/lib/types/mtd.types';
 
 export const runtime = 'edge';
 
-// Mockup seed matching exactly the screenshot provided by user
+// Baseline seed matching October 18, 2026
 const DEFAULT_MTD_PAYLOAD: MtdReportPayload = {
-  as_of_date: '2026-10-11',
-  display_as_of_date: '11/10/2026',
+  as_of_date: '2026-10-18',
+  display_as_of_date: '18/10/2026',
   current_month_label: "Oct'26",
   current_month_year: 2026,
   current_month_num: 10,
   comparison_month_label: "Sep'26",
   comparison_month_year: 2026,
   comparison_month_num: 9,
-  elapsed_days: 11,
+  elapsed_days: 18,
   total_days_current_month: 31,
-  elapsed_working_days: 8,
+  elapsed_working_days: 13,
   total_working_days_current_month: 22,
   calculation_mode: 'calendar_days',
   metrics: {
@@ -114,7 +114,7 @@ export async function GET(request: NextRequest) {
 
   try {
     const { searchParams } = new URL(request.url);
-    const asOfDate = searchParams.get('as_of_date') || '2026-10-11';
+    const asOfDate = searchParams.get('as_of_date') || '2026-10-18';
     const compMonthParam = searchParams.get('comp_month'); // e.g. '9'
     const compYearParam = searchParams.get('comp_year'); // e.g. '2026'
     const mode = searchParams.get('mode') || 'calendar_days'; // 'calendar_days' | 'working_days'

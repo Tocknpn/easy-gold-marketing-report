@@ -32,7 +32,7 @@ export function MtdReportView({ initialData, onRefresh, loading = false }: MtdRe
   const [data, setData] = useState<MtdReportPayload>(initialData);
   const [selectedCompMonth, setSelectedCompMonth] = useState<string>(initialData.comparison_month_label);
   const [mode, setMode] = useState<MtdCalculationMode>(initialData.calculation_mode);
-  const [asOfDate, setAsOfDate] = useState<string>(initialData.as_of_date || '2026-10-11');
+  const [asOfDate, setAsOfDate] = useState<string>(initialData.as_of_date || '2026-10-18');
   const [selectedBranch, setSelectedBranch] = useState<string>('all');
   const [selectedBank, setSelectedBank] = useState<string>('all');
   const [forecastScenario, setForecastScenario] = useState<'standard' | 'working_days' | 'conservative' | 'optimistic' | 'payday_surge'>('standard');
@@ -82,7 +82,7 @@ export function MtdReportView({ initialData, onRefresh, loading = false }: MtdRe
   // Apply filters and scale metrics dynamically
   const displayedData = useMemo(() => {
     const parts = asOfDate.split('-');
-    const day = parts.length === 3 ? parseInt(parts[2], 10) : 11;
+    const day = parts.length === 3 ? parseInt(parts[2], 10) : (initialData.elapsed_days || 18);
     const totalDays = 31;
     
     // Scale factor for branch and bank selection
@@ -115,8 +115,8 @@ export function MtdReportView({ initialData, onRefresh, loading = false }: MtdRe
       const mKey = key as keyof typeof updatedMetrics;
       const base = initialData.metrics[mKey];
 
-      // Current MTD scaled by day and filters
-      const dayFactor = day / 11;
+    const baseElapsed = initialData.elapsed_days || 18;
+    const dayFactor = day / baseElapsed;
       const currentMtd = Math.round(base.current_mtd * dayFactor * combinedFilterFactor);
       const compMtd = Math.round(base.comp_mtd * dayFactor * combinedFilterFactor);
       const mtdVar = compMtd > 0 ? Math.round(((currentMtd - compMtd) / compMtd) * 100) : 0;
