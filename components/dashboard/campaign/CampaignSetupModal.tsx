@@ -256,8 +256,13 @@ export function CampaignSetupModal({
 
     setIsSaving(true);
     try {
+      const isUuid = campaignToEdit && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(campaignToEdit.id);
+      const generatedId = typeof crypto !== 'undefined' && crypto.randomUUID 
+        ? crypto.randomUUID() 
+        : `10000000-0000-0000-0000-${Date.now().toString().padStart(12, '0').slice(-12)}`;
+
       const config: CampaignSetupConfig = {
-        id: isDuplicate || !campaignToEdit ? `campaign-${Date.now()}` : campaignToEdit.id,
+        id: isDuplicate || !campaignToEdit ? generatedId : (isUuid ? campaignToEdit.id : generatedId),
         campaign_name: isDuplicate ? `${name.trim()} (Copy)` : name.trim(),
         description: description.trim(),
         category_tag: categoryTag,

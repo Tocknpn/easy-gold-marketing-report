@@ -3,9 +3,17 @@ import { createClient } from '@/lib/supabase/client';
 
 const LOCAL_STORAGE_CAMPAIGNS_KEY = 'easy_gold_saved_campaign_setups_v5';
 
+const LEGACY_ID_MAP: Record<string, string> = {
+  'campaign-buy-500k-mega': '10000000-0000-0000-0000-000000000001',
+  'campaign-buy-2g-sprint': '10000000-0000-0000-0000-000000000002',
+  'campaign-vip-15g-saver': '10000000-0000-0000-0000-000000000003',
+  'campaign-new-user-welcome': '10000000-0000-0000-0000-000000000004',
+  'campaign-ldb-artist-2026': '10000000-0000-0000-0000-000000000005',
+};
+
 export const INITIAL_PRESET_CAMPAIGNS: CampaignSetupConfig[] = [
   {
-    id: 'campaign-buy-500k-mega',
+    id: '10000000-0000-0000-0000-000000000001',
     campaign_name: 'Mega Buy Gold >= 500K Campaign (Excel Image 3)',
     description: 'Long-term volume driver incentivizing transactions of 500,000 LAK and above across all branch counters and app.',
     category_tag: 'Volume Driver',
@@ -25,6 +33,7 @@ export const INITIAL_PRESET_CAMPAIGNS: CampaignSetupConfig[] = [
     condition_value: 500000,
     condition_label: 'Buy trans >= 500k',
     tx_type: 'BUY_GOLD',
+    bank: 'all',
     target_types: ['ec', 'nc', 'revenue', 'weight'],
     ec_target: 307500,
     nc_target: 17220,
@@ -42,7 +51,7 @@ export const INITIAL_PRESET_CAMPAIGNS: CampaignSetupConfig[] = [
     quarter: 'Q4',
   },
   {
-    id: 'campaign-buy-2g-sprint',
+    id: '10000000-0000-0000-0000-000000000002',
     campaign_name: 'Q3 Gold Rush >= 2.0g Sprint (Excel Image 4)',
     description: '11-day high-weight sprint promotion comparing against normal Q3 baseline run rate.',
     category_tag: 'Sprint Promo',
@@ -62,6 +71,7 @@ export const INITIAL_PRESET_CAMPAIGNS: CampaignSetupConfig[] = [
     condition_value: 2.0,
     condition_label: 'Buy trans >= 2g',
     tx_type: 'BUY_GOLD',
+    bank: 'all',
     target_types: ['ec', 'nc'],
     ec_target: 12800,
     nc_target: 1200,
@@ -77,7 +87,7 @@ export const INITIAL_PRESET_CAMPAIGNS: CampaignSetupConfig[] = [
     quarter: 'Q3',
   },
   {
-    id: 'campaign-vip-15g-saver',
+    id: '10000000-0000-0000-0000-000000000003',
     campaign_name: 'VIP Gold Saver >= 15g Retention Promo',
     description: 'Special wealth accumulation incentive for high-tier bullion savers with premium fee discounts.',
     category_tag: 'VIP Retention',
@@ -97,6 +107,7 @@ export const INITIAL_PRESET_CAMPAIGNS: CampaignSetupConfig[] = [
     condition_value: 15.0,
     condition_label: 'Buy trans >= 15g',
     tx_type: 'BUY_GOLD',
+    bank: 'all',
     target_types: ['ec', 'nc', 'revenue'],
     ec_target: 5000,
     nc_target: 450,
@@ -112,7 +123,7 @@ export const INITIAL_PRESET_CAMPAIGNS: CampaignSetupConfig[] = [
     quarter: 'Q4',
   },
   {
-    id: 'campaign-new-user-welcome',
+    id: '10000000-0000-0000-0000-000000000004',
     campaign_name: 'First Gold Step — New Customer Welcome',
     description: 'First-time digital gold buyer onboarding incentive with zero transaction fee on first purchase.',
     category_tag: 'New Acquisition',
@@ -132,6 +143,7 @@ export const INITIAL_PRESET_CAMPAIGNS: CampaignSetupConfig[] = [
     condition_value: 200000,
     condition_label: 'First Buy >= 200k',
     tx_type: 'BUY_GOLD',
+    bank: 'all',
     target_types: ['nc', 'ec'],
     ec_target: 8500,
     nc_target: 5000,
@@ -141,13 +153,12 @@ export const INITIAL_PRESET_CAMPAIGNS: CampaignSetupConfig[] = [
     customers_target: 8500,
     new_cust_actual: 2950,
     new_cust_target: 5000,
-    bank: 'all',
     execution_status_label: '45% Time Gone • New User Hit 59%',
     year: 2026,
     quarter: 'Q4',
   },
   {
-    id: 'campaign-ldb-artist-2026',
+    id: '10000000-0000-0000-0000-000000000005',
     campaign_name: 'LDB Oct',
     description: 'Special promotion for transactions of 100,000 LAK and above across all banks.',
     category_tag: 'Volume Driver',
@@ -289,6 +300,7 @@ export async function loadCampaignSetups(userId?: string): Promise<CampaignSetup
  * Sanitizes campaign setups by clearing accidental 1731 dummy values and zeroing upcoming campaigns
  */
 function sanitizeLoadedCampaign(c: CampaignSetupConfig): CampaignSetupConfig {
+  const resolvedId = LEGACY_ID_MAP[c.id] || c.id;
   const asOfDate = (c.auto_sync_max_date !== false ? '2026-10-18' : c.data_update_on) || '2026-10-18';
   const isUpcoming = new Date(asOfDate).getTime() < new Date(c.campaign_date_start).getTime();
 
@@ -307,6 +319,7 @@ function sanitizeLoadedCampaign(c: CampaignSetupConfig): CampaignSetupConfig {
 
   return {
     ...c,
+    id: resolvedId,
     status: isUpcoming ? 'upcoming' : c.status,
     customers_actual: customersActual,
     new_cust_actual: newCustActual,
@@ -316,8 +329,15 @@ function sanitizeLoadedCampaign(c: CampaignSetupConfig): CampaignSetupConfig {
 export async function saveCampaignSetup(campaign: CampaignSetupConfig, userId?: string): Promise<CampaignSetupConfig> {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 
+  // Ensure valid UUID for PostgreSQL campaign_setups table
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(campaign.id);
+  const targetId = isUuid
+    ? campaign.id
+    : (LEGACY_ID_MAP[campaign.id] || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `10000000-0000-0000-0000-${Date.now().toString().padStart(12, '0').slice(-12)}`));
+
   const toSave: CampaignSetupConfig = {
     ...campaign,
+    id: targetId,
     user_id: userId || campaign.user_id,
   };
 
@@ -350,6 +370,7 @@ export async function saveCampaignSetup(campaign: CampaignSetupConfig, userId?: 
         gold_weight_target_g: toSave.gold_weight_target_g,
         baseline_daily_rr: toSave.baseline_daily_rr,
         status: toSave.status || 'active',
+        sql_script: toSave.sql_script || null,
         updated_at: new Date().toISOString(),
       };
 
@@ -361,6 +382,8 @@ export async function saveCampaignSetup(campaign: CampaignSetupConfig, userId?: 
 
       if (!error && data) {
         toSave.id = data.id;
+      } else if (error) {
+        console.error('Supabase campaign upsert error:', error);
       }
     } catch (err) {
       console.warn('Could not upsert campaign in Supabase:', err);
@@ -370,7 +393,7 @@ export async function saveCampaignSetup(campaign: CampaignSetupConfig, userId?: 
   // Update local storage
   if (typeof window !== 'undefined') {
     const existing = await loadCampaignSetups(userId);
-    const index = existing.findIndex((c) => c.id === toSave.id);
+    const index = existing.findIndex((c) => c.id === toSave.id || c.id === campaign.id);
     let updated: CampaignSetupConfig[];
     if (index >= 0) {
       updated = [...existing];

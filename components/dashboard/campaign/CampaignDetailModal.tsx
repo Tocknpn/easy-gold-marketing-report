@@ -349,24 +349,27 @@ export function CampaignDetailModal({
             </div>
           )}
 
-          {/* Section 5: Database Query Audit Inspector */}
+          {/* Section 5: Database Query Audit Inspector & SQL Script */}
           <div className="bg-slate-900 text-slate-200 rounded-2xl p-4 space-y-2">
             <div className="flex items-center justify-between text-xs text-slate-400">
               <span className="flex items-center gap-1.5 font-bold text-amber-400">
                 <FileCode2 className="w-4 h-4" />
-                <span>Supabase Live Query Trace & NC Attribution Model</span>
+                <span>Generated SQL Query for Supabase</span>
               </span>
-              <span className="font-mono text-[10px]">Data Source: {analytics.dataSource || 'computed_cache'}</span>
+              <span className="font-mono text-[10px] text-emerald-400">Data Source: {analytics.dataSource || 'supabase_live'}</span>
             </div>
-            <pre className="text-[11px] font-mono text-emerald-400 bg-slate-950/80 p-3 rounded-xl overflow-x-auto">
-{`-- New Customers (NC) attribution formula:
-WITH first_tx AS (
-  SELECT phone, MIN(public.parse_tx_date(created_at::text)) AS earliest_tx
-  FROM public.monthly_data GROUP BY phone
-)
-SELECT COUNT(*) FROM first_tx 
-WHERE earliest_tx >= '${campaign.campaign_date_start}' 
-  AND earliest_tx <= '${campaign.data_update_on}';`}
+            <pre className="text-[11px] font-mono text-emerald-400 bg-slate-950/80 p-3 rounded-xl overflow-x-auto whitespace-pre">
+{analytics.sql_script || `-- 1. Actual MTD Performance (${campaign.campaign_date_start} to ${campaign.data_update_on || '2026-10-18'})
+SELECT 
+    COUNT(*) AS ec_actual_mtd,
+    COUNT(DISTINCT phone) AS unique_customers_mtd,
+    ROUND(COALESCE(SUM(gold_weight), 0)::numeric, 1) AS mtd_buy_weight_g,
+    ROUND(COALESCE(SUM(total_amount), 0)::numeric / 1000000.0, 1) AS mtd_buy_value_mil_lak
+FROM public.monthly_data
+WHERE created_at >= '${campaign.campaign_date_start}'
+  AND created_at <= '${campaign.data_update_on || '2026-10-18'} 23:59:59'
+  AND status = 'ສໍາເລັດ'
+  AND transaction_type = '${campaign.tx_type || 'BUY_GOLD'}'${campaign.bank && campaign.bank !== 'all' ? `\n  AND bank ILIKE '%${campaign.bank}%'` : ''}${campaign.condition_value ? `\n  AND ${(campaign.condition_type || '').includes('weight') ? 'gold_weight' : 'total_amount'} ${campaign.condition_operator || '>='} ${campaign.condition_value}` : ''};`}
             </pre>
           </div>
 

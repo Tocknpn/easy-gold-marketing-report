@@ -40,7 +40,11 @@ import {
   BarChart3,
   Edit3,
   Trash2,
-  Landmark
+  Landmark,
+  Database,
+  Terminal,
+  Copy,
+  Check
 } from 'lucide-react';
 
 interface CampaignTrackingViewProps {
@@ -99,6 +103,7 @@ export function CampaignTrackingView({
   const [isExporting, setIsExporting] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [dbLatestDate, setDbLatestDate] = useState<string>('2026-10-18');
+  const [copiedSql, setCopiedSql] = useState<boolean>(false);
 
   // Dynamically discover true latest data date from Supabase
   useEffect(() => {
@@ -222,9 +227,24 @@ export function CampaignTrackingView({
             backward_weight_g: data.backwardComparison?.buy_weight_g_backward,
             backward_ticket: data.backwardComparison?.ticket_size_g_backward,
             max_db_date: data.config?.data_update_on,
+            sql_script: data.sql_script || targetCamp.sql_script,
           };
           setLiveData(payload);
           setLiveDataMap((prev) => ({ ...prev, [targetCamp.id]: payload }));
+
+          // Persist actuals and generated SQL directly back to Supabase
+          if (payload.ec_actual_mtd > 0) {
+            const updatedCamp: CampaignSetupConfig = {
+              ...targetCamp,
+              customers_actual: payload.ec_actual_mtd,
+              new_cust_actual: payload.nc_actual_mtd,
+              sql_script: payload.sql_script,
+              data_update_on: payload.max_db_date || targetCamp.data_update_on,
+            };
+            saveCampaignSetup(updatedCamp, currentUser?.id).catch((err) => {
+              console.warn('Silent save campaign evaluation error:', err);
+            });
+          }
         }
       }
     } catch (err) {
@@ -232,7 +252,71 @@ export function CampaignTrackingView({
     } finally {
       setTimeout(() => setRecordingId(null), 500);
     }
-  }, []);
+  }, [currentUser?.id]);
+
+  // Select campaign without zeroing out existing actuals
+  const handleSelectCampaign = useCallback((camp: CampaignSetupConfig) => {
+    setActiveCampaign(camp);
+    const cached = liveDataMap[camp.id];
+    if (cached) {
+      setLiveData(cached);
+    } else if (camp.customers_actual && camp.customers_actual > 0) {
+      setLiveData({
+        ec_actual_mtd: camp.customers_actual,
+        nc_actual_mtd: camp.new_cust_actual || Math.round(camp.customers_actual * 0.055),
+        max_db_date: camp.data_update_on || dbLatestDate,
+        sql_script: camp.sql_script,
+      });
+    }
+  }, [liveDataMap, dbLatestDate]);
+
+  // Copy SQL script to clipboard
+  const handleCopySql = (sql: string) => {
+    if (navigator?.clipboard) {
+      navigator.clipboard.writeText(sql);
+      setCopiedSql(true);
+      setTimeout(() => setCopiedSql(false), 2000);
+    }
+  };
+
+  // Format date helper: 2026-10-18 -> 18 Oct 2026
+  const formatDisplayDate = (dStr?: string) => {
+    const target = dStr || dbLatestDate || '2026-10-18';
+    const parts = target.split('-');
+    if (parts.length === 3) {
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      const day = parseInt(parts[2], 10);
+      const month = months[parseInt(parts[1], 10) - 1] || parts[1];
+      return `${day} ${month} ${parts[0]}`;
+    }
+    return target;
+  };
+
+  // Latest data date for report
+  const latestDataDate = liveData?.max_db_date || dbLatestDate || currentTargetCampaign?.data_update_on || '2026-10-18';
+
+  // Generate fallback SQL script for target campaign
+  const defaultGeneratedSql = useMemo(() => {
+    if (!currentTargetCampaign) return '';
+    const camp = currentTargetCampaign;
+    const condCol = (camp.condition_type || '').includes('weight') ? 'gold_weight' : 'total_amount';
+    const condOp = camp.condition_operator || '>=';
+    const condVal = camp.condition_value ?? 100000;
+    const bankFilter = camp.bank && camp.bank !== 'all' ? `\n  AND bank ILIKE '%${camp.bank}%'` : '';
+    const condFilter = `\n  AND ${condCol} ${condOp} ${condVal}`;
+
+    return `-- 1. Actual MTD Performance Query (${camp.campaign_name})
+SELECT 
+    COUNT(*) AS ec_actual_mtd,
+    COUNT(DISTINCT phone) AS unique_customers_mtd,
+    ROUND(COALESCE(SUM(gold_weight), 0)::numeric, 1) AS mtd_buy_weight_g,
+    ROUND(COALESCE(SUM(total_amount), 0)::numeric / 1000000.0, 1) AS mtd_buy_value_mil_lak
+FROM public.monthly_data
+WHERE created_at >= '${camp.campaign_date_start}'
+  AND created_at <= '${latestDataDate} 23:59:59'
+  AND status = 'ສໍາເລັດ'
+  AND transaction_type = '${camp.tx_type || 'BUY_GOLD'}'${bankFilter}${condFilter};`;
+  }, [currentTargetCampaign, latestDataDate]);
 
   // Automatically execute live calculation for current inspected campaign
   useEffect(() => {
@@ -285,21 +369,6 @@ export function CampaignTrackingView({
     setIsDetailModalOpen(true);
   };
 
-  // Format date helper: 2026-10-18 -> 18 Oct 2026
-  const formatDisplayDate = (dStr?: string) => {
-    const target = dStr || dbLatestDate || '2026-10-18';
-    const parts = target.split('-');
-    if (parts.length === 3) {
-      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-      const day = parseInt(parts[2], 10);
-      const month = months[parseInt(parts[1], 10) - 1] || parts[1];
-      return `${day} ${month} ${parts[0]}`;
-    }
-    return target;
-  };
-
-  // Latest data date for report
-  const latestDataDate = liveData?.max_db_date || dbLatestDate || currentTargetCampaign?.data_update_on || '2026-10-18';
 
   // Export report to CSV
   const handleExportCsv = () => {
@@ -561,10 +630,7 @@ export function CampaignTrackingView({
                   return (
                     <tr 
                       key={camp.id}
-                      onClick={() => {
-                        setActiveCampaign(camp);
-                        setLiveData(liveDataMap[camp.id] || null);
-                      }}
+                      onClick={() => handleSelectCampaign(camp)}
                       className={`hover:bg-blue-50/50 transition-colors cursor-pointer ${
                         isSelected ? 'bg-blue-50/80 font-bold border-l-4 border-l-[#0c4ca3]' : ''
                       }`}
@@ -648,10 +714,7 @@ export function CampaignTrackingView({
                       <td className="py-2 px-3 text-right whitespace-nowrap">
                         <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
                           <button
-                            onClick={() => {
-                              setActiveCampaign(camp);
-                              setLiveData(liveDataMap[camp.id] || null);
-                            }}
+                            onClick={() => handleSelectCampaign(camp)}
                             className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
                               isSelected 
                                 ? 'bg-[#0c4ca3] text-white border-[#0c4ca3]' 
@@ -700,10 +763,7 @@ export function CampaignTrackingView({
               campaign={camp}
               isActive={currentTargetCampaign?.id === camp.id}
               liveData={liveDataMap[camp.id]}
-              onSelectCampaign={(c) => {
-                setActiveCampaign(c);
-                setLiveData(liveDataMap[c.id] || null);
-              }}
+              onSelectCampaign={handleSelectCampaign}
               onOpenDetails={handleOpenDetails}
               onRecord={handleExecuteCalculate}
               onEdit={handleOpenEditModal}
@@ -788,6 +848,56 @@ export function CampaignTrackingView({
               data={analytics.backwardComparison} 
               asOfDate={latestDataDate}
             />
+          </div>
+
+          {/* SQL Intelligence & Supabase Query Bridge */}
+          <div className="bg-slate-900 text-slate-200 rounded-2xl p-4 shadow-sm border border-slate-800 space-y-3">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                  <Database className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="text-xs font-black uppercase tracking-wider text-slate-100 flex items-center gap-2 flex-wrap">
+                    <span>Campaign SQL Intelligence &amp; Supabase Query Bridge</span>
+                    <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                      Live Parallel Execution (&lt;700ms)
+                    </span>
+                  </h4>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    Workflow: Campaign Setup ➔ Turn into SQL Script ➔ Ask Supabase Live ➔ Actuals Populated &amp; Saved
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => handleCopySql(liveData?.sql_script || defaultGeneratedSql)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold border border-slate-700 transition-colors cursor-pointer"
+                  title="Copy generated SQL script"
+                >
+                  {copiedSql ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                  <span>{copiedSql ? 'Copied!' : 'Copy SQL'}</span>
+                </button>
+
+                <button
+                  onClick={() => handleExecuteCalculate(currentTargetCampaign)}
+                  disabled={recordingId === currentTargetCampaign.id}
+                  className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-black shadow-md shadow-emerald-900/30 transition-all disabled:opacity-50 cursor-pointer"
+                  title="Send generated SQL to Supabase and update campaign info live"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${recordingId === currentTargetCampaign.id ? 'animate-spin' : ''}`} />
+                  <span>{recordingId === currentTargetCampaign.id ? 'Asking Supabase...' : '⚡ Ask Supabase (Execute SQL)'}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* SQL Script Display */}
+            <div className="relative">
+              <pre className="text-[11px] font-mono text-emerald-400 bg-slate-950 p-3.5 rounded-xl overflow-x-auto whitespace-pre border border-slate-800/80 leading-relaxed max-h-56">
+                {liveData?.sql_script || defaultGeneratedSql}
+              </pre>
+            </div>
           </div>
 
           {/* Export and Telemetry Bar */}

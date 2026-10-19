@@ -53,6 +53,7 @@ export interface CampaignSetupConfig {
   execution_status_label?: string;    // '100% Plan Execution (Auto-Default)' | 'Plan Pending (No Targets Set)'
   year?: number;                      // 2026
   quarter?: string;                   // 'Q1' | 'Q2' | 'Q3' | 'Q4'
+  sql_script?: string;                // Generated SQL statement to run against Supabase
 }
 
 export interface CampaignTargetAchievementPayload {
@@ -143,4 +144,5 @@ export interface CampaignAnalyticsPayload {
   backwardComparison: CampaignBackwardComparisonPayload;
   dataSource?: 'supabase_live' | 'computed_cache';
   evaluated_at?: string;
+  sql_script?: string;
 }
