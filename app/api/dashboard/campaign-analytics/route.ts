@@ -275,41 +275,39 @@ WHERE created_at >= '${backwardWindow.start}'
       }
     }
 
-    // Exact NC Query (OPEN_ACCOUNT in period)
+    // Exact NC Query (OPEN_ACCOUNT in period, user registrations only without status/condition filter)
     let exactNc = Number(liveAgg?.mtd_new_customers) || 0;
     let exactBwdNc = Number(liveAgg?.backward_new_customers) || 0;
-    try {
-      let ncQuery = supabase
-        .from('monthly_data')
-        .select('*', { count: 'exact', head: true })
-        .gte('created_at', config.campaign_date_start)
-        .lte('created_at', `${asOfDate} 23:59:59`)
-        .in('status', ['ສໍາເລັດ', 'ສຳເລັດ'])
-        .eq('transaction_type', 'OPEN_ACCOUNT');
+    if (!exactNc || !exactBwdNc) {
+      try {
+        let ncQuery = supabase
+          .from('monthly_data')
+          .select('*', { count: 'exact', head: true })
+          .gte('created_at', config.campaign_date_start)
+          .lte('created_at', `${asOfDate} 23:59:59`)
+          .eq('transaction_type', 'OPEN_ACCOUNT');
 
-      let bwdNcQuery = supabase
-        .from('monthly_data')
-        .select('*', { count: 'exact', head: true })
-        .gte('created_at', backwardWindow.start)
-        .lte('created_at', `${backwardWindow.end} 23:59:59`)
-        .in('status', ['ສໍາເລັດ', 'ສຳເລັດ'])
-        .eq('transaction_type', 'OPEN_ACCOUNT');
+        let bwdNcQuery = supabase
+          .from('monthly_data')
+          .select('*', { count: 'exact', head: true })
+          .gte('created_at', backwardWindow.start)
+          .lte('created_at', `${backwardWindow.end} 23:59:59`)
+          .eq('transaction_type', 'OPEN_ACCOUNT');
 
+        const [ncRes, bwdNcRes] = await Promise.all([
+          (!isUpcoming && !exactNc) ? ncQuery : Promise.resolve({ count: null }),
+          !exactBwdNc ? bwdNcQuery : Promise.resolve({ count: null }),
+        ]);
 
-
-      const [ncRes, bwdNcRes] = await Promise.all([
-        !isUpcoming ? ncQuery : Promise.resolve({ count: 0 }),
-        bwdNcQuery,
-      ]);
-
-      if (ncRes && ncRes.count !== null && ncRes.count !== undefined) {
-        exactNc = ncRes.count;
+        if (ncRes && ncRes.count !== null && ncRes.count !== undefined && ncRes.count > 0) {
+          exactNc = ncRes.count;
+        }
+        if (bwdNcRes && bwdNcRes.count !== null && bwdNcRes.count !== undefined && bwdNcRes.count > 0) {
+          exactBwdNc = bwdNcRes.count;
+        }
+      } catch (e) {
+        console.warn('Exact NC query error:', e);
       }
-      if (bwdNcRes && bwdNcRes.count !== null && bwdNcRes.count !== undefined) {
-        exactBwdNc = bwdNcRes.count;
-      }
-    } catch (e) {
-      console.warn('Exact NC query error:', e);
     }
 
     // Pass live aggregation results (if any) to analytics engine

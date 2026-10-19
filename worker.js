@@ -576,40 +576,40 @@ WHERE created_at >= '${bwdStart}'
             }
           }
 
-          // Exact New Customer Query (OPEN_ACCOUNT in period)
-          try {
-            const fetchHeaders = {
-              apikey: supabaseKey,
-              Authorization: `Bearer ${supabaseKey}`,
-              'Range-Unit': 'items',
-              Prefer: 'count=exact',
-            };
-            let ncUrl = `${supabaseUrl}/rest/v1/monthly_data?select=id&transaction_type=eq.OPEN_ACCOUNT&status=in.(%E0%BA%AA%E0%BA%B3%E0%BA%A5%E0%BA%B1%E0%BA%94,%E0%BA%AA%E0%BA%B1%E0%BA%9A%E0%BA%A5%E0%BA%B1%E0%BA%94)&created_at=gte.${startDate}&created_at=lte.${asOfDate}%2023:59:59&limit=1`;
-            let bwdNcUrl = `${supabaseUrl}/rest/v1/monthly_data?select=id&transaction_type=eq.OPEN_ACCOUNT&status=in.(%E0%BA%AA%E0%BA%B3%E0%BA%A5%E0%BA%B1%E0%BA%94,%E0%BA%AA%E0%BA%B1%E0%BA%9A%E0%BA%A5%E0%BA%B1%E0%BA%94)&created_at=gte.${bwdStart}&created_at=lte.${bwdEnd}%2023:59:59&limit=1`;
+          // Fallback New Customer Query (OPEN_ACCOUNT in period, pure registration count)
+          if (!mtdNc || !bwdNc) {
+            try {
+              const fetchHeaders = {
+                apikey: supabaseKey,
+                Authorization: `Bearer ${supabaseKey}`,
+                'Range-Unit': 'items',
+                Prefer: 'count=exact',
+              };
+              let ncUrl = `${supabaseUrl}/rest/v1/monthly_data?select=id&transaction_type=eq.OPEN_ACCOUNT&created_at=gte.${startDate}&created_at=lte.${asOfDate}%2023:59:59&limit=1`;
+              let bwdNcUrl = `${supabaseUrl}/rest/v1/monthly_data?select=id&transaction_type=eq.OPEN_ACCOUNT&created_at=gte.${bwdStart}&created_at=lte.${bwdEnd}%2023:59:59&limit=1`;
 
+              const [ncRes, bwdNcRes] = await Promise.all([
+                (!isUpcoming && !mtdNc) ? fetch(ncUrl, { headers: fetchHeaders }) : Promise.resolve(null),
+                !bwdNc ? fetch(bwdNcUrl, { headers: fetchHeaders }) : Promise.resolve(null),
+              ]);
 
-
-            const [ncRes, bwdNcRes] = await Promise.all([
-              !isUpcoming ? fetch(ncUrl, { headers: fetchHeaders }) : Promise.resolve(null),
-              fetch(bwdNcUrl, { headers: fetchHeaders }),
-            ]);
-
-            if (ncRes && ncRes.ok) {
-              const cr = ncRes.headers.get('Content-Range');
-              if (cr && cr.includes('/')) {
-                const count = parseInt(cr.split('/')[1], 10);
-                if (!isNaN(count)) mtdNc = count;
+              if (ncRes && ncRes.ok) {
+                const cr = ncRes.headers.get('Content-Range');
+                if (cr && cr.includes('/')) {
+                  const count = parseInt(cr.split('/')[1], 10);
+                  if (!isNaN(count) && count > 0) mtdNc = count;
+                }
               }
-            }
-            if (bwdNcRes && bwdNcRes.ok) {
-              const cr = bwdNcRes.headers.get('Content-Range');
-              if (cr && cr.includes('/')) {
-                const count = parseInt(cr.split('/')[1], 10);
-                if (!isNaN(count)) bwdNc = count;
+              if (bwdNcRes && bwdNcRes.ok) {
+                const cr = bwdNcRes.headers.get('Content-Range');
+                if (cr && cr.includes('/')) {
+                  const count = parseInt(cr.split('/')[1], 10);
+                  if (!isNaN(count) && count > 0) bwdNc = count;
+                }
               }
+            } catch (ncErr) {
+              console.warn('Worker NC query fallback warning:', ncErr);
             }
-          } catch (ncErr) {
-            console.warn('Worker NC query fallback warning:', ncErr);
           }
         } catch (err) {
           queryCatchErr = err.message || String(err);

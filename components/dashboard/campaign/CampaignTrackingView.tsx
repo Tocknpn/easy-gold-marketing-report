@@ -275,23 +275,29 @@ export function CampaignTrackingView({
             p_bank: targetCamp.bank || 'all',
           });
 
-          // Exact NC Query (OPEN_ACCOUNT in period)
-          let ncQuery = supabase
-            .from('monthly_data')
-            .select('*', { count: 'exact', head: true })
-            .gte('created_at', targetCamp.campaign_date_start)
-            .lte('created_at', `${asOf} 23:59:59`)
-            .in('status', ['ສໍາເລັດ', 'ສຳເລັດ'])
-            .eq('transaction_type', 'OPEN_ACCOUNT');
-
-
-
-          const { count: ncCount } = await ncQuery;
+          // Exact NC Query (OPEN_ACCOUNT in period, pure registrations)
+          let ncCount: number | null = null;
+          if (!rpcData?.mtd_new_customers) {
+            try {
+              const { count } = await supabase
+                .from('monthly_data')
+                .select('*', { count: 'exact', head: true })
+                .gte('created_at', targetCamp.campaign_date_start)
+                .lte('created_at', `${asOf} 23:59:59`)
+                .eq('transaction_type', 'OPEN_ACCOUNT');
+              ncCount = count;
+            } catch (err) {
+              console.warn('NC count direct error:', err);
+            }
+          }
 
           if (rpcData && rpcData.mtd_transac !== undefined) {
+            const finalNc = Number(rpcData.mtd_new_customers) > 0 
+              ? Number(rpcData.mtd_new_customers) 
+              : ((ncCount !== null && ncCount !== undefined && ncCount > 0) ? ncCount : 0);
             payload = {
               ec_actual_mtd: Number(rpcData.mtd_transac) || 0,
-              nc_actual_mtd: (ncCount !== null && ncCount !== undefined) ? ncCount : (Number(rpcData.mtd_new_customers) || 0),
+              nc_actual_mtd: finalNc,
               mtd_buy_weight_g: Number(rpcData.mtd_gold_weight_g) || 0,
               mtd_buy_value_mil_lak: Number(rpcData.mtd_revenue_mil_lak) || 0,
               backward_trans: Number(rpcData.backward_transac) || 0,
