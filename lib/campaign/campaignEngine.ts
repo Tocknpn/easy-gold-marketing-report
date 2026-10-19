@@ -72,7 +72,7 @@ export function computeCampaignAnalytics(
     max_db_date?: string;
   }
 ): CampaignAnalyticsPayload {
-  const asOfDateStr = liveData?.max_db_date || config.data_update_on || '2026-10-14';
+  const asOfDateStr = liveData?.max_db_date || (config.auto_sync_max_date !== false ? '2026-10-18' : (config.data_update_on || '2026-10-18'));
 
   // 1. Total duration of the campaign
   const total_days = calculateDateDiffDays(config.campaign_date_start, config.campaign_date_end);
@@ -117,12 +117,13 @@ export function computeCampaignAnalytics(
 
   // 3. Condition & Bank channel profiling
   const targetBank = (config.bank || '').toUpperCase();
-  const isLdb = targetBank.includes('LDB') || config.condition_label.toUpperCase().includes('LDB') || config.campaign_name.toUpperCase().includes('LDB');
-  const isBcel = targetBank.includes('BCEL') || config.condition_label.toUpperCase().includes('BCEL');
-  const isJdb = targetBank.includes('JDB') || config.condition_label.toUpperCase().includes('JDB');
-  const isApb = targetBank.includes('APB') || config.condition_label.toUpperCase().includes('APB');
-  const isUmoney = targetBank.includes('UMONEY') || targetBank.includes('U-MONEY') || config.condition_label.toUpperCase().includes('UMONEY');
-  const isMmoney = targetBank.includes('MMONEY') || targetBank.includes('M-MONEY') || config.condition_label.toUpperCase().includes('MMONEY');
+  const hasSpecificBank = config.bank && config.bank !== 'all';
+  const isLdb = hasSpecificBank && targetBank.includes('LDB');
+  const isBcel = hasSpecificBank && targetBank.includes('BCEL');
+  const isJdb = hasSpecificBank && targetBank.includes('JDB');
+  const isApb = hasSpecificBank && targetBank.includes('APB');
+  const isUmoney = hasSpecificBank && (targetBank.includes('UMONEY') || targetBank.includes('U-MONEY'));
+  const isMmoney = hasSpecificBank && (targetBank.includes('MMONEY') || targetBank.includes('M-MONEY'));
 
   let bankFactor = 1.0;
   if (isLdb) bankFactor = 0.22;

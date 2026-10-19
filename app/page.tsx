@@ -74,7 +74,7 @@ export default function DashboardPage() {
   // Weekly data state initialized with default data
   const [weeklyData, setWeeklyData] = useState<ExecutiveDashboardData>(DEFAULT_WEEKLY_FALLBACK_DATA);
   const [weeklyLoading, setWeeklyLoading] = useState(false);
-  const [selectedWeekLabel, setSelectedWeekLabel] = useState<string>('W42');
+  const [selectedWeekLabel, setSelectedWeekLabel] = useState<string>('W43');
   const [isProratedWoW, setIsProratedWoW] = useState<boolean>(false);
   const [densityMode, setDensityMode] = useState<'comfortable' | 'compact'>('comfortable');
 
@@ -180,26 +180,26 @@ export default function DashboardPage() {
     const previousWeek: WeeklyMetricRow | undefined =
       activeIndex > 0 ? history[activeIndex - 1] : undefined;
 
-    // Detect if current selected week is partial in-progress week (W42)
-    const isPartial = rawWeek.week_label === 'W42';
+    // Detect if current selected week is partial in-progress week (W43)
+    const isPartial = rawWeek.week_label === 'W43';
 
     const rawBuyVal = rawWeek.buy_value_mil_lak ?? Math.round(Number(rawWeek.buy_weight_15g) * 15 * 3.14);
     const rawSellVal = rawWeek.sell_value_mil_lak ?? Math.round(Number(rawWeek.sell_weight_15g) * 15 * 3.14);
 
-    // Prorated 7-day run-rate (assuming 1 day elapsed in W42 for normalized comparison)
+    // Prorated 7-day run-rate (1 day elapsed in W43: divide by 1 and multiply by 7 for standard week)
     const currentWeek: WeeklyMetricRow = (isProratedWoW && isPartial)
       ? {
           ...rawWeek,
-          all_transactions: Math.round(rawWeek.all_transactions * 7),
-          active_users: Math.round(rawWeek.active_users * 3.5),
-          new_registers: Math.round(rawWeek.new_registers * 7),
-          withdraw_gold_grams: Number((Number(rawWeek.withdraw_gold_grams) * 7).toFixed(2)),
-          buy_weight_15g: Math.round(Number(rawWeek.buy_weight_15g) * 7),
-          buy_transactions: Math.round(rawWeek.buy_transactions * 7),
-          buy_value_mil_lak: Math.round(rawBuyVal * 7),
-          sell_weight_15g: Math.round(Number(rawWeek.sell_weight_15g) * 7),
-          sell_transactions: Math.round(rawWeek.sell_transactions * 7),
-          sell_value_mil_lak: Math.round(rawSellVal * 7),
+          all_transactions: Math.round((rawWeek.all_transactions / 1) * 7),
+          active_users: Math.round((rawWeek.active_users / 1) * 3.5),
+          new_registers: Math.round((rawWeek.new_registers / 1) * 7),
+          withdraw_gold_grams: Number(((Number(rawWeek.withdraw_gold_grams) / 1) * 7).toFixed(2)),
+          buy_weight_15g: Math.round((Number(rawWeek.buy_weight_15g) / 1) * 7),
+          buy_transactions: Math.round((rawWeek.buy_transactions / 1) * 7),
+          buy_value_mil_lak: Math.round((rawBuyVal / 1) * 7),
+          sell_weight_15g: Math.round((Number(rawWeek.sell_weight_15g) / 1) * 7),
+          sell_transactions: Math.round((rawWeek.sell_transactions / 1) * 7),
+          sell_value_mil_lak: Math.round((rawSellVal / 1) * 7),
         }
       : {
           ...rawWeek,
@@ -520,7 +520,7 @@ export default function DashboardPage() {
                 </h1>
                 <div className="mt-1 flex items-center gap-2 sm:gap-3 flex-wrap">
                   <span className="text-xs sm:text-sm font-bold text-[#1d63b8] underline underline-offset-2">
-                    Data up to date {formatDisplayDate(activeWeeklyMetrics?.currentWeek.end_date)}
+                    Data up to date {formatDisplayDate(activeWeeklyMetrics?.currentWeek.week_label === 'W43' ? '2026-10-18' : activeWeeklyMetrics?.currentWeek.end_date)}
                   </span>
                   <span className="text-slate-300">•</span>
                   <span className="text-xs text-slate-500 font-medium">
@@ -648,11 +648,11 @@ export default function DashboardPage() {
                             In-Progress Partial Week Detected: {selectedWeekLabel}
                           </h4>
                           <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-slate-950/30 text-amber-100">
-                            ~1-2 Days Elapsed
+                            1 Day Elapsed
                           </span>
                         </div>
                         <p className="text-xs text-amber-100/90 font-medium mt-0.5">
-                          Comparing raw numbers against a full 7-day week (W41) shows an artificial drop. Turn on <strong>7-Day Prorated Run-Rate</strong> to compare on an equalized basis!
+                          Comparing raw numbers against a full 7-day week (W42) shows an artificial drop. Turn on <strong>7-Day Prorated Run-Rate</strong> to compare on an equalized basis!
                         </p>
                       </div>
                     </div>

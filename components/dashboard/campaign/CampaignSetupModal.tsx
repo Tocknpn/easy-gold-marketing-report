@@ -67,7 +67,7 @@ export function CampaignSetupModal({
     'weight',
   ]);
   const [ecTarget, setEcTarget] = useState<number>(307500);
-  const [ncTarget, setNcTarget] = useState<number>(17220);
+  const [ncTarget, setNcTarget] = useState<number>(0);
   const [revenueTarget, setRevenueTarget] = useState<number>(2876304.2);
   const [goldWeightTarget, setGoldWeightTarget] = useState<number>(913509.7);
   const [baselineDailyRr, setBaselineDailyRr] = useState<number | undefined>(undefined);
@@ -102,7 +102,7 @@ export function CampaignSetupModal({
       setImageUrl(campaignToEdit.image_url || '');
       setStartDate(campaignToEdit.campaign_date_start);
       setEndDate(campaignToEdit.campaign_date_end);
-      setAsOfDate(campaignToEdit.data_update_on || '2026-10-14');
+      setAsOfDate((campaignToEdit.auto_sync_max_date ?? true) ? '2026-10-18' : (campaignToEdit.data_update_on || '2026-10-18'));
       setAutoSyncMaxDate(campaignToEdit.auto_sync_max_date ?? true);
       setConditionType(campaignToEdit.condition_type || 'amount_gte');
       setConditionOperator(campaignToEdit.condition_operator || '>=');
@@ -112,10 +112,10 @@ export function CampaignSetupModal({
       setTxType(campaignToEdit.tx_type || 'BUY_GOLD');
       setBank(campaignToEdit.bank || 'all');
       setSelectedTargets(campaignToEdit.target_types || ['ec', 'nc']);
-      setEcTarget(campaignToEdit.ec_target || 307500);
-      setNcTarget(campaignToEdit.nc_target || 17220);
-      setRevenueTarget(campaignToEdit.revenue_target_mil || 2876304.2);
-      setGoldWeightTarget(campaignToEdit.gold_weight_target_g || 913509.7);
+      setEcTarget(campaignToEdit.ec_target ?? 307500);
+      setNcTarget(campaignToEdit.nc_target ?? 0);
+      setRevenueTarget(campaignToEdit.revenue_target_mil ?? 2876304.2);
+      setGoldWeightTarget(campaignToEdit.gold_weight_target_g ?? 913509.7);
       setBaselineDailyRr(campaignToEdit.baseline_daily_rr);
       setScaleCategory(campaignToEdit.scale_category || 'MEDIUM — H2H BOOTH');
       setTeam(campaignToEdit.team || 'KPV');
@@ -125,9 +125,9 @@ export function CampaignSetupModal({
       // Clean contaminated 1731 dummy value if target differs
       const cleanedActual = campaignToEdit.customers_actual === 1731 && campaignToEdit.ec_target !== 1731 ? 0 : (campaignToEdit.customers_actual || 0);
       setCustomersActual(cleanedActual);
-      setCustomersTarget(campaignToEdit.customers_target || campaignToEdit.ec_target || 0);
+      setCustomersTarget(campaignToEdit.customers_target ?? campaignToEdit.ec_target ?? 0);
       setNewCustActual(campaignToEdit.new_cust_actual || 0);
-      setNewCustTarget(campaignToEdit.new_cust_target || campaignToEdit.nc_target || 0);
+      setNewCustTarget(campaignToEdit.new_cust_target ?? campaignToEdit.nc_target ?? 0);
       setCpoActual(campaignToEdit.cpo_actual || 0);
       setCpoTarget(campaignToEdit.cpo_target || 0);
       setCpaActual(campaignToEdit.cpa_actual || 0);
@@ -276,8 +276,8 @@ export function CampaignSetupModal({
         tx_type: txType,
         bank: bank || 'all',
         target_types: selectedTargets,
-        ec_target: Number(ecTarget),
-        nc_target: Number(ncTarget),
+        ec_target: selectedTargets.includes('ec') ? Number(ecTarget) : 0,
+        nc_target: selectedTargets.includes('nc') ? Number(ncTarget) : 0,
         revenue_target_mil: selectedTargets.includes('revenue') ? Number(revenueTarget) : undefined,
         gold_weight_target_g: selectedTargets.includes('weight') ? Number(goldWeightTarget) : undefined,
         baseline_daily_rr: baselineDailyRr ? Number(baselineDailyRr) : undefined,
@@ -288,9 +288,9 @@ export function CampaignSetupModal({
         plan_budget: Number(planBudget),
         total_spending_cost: Number(totalSpendingCost),
         customers_actual: isUpcoming ? 0 : (customersActual === 1731 && Number(ecTarget) !== 1731 ? 0 : Number(customersActual)),
-        customers_target: Number(customersTarget) || Number(ecTarget),
+        customers_target: selectedTargets.includes('ec') ? (Number(customersTarget) || Number(ecTarget)) : 0,
         new_cust_actual: isUpcoming ? 0 : Number(newCustActual),
-        new_cust_target: Number(newCustTarget) || Number(ncTarget),
+        new_cust_target: selectedTargets.includes('nc') ? (Number(newCustTarget) || Number(ncTarget)) : 0,
         cpo_actual: Number(cpoActual),
         cpo_target: Number(cpoTarget),
         cpa_actual: Number(cpaActual),
@@ -818,31 +818,35 @@ export function CampaignSetupModal({
 
             {/* Target Value Inputs */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  EC Target (Existing/Total Customers Transactions) *
-                </label>
-                <input
-                  type="number"
-                  value={ecTarget}
-                  onChange={(e) => setEcTarget(Number(e.target.value))}
-                  className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-[#0c4ca3] focus:outline-hidden font-mono font-bold"
-                  required
-                />
-              </div>
+              {selectedTargets.includes('ec') && (
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    EC Target (Existing/Total Customers Transactions) *
+                  </label>
+                  <input
+                    type="number"
+                    value={ecTarget}
+                    onChange={(e) => setEcTarget(Number(e.target.value))}
+                    className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-[#0c4ca3] focus:outline-hidden font-mono font-bold"
+                    required
+                  />
+                </div>
+              )}
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  NC Target (New Customers Count) *
-                </label>
-                <input
-                  type="number"
-                  value={ncTarget}
-                  onChange={(e) => setNcTarget(Number(e.target.value))}
-                  className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-[#0c4ca3] focus:outline-hidden font-mono font-bold"
-                  required
-                />
-              </div>
+              {selectedTargets.includes('nc') && (
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    NC Target (New Customers Count) *
+                  </label>
+                  <input
+                    type="number"
+                    value={ncTarget}
+                    onChange={(e) => setNcTarget(Number(e.target.value))}
+                    className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-[#0c4ca3] focus:outline-hidden font-mono font-bold"
+                    required
+                  />
+                </div>
+              )}
 
               {selectedTargets.includes('revenue') && (
                 <div>

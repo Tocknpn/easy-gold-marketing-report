@@ -1,7 +1,7 @@
 import { CampaignSetupConfig } from '@/lib/types/campaign.types';
 import { createClient } from '@/lib/supabase/client';
 
-const LOCAL_STORAGE_CAMPAIGNS_KEY = 'easy_gold_saved_campaign_setups_v4';
+const LOCAL_STORAGE_CAMPAIGNS_KEY = 'easy_gold_saved_campaign_setups_v5';
 
 export const INITIAL_PRESET_CAMPAIGNS: CampaignSetupConfig[] = [
   {
@@ -148,39 +148,39 @@ export const INITIAL_PRESET_CAMPAIGNS: CampaignSetupConfig[] = [
   },
   {
     id: 'campaign-ldb-artist-2026',
-    campaign_name: 'LDB Artist Partnership Campaign',
-    description: 'Exclusive partnership campaign for Lao Development Bank (LDB) app users and cardholders.',
+    campaign_name: 'LDB Oct',
+    description: 'Special promotion for transactions of 100,000 LAK and above across all banks.',
     category_tag: 'Volume Driver',
-    scale_category: 'MEDIUM — H2H BOOTH',
-    team: 'KPV',
-    location: 'Watchan',
+    scale_category: 'VOLUME DRIVER — TICKET >= 100K',
+    team: 'MARKETING',
+    location: 'Nationwide & App',
     status: 'active',
     image_url: 'https://images.unsplash.com/photo-1610375461246-83df859d849d?w=150&auto=format&fit=crop&q=80',
     campaign_date_start: '2026-10-16',
     campaign_date_end: '2026-10-27',
-    data_update_on: '2026-10-14',
+    data_update_on: '2026-10-18',
     auto_sync_max_date: true,
     same_period_backward_start: '2026-10-04',
     same_period_backward_end: '2026-10-15',
     condition_type: 'amount_gte',
     condition_operator: '>=',
     condition_value: 100000,
-    condition_label: 'Buy trans >= 100k (LDB)',
+    condition_label: 'Buy trans >= 100k',
     tx_type: 'BUY_GOLD',
-    bank: 'LDB',
-    target_types: ['ec', 'nc'],
+    bank: 'all',
+    target_types: ['ec'],
     ec_target: 62400,
-    nc_target: 2500,
+    nc_target: 0,
     revenue_target_mil: 2876304.2,
     gold_weight_target_g: 913509.7,
     plan_budget: 395700000,
     total_spending_cost: 0,
-    customers_actual: 0,
+    customers_actual: 6615,
     customers_target: 62400,
     new_cust_actual: 0,
-    new_cust_target: 2500,
+    new_cust_target: 0,
     baseline_daily_rr: 79.0,
-    execution_status_label: 'Upcoming Campaign Horizon',
+    execution_status_label: 'Active Campaign (3d elapsed)',
     year: 2026,
     quarter: 'Q4',
   },
@@ -289,7 +289,7 @@ export async function loadCampaignSetups(userId?: string): Promise<CampaignSetup
  * Sanitizes campaign setups by clearing accidental 1731 dummy values and zeroing upcoming campaigns
  */
 function sanitizeLoadedCampaign(c: CampaignSetupConfig): CampaignSetupConfig {
-  const asOfDate = c.data_update_on || '2026-10-14';
+  const asOfDate = (c.auto_sync_max_date !== false ? '2026-10-18' : c.data_update_on) || '2026-10-18';
   const isUpcoming = new Date(asOfDate).getTime() < new Date(c.campaign_date_start).getTime();
 
   let customersActual = c.customers_actual;

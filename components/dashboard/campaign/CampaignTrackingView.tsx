@@ -56,7 +56,7 @@ export function CampaignTrackingView({
   const [allCampaigns, setAllCampaigns] = useState<CampaignSetupConfig[]>(() => {
     if (typeof window !== 'undefined') {
       try {
-        const raw = localStorage.getItem('easy_gold_saved_campaign_setups_v4');
+        const raw = localStorage.getItem('easy_gold_saved_campaign_setups_v5');
         if (raw) {
           const parsed = JSON.parse(raw);
           if (Array.isArray(parsed) && parsed.length > 0) return parsed;
@@ -69,7 +69,7 @@ export function CampaignTrackingView({
   const [activeCampaign, setActiveCampaign] = useState<CampaignSetupConfig | null>(() => {
     if (typeof window !== 'undefined') {
       try {
-        const raw = localStorage.getItem('easy_gold_saved_campaign_setups_v4');
+        const raw = localStorage.getItem('easy_gold_saved_campaign_setups_v5');
         if (raw) {
           const parsed = JSON.parse(raw);
           if (Array.isArray(parsed) && parsed.length > 0) return parsed[0];
@@ -233,6 +233,13 @@ export function CampaignTrackingView({
       setTimeout(() => setRecordingId(null), 500);
     }
   }, []);
+
+  // Automatically execute live calculation for current inspected campaign
+  useEffect(() => {
+    if (currentTargetCampaign && !liveDataMap[currentTargetCampaign.id] && !recordingId) {
+      handleExecuteCalculate(currentTargetCampaign);
+    }
+  }, [currentTargetCampaign?.id, liveDataMap, recordingId, handleExecuteCalculate]);
 
   // Save (Create / Update) Campaign
   const handleSaveCampaign = async (config: CampaignSetupConfig) => {

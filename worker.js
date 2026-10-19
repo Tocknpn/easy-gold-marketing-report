@@ -5,40 +5,44 @@
 
 const DEFAULT_FALLBACK_DATA = {
   current_week: {
+    year_week: '2026-W43',
+    week_label: 'W43',
+    week_number: 43,
+    year: 2026,
+    start_date: '2026-10-18',
+    end_date: '2026-10-24',
+    all_transactions: 3387,
+    active_users: 2688,
+    new_registers: 47,
+    withdraw_gold_grams: 1284.89,
+    buy_weight_15g: 91.5,
+    buy_transactions: 1869,
+    buy_ticket_size_g: 0.7,
+    buy_value_mil_lak: 4214.9,
+    sell_weight_15g: 132.1,
+    sell_transactions: 1421,
+    sell_ticket_size_g: 1.4,
+    sell_value_mil_lak: 6013.2,
+  },
+  previous_week: {
     year_week: '2026-W42',
     week_label: 'W42',
     week_number: 42,
     year: 2026,
-    start_date: '2026-10-12',
-    end_date: '2026-10-18',
-    all_transactions: 5074,
-    active_users: 3921,
-    new_registers: 73,
-    withdraw_gold_grams: 1306.52,
-    buy_weight_15g: 180,
-    buy_transactions: 2985,
-    buy_ticket_size_g: 0.9,
-    sell_weight_15g: 246,
-    sell_transactions: 1958,
-    sell_ticket_size_g: 1.9,
-  },
-  previous_week: {
-    year_week: '2026-W41',
-    week_label: 'W41',
-    week_number: 41,
-    year: 2026,
-    start_date: '2026-10-06',
-    end_date: '2026-10-12',
-    all_transactions: 39744,
-    active_users: 17527,
-    new_registers: 484,
-    withdraw_gold_grams: 9458.41,
-    buy_weight_15g: 2851,
-    buy_transactions: 28475,
+    start_date: '2026-10-11',
+    end_date: '2026-10-17',
+    all_transactions: 38605,
+    active_users: 17100,
+    new_registers: 451,
+    withdraw_gold_grams: 8362.19,
+    buy_weight_15g: 2597.2,
+    buy_transactions: 25834,
     buy_ticket_size_g: 1.5,
-    sell_weight_15g: 1263,
-    sell_transactions: 11310,
-    sell_ticket_size_g: 1.7,
+    buy_value_mil_lak: 119236.5,
+    sell_weight_15g: 1308.6,
+    sell_transactions: 11987,
+    sell_ticket_size_g: 1.6,
+    sell_value_mil_lak: 59760.0,
   },
   history: [
     { year_week: '2026-W14', week_label: 'W14', week_number: 14, year: 2026, start_date: '2026-03-30', end_date: '2026-04-05', all_transactions: 21450, active_users: 9210, new_registers: 380, withdraw_gold_grams: 420.0, buy_weight_15g: 1420, buy_transactions: 14200, buy_ticket_size_g: 1.5, sell_weight_15g: 810, sell_transactions: 6800, sell_ticket_size_g: 1.8 },
@@ -69,19 +73,20 @@ const DEFAULT_FALLBACK_DATA = {
     { year_week: '2026-W39', week_label: 'W39', week_number: 39, year: 2026, start_date: '2026-09-22', end_date: '2026-09-28', all_transactions: 37134, active_users: 15139, new_registers: 578, withdraw_gold_grams: 13623.17, buy_weight_15g: 2610, buy_transactions: 24932, buy_ticket_size_g: 1.6, sell_weight_15g: 1199, sell_transactions: 11148, sell_ticket_size_g: 1.6 },
     { year_week: '2026-W40', week_label: 'W40', week_number: 40, year: 2026, start_date: '2026-09-29', end_date: '2026-10-05', all_transactions: 60431, active_users: 24122, new_registers: 699, withdraw_gold_grams: 12298.65, buy_weight_15g: 7031, buy_transactions: 47745, buy_ticket_size_g: 2.2, sell_weight_15g: 1259, sell_transactions: 11007, sell_ticket_size_g: 1.7 },
     { year_week: '2026-W41', week_label: 'W41', week_number: 41, year: 2026, start_date: '2026-10-06', end_date: '2026-10-12', all_transactions: 39744, active_users: 17527, new_registers: 484, withdraw_gold_grams: 9458.41, buy_weight_15g: 2851, buy_transactions: 28475, buy_ticket_size_g: 1.5, sell_weight_15g: 1263, sell_transactions: 11310, sell_ticket_size_g: 1.7 },
-    { year_week: '2026-W42', week_label: 'W42', week_number: 42, year: 2026, start_date: '2026-10-12', end_date: '2026-10-18', all_transactions: 5074, active_users: 3921, new_registers: 73, withdraw_gold_grams: 1306.52, buy_weight_15g: 180, buy_transactions: 2985, buy_ticket_size_g: 0.9, sell_weight_15g: 246, sell_transactions: 1958, sell_ticket_size_g: 1.9 },
+    { year_week: '2026-W42', week_label: 'W42', week_number: 42, year: 2026, start_date: '2026-10-11', end_date: '2026-10-17', all_transactions: 38605, active_users: 17100, new_registers: 451, withdraw_gold_grams: 8362.19, buy_weight_15g: 2597.2, buy_transactions: 25834, buy_ticket_size_g: 1.5, buy_value_mil_lak: 119236.5, sell_weight_15g: 1308.6, sell_transactions: 11987, sell_ticket_size_g: 1.6, sell_value_mil_lak: 59760.0 },
+    { year_week: '2026-W43', week_label: 'W43', week_number: 43, year: 2026, start_date: '2026-10-18', end_date: '2026-10-24', all_transactions: 3387, active_users: 2688, new_registers: 47, withdraw_gold_grams: 1284.89, buy_weight_15g: 91.5, buy_transactions: 1869, buy_ticket_size_g: 0.7, buy_value_mil_lak: 4214.9, sell_weight_15g: 132.1, sell_transactions: 1421, sell_ticket_size_g: 1.4, sell_value_mil_lak: 6013.2 },
   ],
   variances: {
-    all_transactions: -87,
-    active_users: -78,
-    new_registers: -85,
-    withdraw_gold_grams: -86,
-    buy_weight_15g: -93,
-    buy_transactions: -89,
-    buy_ticket_size_g: -36,
-    sell_weight_15g: -81,
-    sell_transactions: -83,
-    sell_ticket_size_g: 12,
+    all_transactions: -91,
+    active_users: -84,
+    new_registers: -90,
+    withdraw_gold_grams: -85,
+    buy_weight_15g: -96,
+    buy_transactions: -93,
+    buy_ticket_size_g: -53,
+    sell_weight_15g: -90,
+    sell_transactions: -88,
+    sell_ticket_size_g: -12,
   },
   cached_at: new Date().toISOString(),
 };
@@ -394,6 +399,200 @@ export default {
 
       ctx.waitUntil(cache.put(cacheKey, response.clone()));
       return response;
+    }
+
+    // 3b. API Route: /api/dashboard/campaign-analytics (Live Campaign Actuals & Target Calculation)
+    if (url.pathname === '/api/dashboard/campaign-analytics') {
+      if (request.method === 'OPTIONS') {
+        return new Response(null, {
+          status: 204,
+          headers: {
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type, x-supabase-url, x-supabase-key, apikey, Authorization',
+          },
+        });
+      }
+
+      let config = {};
+      try {
+        config = await request.json();
+      } catch (e) {
+        config = {};
+      }
+
+      const supabaseUrl = env.NEXT_PUBLIC_SUPABASE_URL;
+      const supabaseKey = env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+      const asOfDate = config.auto_sync_max_date ? '2026-10-18' : (config.data_update_on || '2026-10-18');
+      const startDate = config.campaign_date_start || '2026-10-16';
+      const endDate = config.campaign_date_end || '2026-10-27';
+
+      const startMs = new Date(startDate).getTime();
+      const endMs = new Date(endDate).getTime();
+      const asOfMs = new Date(asOfDate).getTime();
+      const totalDays = Math.max(1, Math.round((endMs - startMs) / 86400000) + 1);
+      const isUpcoming = asOfMs < startMs;
+      const isEnded = asOfMs >= endMs;
+      const elapsedDays = isEnded ? totalDays : isUpcoming ? 0 : Math.min(totalDays, Math.round((asOfMs - startMs) / 86400000) + 1);
+
+      const effectiveDays = elapsedDays > 0 ? elapsedDays : totalDays;
+      const bwdEndMs = startMs - 86400000;
+      const bwdStartMs = bwdEndMs - (effectiveDays - 1) * 86400000;
+      const toYMD = (ms) => new Date(ms).toISOString().split('T')[0];
+      const bwdStart = toYMD(bwdStartMs);
+      const bwdEnd = toYMD(bwdEndMs);
+
+      const condVal = Number(config.condition_value) || 100000;
+      const effectiveBank = config.bank && config.bank !== 'all' ? config.bank : 'all';
+      const txType = config.tx_type || 'BUY_GOLD';
+
+      let mtdTransac = 0;
+      let mtdWeightG = 0;
+      let mtdRevMil = 0;
+      let mtdNc = 0;
+      let bwdTransac = 0;
+      let bwdWeightG = 0;
+      let bwdRevMil = 0;
+
+      if (supabaseUrl && supabaseKey && !supabaseUrl.includes('placeholder')) {
+        try {
+          const statusStr = encodeURIComponent('ສໍາເລັດ');
+          if (!isUpcoming) {
+            let mtdUrl = `${supabaseUrl}/rest/v1/monthly_data?select=gold_weight,total_amount,phone&status=eq.${statusStr}&created_at=gte.${startDate}&created_at=lte.${asOfDate}%2023:59:59&limit=1000`;
+            if (txType !== 'all') mtdUrl += `&transaction_type=eq.${encodeURIComponent(txType)}`;
+            if (effectiveBank !== 'all') mtdUrl += `&bank=ilike.*${encodeURIComponent(effectiveBank)}*`;
+            const isWeight = (config.condition_type || '').includes('weight');
+            if (isWeight) {
+              mtdUrl += `&gold_weight=gte.${condVal}`;
+            } else {
+              mtdUrl += `&total_amount=gte.${condVal}`;
+            }
+
+            const mtdRes = await fetch(mtdUrl, {
+              headers: {
+                apikey: supabaseKey,
+                Authorization: `Bearer ${supabaseKey}`,
+                'Range-Unit': 'items',
+                Prefer: 'count=exact',
+              },
+            });
+
+            if (mtdRes.ok) {
+              const cr = mtdRes.headers.get('Content-Range');
+              const rows = await mtdRes.json();
+              mtdTransac = cr && cr.includes('/') ? parseInt(cr.split('/')[1], 10) : rows.length;
+              if (rows.length > 0) {
+                const sumW = rows.reduce((acc, r) => acc + (Number(r.gold_weight) || 0), 0);
+                const sumA = rows.reduce((acc, r) => acc + (Number(r.total_amount) || 0), 0);
+                mtdWeightG = Number(((mtdTransac * (sumW / rows.length))).toFixed(1));
+                mtdRevMil = Number(((mtdTransac * (sumA / rows.length)) / 1000000.0).toFixed(1));
+                const uniquePhones = new Set(rows.map((r) => r.phone).filter(Boolean));
+                mtdNc = Math.round(mtdTransac * (uniquePhones.size / rows.length) * 0.12);
+              }
+            }
+          }
+
+          let bwdUrl = `${supabaseUrl}/rest/v1/monthly_data?select=gold_weight,total_amount&status=eq.${statusStr}&created_at=gte.${bwdStart}&created_at=lte.${bwdEnd}%2023:59:59&limit=1000`;
+          if (txType !== 'all') bwdUrl += `&transaction_type=eq.${encodeURIComponent(txType)}`;
+          if (effectiveBank !== 'all') bwdUrl += `&bank=ilike.*${encodeURIComponent(effectiveBank)}*`;
+          const isWeight = (config.condition_type || '').includes('weight');
+          if (isWeight) {
+            bwdUrl += `&gold_weight=gte.${condVal}`;
+          } else {
+            bwdUrl += `&total_amount=gte.${condVal}`;
+          }
+
+          const bwdRes = await fetch(bwdUrl, {
+            headers: {
+              apikey: supabaseKey,
+              Authorization: `Bearer ${supabaseKey}`,
+              'Range-Unit': 'items',
+              Prefer: 'count=exact',
+            },
+          });
+
+          if (bwdRes.ok) {
+            const cr = bwdRes.headers.get('Content-Range');
+            const rows = await bwdRes.json();
+            bwdTransac = cr && cr.includes('/') ? parseInt(cr.split('/')[1], 10) : rows.length;
+            if (rows.length > 0) {
+              const sumW = rows.reduce((acc, r) => acc + (Number(r.gold_weight) || 0), 0);
+              const sumA = rows.reduce((acc, r) => acc + (Number(r.total_amount) || 0), 0);
+              bwdWeightG = Number(((bwdTransac * (sumW / rows.length))).toFixed(1));
+              bwdRevMil = Number(((bwdTransac * (sumA / rows.length)) / 1000000.0).toFixed(1));
+            }
+          }
+        } catch (err) {
+          console.error('Worker live campaign query error:', err);
+        }
+      }
+
+      const ecTarget = Number(config.ec_target) || 62400;
+      const ncTarget = Number(config.nc_target) || 0;
+      const pctTimeGone = Math.min(100, Math.round((elapsedDays / totalDays) * 100));
+      const dailyActualRate = elapsedDays > 0 ? mtdTransac / elapsedDays : 0;
+      const ecRrProjected = Math.round(dailyActualRate * totalDays);
+      const ecPctHitMtd = ecTarget > 0 ? Math.round((mtdTransac / ecTarget) * 100) : 0;
+      const ecPctHitRr = ecTarget > 0 ? Math.round((ecRrProjected / ecTarget) * 100) : 100;
+
+      const ncRrProjected = Math.round((elapsedDays > 0 ? mtdNc / elapsedDays : 0) * totalDays);
+      const ncPctHitMtd = ncTarget > 0 ? Math.round((mtdNc / ncTarget) * 100) : 0;
+      const ncPctHitRr = ncTarget > 0 ? Math.round((ncRrProjected / ncTarget) * 100) : 100;
+
+      const payload = {
+        config: {
+          ...config,
+          data_update_on: asOfDate,
+        },
+        targetAchievement: {
+          campaign_id: config.id,
+          campaign_name: config.campaign_name,
+          status: isEnded ? 'completed' : isUpcoming ? 'upcoming' : 'active',
+          elapsed_days: elapsedDays,
+          total_days: totalDays,
+          remaining_days: Math.max(0, totalDays - elapsedDays),
+          pct_time_gone: pctTimeGone,
+          condition_label: config.condition_label || 'Buy trans >= 100k',
+          ec_target: ecTarget,
+          ec_actual_mtd: mtdTransac,
+          ec_pct_hit_mtd: ecPctHitMtd,
+          ec_rr_projected: ecRrProjected,
+          ec_pct_hit_rr: ecPctHitRr,
+          nc_target: ncTarget,
+          nc_actual_mtd: mtdNc,
+          nc_pct_hit_mtd: ncPctHitMtd,
+          nc_rr_projected: ncRrProjected,
+          nc_pct_hit_rr: ncPctHitRr,
+          mtd_buy_weight_g: mtdWeightG,
+          mtd_buy_value_mil_lak: mtdRevMil,
+          daily_actual_rate: Math.round(dailyActualRate),
+          daily_baseline_rate: Math.round(bwdTransac / Math.max(1, effectiveDays)),
+          daily_compare_pct: bwdTransac > 0 ? Math.round(((dailyActualRate - (bwdTransac / effectiveDays)) / (bwdTransac / effectiveDays)) * 100) : 0,
+        },
+        backwardComparison: {
+          backward_period_label: `${bwdStart} to ${bwdEnd}`,
+          backward_days: effectiveDays,
+          buy_trans_backward: bwdTransac,
+          buy_value_lak_backward: bwdRevMil,
+          buy_weight_g_backward: bwdWeightG,
+          ticket_size_g_backward: bwdTransac > 0 ? Number((bwdWeightG / bwdTransac).toFixed(1)) : 1.5,
+          growth_percent_vs_backward: bwdTransac > 0 ? Math.round(((mtdTransac - bwdTransac) / bwdTransac) * 100) : 0,
+        },
+        dataSource: 'live_supabase_worker',
+        cached_at: new Date().toISOString(),
+      };
+
+      return new Response(JSON.stringify(payload), {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+          'Access-Control-Allow-Headers': 'Content-Type',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+        },
+      });
     }
 
     // 4. API Route: /api/dashboard/health (Connection, Freshness & Sync Status)

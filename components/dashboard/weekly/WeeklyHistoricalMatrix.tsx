@@ -133,7 +133,7 @@ export function WeeklyHistoricalMatrix({
                 <th className="py-2.5 px-4 sticky left-0 bg-slate-100 z-10">Metric / Dimension</th>
                 {recentWeeks.map((w) => {
                   const isCurrent = w.week_label === selectedWeek;
-                  const isPartial = w.week_label === 'W42';
+                  const isPartial = w.week_label === 'W43';
                   return (
                     <th 
                       key={w.week_label} 

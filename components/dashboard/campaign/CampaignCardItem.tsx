@@ -161,17 +161,17 @@ export function CampaignCardItem({
 
   const actNc = targetAchievement.nc_actual_mtd;
   const tgtNc = targetAchievement.nc_target;
-  const hasNcTarget = tgtNc > 0;
+  const hasNcTarget = tgtNc > 0 && (campaign.target_types ? campaign.target_types.includes('nc') : true);
   const ncHitPct = targetAchievement.nc_pct_hit_mtd;
 
   const tgtWeight = targetAchievement.gold_weight_target_g ?? 0;
   const actWeight = targetAchievement.mtd_buy_weight_g;
-  const hasWeightTarget = tgtWeight > 0;
+  const hasWeightTarget = tgtWeight > 0 && (campaign.target_types ? campaign.target_types.includes('weight') : true);
   const weightHitPct = targetAchievement.weight_pct_hit_mtd ?? 0;
 
   const tgtRevenue = targetAchievement.revenue_target_mil;
   const actRevenue = targetAchievement.mtd_buy_value_mil_lak;
-  const hasRevenueTarget = tgtRevenue !== undefined && tgtRevenue > 0;
+  const hasRevenueTarget = (tgtRevenue !== undefined && tgtRevenue > 0) && (campaign.target_types ? campaign.target_types.includes('revenue') : true);
 
   const rrProjected = targetAchievement.ec_rr_projected;
 
@@ -279,17 +279,33 @@ export function CampaignCardItem({
             </span>
           </div>
 
-          {/* Box 2: New Customers */}
+          {/* Box 2: New Customers if targeted, otherwise Gross Buy Value */}
           <div className="bg-[#f8fafc] rounded-lg p-1.5 border border-slate-100">
-            <span className="text-[8px] font-black uppercase text-slate-400 tracking-wider truncate block">
-              NEW CUST (ACT/TGT)
-            </span>
-            <div className="text-[11px] font-black font-mono text-slate-900 truncate">
-              {hasNcTarget ? `${actNc.toLocaleString()} / ${tgtNc.toLocaleString()}` : `${actNc.toLocaleString()} MTD`}
-            </div>
-            <span className={`block text-[9px] font-bold ${hasNcTarget ? (ncHitPct >= 100 ? 'text-emerald-600' : 'text-slate-500') : 'text-slate-400'}`}>
-              {hasNcTarget ? `${ncHitPct}% hit` : 'Volume basis'}
-            </span>
+            {hasNcTarget ? (
+              <>
+                <span className="text-[8px] font-black uppercase text-slate-400 tracking-wider truncate block">
+                  NEW CUST (ACT/TGT)
+                </span>
+                <div className="text-[11px] font-black font-mono text-slate-900 truncate">
+                  {actNc.toLocaleString()} / {tgtNc.toLocaleString()}
+                </div>
+                <span className={`block text-[9px] font-bold ${ncHitPct >= 100 ? 'text-emerald-600' : 'text-slate-500'}`}>
+                  {ncHitPct}% hit
+                </span>
+              </>
+            ) : (
+              <>
+                <span className="text-[8px] font-black uppercase text-slate-400 tracking-wider truncate block">
+                  BUY VALUE (MIL LAK)
+                </span>
+                <div className="text-[11px] font-black font-mono text-slate-900 truncate">
+                  {actRevenue.toLocaleString()} mil
+                </div>
+                <span className="block text-[9px] font-bold text-slate-500 truncate">
+                  {hasRevenueTarget ? `Tgt: ${tgtRevenue?.toLocaleString()} mil` : 'Actual MTD'}
+                </span>
+              </>
+            )}
           </div>
 
           {/* Box 3: Weight / Value */}

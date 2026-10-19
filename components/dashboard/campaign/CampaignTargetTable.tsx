@@ -175,68 +175,72 @@ export function CampaignTargetTable({ data, asOfDate }: CampaignTargetTableProps
               </td>
             </tr>
 
-            {/* 3. NC Target Group Header */}
-            <tr className="bg-purple-50/50 border-t border-b border-purple-100">
-              <td colSpan={3} className="py-1 px-3 font-sans font-black text-[10px] text-purple-900 uppercase tracking-wider">
-                <div className="flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-purple-600" />
-                  <span>New Customer Acquisition Target (NC)</span>
-                </div>
-              </td>
-            </tr>
+            {/* 3. NC Target Group Header (Only if NC target > 0) */}
+            {data.nc_target > 0 && (
+              <>
+                <tr className="bg-purple-50/50 border-t border-b border-purple-100">
+                  <td colSpan={3} className="py-1 px-3 font-sans font-black text-[10px] text-purple-900 uppercase tracking-wider">
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-purple-600" />
+                      <span>New Customer Acquisition Target (NC)</span>
+                    </div>
+                  </td>
+                </tr>
 
-            {/* NC Actual - Clean with subtitle removed */}
-            <tr className="hover:bg-slate-50/80 transition-colors">
-              <td className="py-1.5 px-3 border-r border-slate-200 font-sans font-bold text-slate-800">
-                <span className="text-purple-700">Total NC</span>
-              </td>
-              <td className="py-1.5 px-3 border-r border-slate-200 text-right font-bold text-slate-900">
-                {formatNum(data.nc_actual_mtd)}
-              </td>
-              <td className="py-1.5 px-3 text-right font-bold text-slate-900">
-                {formatNum(data.nc_rr_projected)}
-              </td>
-            </tr>
+                {/* NC Actual - Clean with subtitle removed */}
+                <tr className="hover:bg-slate-50/80 transition-colors">
+                  <td className="py-1.5 px-3 border-r border-slate-200 font-sans font-bold text-slate-800">
+                    <span className="text-purple-700">Total NC</span>
+                  </td>
+                  <td className="py-1.5 px-3 border-r border-slate-200 text-right font-bold text-slate-900">
+                    {formatNum(data.nc_actual_mtd)}
+                  </td>
+                  <td className="py-1.5 px-3 text-right font-bold text-slate-900">
+                    {formatNum(data.nc_rr_projected)}
+                  </td>
+                </tr>
 
-            {/* NC Target - Clean with subtitle removed */}
-            <tr className="hover:bg-slate-50/80 transition-colors">
-              <td className="py-1.5 px-3 border-r border-slate-200 font-sans font-medium text-slate-700">
-                Campaign Target (NC)
-              </td>
-              <td className="py-1.5 px-3 border-r border-slate-200 text-right font-bold text-slate-700">
-                {formatNum(data.nc_target)}
-              </td>
-              <td className="py-1.5 px-3 text-right font-bold text-slate-700">
-                {formatNum(data.nc_target)}
-              </td>
-            </tr>
+                {/* NC Target - Clean with subtitle removed */}
+                <tr className="hover:bg-slate-50/80 transition-colors">
+                  <td className="py-1.5 px-3 border-r border-slate-200 font-sans font-medium text-slate-700">
+                    Campaign Target (NC)
+                  </td>
+                  <td className="py-1.5 px-3 border-r border-slate-200 text-right font-bold text-slate-700">
+                    {formatNum(data.nc_target)}
+                  </td>
+                  <td className="py-1.5 px-3 text-right font-bold text-slate-700">
+                    {formatNum(data.nc_target)}
+                  </td>
+                </tr>
 
-            {/* FOCUS ROW: NC % Target Hit */}
-            <tr className={`border-y transition-colors ${
-              isNcBehind 
-                ? 'bg-rose-50/70 border-rose-200 text-rose-900' 
-                : 'bg-emerald-50/70 border-emerald-200 text-emerald-900'
-            }`}>
-              <td className="py-1.5 px-3 border-r border-slate-200 font-sans font-black flex items-center gap-1.5">
-                <span className={`w-2 h-2 rounded-full ${isNcBehind ? 'bg-rose-500' : 'bg-emerald-500'}`} />
-                <span className="text-xs uppercase tracking-tight">% Target Hit (NC Focus)</span>
-              </td>
-              <td className="py-1.5 px-3 border-r border-slate-200 text-right font-black">
-                <span className={`inline-block px-1.5 py-0.5 rounded text-xs font-mono font-bold ${
-                  data.nc_pct_hit_mtd >= 100 ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-700'
+                {/* FOCUS ROW: NC % Target Hit */}
+                <tr className={`border-y transition-colors ${
+                  isNcBehind 
+                    ? 'bg-rose-50/70 border-rose-200 text-rose-900' 
+                    : 'bg-emerald-50/70 border-emerald-200 text-emerald-900'
                 }`}>
-                  {data.nc_pct_hit_mtd}%
-                </span>
-              </td>
-              <td className="py-1.5 px-3 text-right font-black">
-                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-mono font-black shadow-2xs ${
-                  isNcBehind ? 'bg-rose-600 text-white' : 'bg-emerald-600 text-white'
-                }`}>
-                  {isNcBehind ? <AlertTriangle className="w-3 h-3" /> : <CheckCircle2 className="w-3 h-3" />}
-                  <span>{data.nc_pct_hit_rr}%</span>
-                </span>
-              </td>
-            </tr>
+                  <td className="py-1.5 px-3 border-r border-slate-200 font-sans font-black flex items-center gap-1.5">
+                    <span className={`w-2 h-2 rounded-full ${isNcBehind ? 'bg-rose-500' : 'bg-emerald-500'}`} />
+                    <span className="text-xs uppercase tracking-tight">% Target Hit (NC Focus)</span>
+                  </td>
+                  <td className="py-1.5 px-3 border-r border-slate-200 text-right font-black">
+                    <span className={`inline-block px-1.5 py-0.5 rounded text-xs font-mono font-bold ${
+                      data.nc_pct_hit_mtd >= 100 ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-700'
+                    }`}>
+                      {data.nc_pct_hit_mtd}%
+                    </span>
+                  </td>
+                  <td className="py-1.5 px-3 text-right font-black">
+                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-mono font-black shadow-2xs ${
+                      isNcBehind ? 'bg-rose-600 text-white' : 'bg-emerald-600 text-white'
+                    }`}>
+                      {isNcBehind ? <AlertTriangle className="w-3 h-3" /> : <CheckCircle2 className="w-3 h-3" />}
+                      <span>{data.nc_pct_hit_rr}%</span>
+                    </span>
+                  </td>
+                </tr>
+              </>
+            )}
 
             {/* 4. Volume & Basket Size Header */}
             <tr className="bg-amber-50/40 border-t border-b border-amber-100">

@@ -35,7 +35,7 @@ export function SellActivitySection({
     Math.round(Number(currentWeek.sell_weight_15g) * 15 * 3.14);
 
   // Prorated estimates for partial week
-  const isPartial = isPartialWeek || currentWeek.week_label === 'W42';
+  const isPartial = isPartialWeek || currentWeek.week_label === 'W43';
   const proratedWeight = isPartial ? Math.round(Number(currentWeek.sell_weight_15g) * 7) : undefined;
   const proratedTx = isPartial ? Math.round(currentWeek.sell_transactions * 7) : undefined;
   const proratedValue = isPartial ? Math.round(currentSellValue * 7) : undefined;
