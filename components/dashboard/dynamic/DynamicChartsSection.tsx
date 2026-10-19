@@ -136,6 +136,53 @@ function getSmoothAreaPath(points: { x: number; y: number }[], baseline: number)
   return `${linePath} L ${lastX.toFixed(1)} ${baseline.toFixed(1)} L ${firstX.toFixed(1)} ${baseline.toFixed(1)} Z`;
 }
 
+// Standard "Nice Numbers" Scale Engine (like Power BI / Excel / Tableau)
+interface NiceScale {
+  max: number;
+  ticks: number[];
+  step: number;
+}
+
+function getNiceScale(rawMax: number, targetTicks = 5): NiceScale {
+  if (rawMax <= 0) {
+    return { max: 100, ticks: [0, 25, 50, 75, 100], step: 25 };
+  }
+  const safeMax = Math.max(rawMax * 1.08, 10);
+  const rawStep = safeMax / (targetTicks - 1);
+  const exponent = Math.floor(Math.log10(rawStep));
+  const magnitude = Math.pow(10, exponent);
+  const fraction = rawStep / magnitude;
+
+  let niceFraction = 1;
+  if (fraction <= 1.2) niceFraction = 1;
+  else if (fraction <= 2.2) niceFraction = 2;
+  else if (fraction <= 3.2) niceFraction = 2.5;
+  else if (fraction <= 6.5) niceFraction = 5;
+  else niceFraction = 10;
+
+  const step = niceFraction * magnitude;
+  const max = Math.ceil(safeMax / step) * step;
+
+  const ticks: number[] = [];
+  for (let val = 0; val <= max + step * 0.001; val += step) {
+    ticks.push(Math.round(val));
+  }
+  return { max, ticks, step };
+}
+
+function formatAxisTick(val: number): string {
+  if (val === 0) return '0';
+  if (Math.abs(val) >= 1_000_000) {
+    const m = val / 1_000_000;
+    return `${m % 1 === 0 ? m.toFixed(0) : m.toFixed(1)}M`;
+  }
+  if (Math.abs(val) >= 1_000) {
+    const k = val / 1_000;
+    return `${k % 1 === 0 ? k.toFixed(0) : k.toFixed(1)}k`;
+  }
+  return val.toLocaleString();
+}
+
 export function DynamicChartsSection({
   hourly,
   banks,
@@ -340,7 +387,8 @@ export function DynamicChartsSection({
 
   const trendUnitLabel = trendMetric === 'value' ? 'M LAK' : trendMetric === 'tx' ? 'tx' : 'g';
 
-  const maxPrimaryVal = useMemo(() => {
+  // Standard Nice Scale for Primary Left Axis (M LAK, Tx, or Gold Weight)
+  const primaryScale = useMemo(() => {
     if (trendChartStyle === 'stacked') {
       const peaks = activeTrendData.map((p) => {
         let sum = 0;
@@ -349,7 +397,7 @@ export function DynamicChartsSection({
         return sum;
       });
       const peak = Math.max(...peaks, 1);
-      return Math.ceil(peak * 1.15);
+      return getNiceScale(peak, 5);
     } else {
       const vals: number[] = [];
       activeTrendData.forEach((p) => {
@@ -358,19 +406,30 @@ export function DynamicChartsSection({
         if (showNetSeries) vals.push(Math.abs(getTrendPointVal(p, 'buy') - getTrendPointVal(p, 'sell')));
       });
       const peak = Math.max(...vals, 1);
-      return Math.ceil(peak * 1.15);
+      return getNiceScale(peak, 5);
     }
   }, [activeTrendData, trendMetric, trendChartStyle, showBuySeries, showSellSeries, showNetSeries]);
 
-  const maxTxVal = useMemo(() => {
+  const maxPrimaryVal = primaryScale.max;
+  const primaryTicks = primaryScale.ticks;
+
+  // Standard Nice Scale for Secondary Right Axis: Total Tx (Curve)
+  const txScale = useMemo(() => {
     const peak = Math.max(...activeTrendData.map((p) => p.total_tx), 1);
-    return Math.ceil(peak * 1.15);
+    // When left axis is tx and in stacked mode, add 20% headroom so line doesn't collide with stacked bar top
+    const headroom = (trendChartStyle === 'stacked' && trendMetric === 'tx') ? 1.25 : 1.0;
+    return getNiceScale(peak * headroom, 5);
+  }, [activeTrendData, trendChartStyle, trendMetric]);
+
+  const maxTxVal = txScale.max;
+
+  // Standard Nice Scale for Secondary Right Axis: New Customers (NC Curve)
+  const ncScale = useMemo(() => {
+    const peak = Math.max(...activeTrendData.map((p) => p.nc), 1);
+    return getNiceScale(peak, 5);
   }, [activeTrendData]);
 
-  const maxNcVal = useMemo(() => {
-    const peak = Math.max(...activeTrendData.map((p) => p.nc), 1);
-    return Math.ceil(peak * 1.15);
-  }, [activeTrendData]);
+  const maxNcVal = ncScale.max;
 
   const totalBuyTrendSum = activeTrendData.reduce((acc, p) => acc + getTrendPointVal(p, 'buy'), 0);
   const totalSellTrendSum = activeTrendData.reduce((acc, p) => acc + getTrendPointVal(p, 'sell'), 0);
@@ -378,16 +437,16 @@ export function DynamicChartsSection({
   const totalTxTrendSum = activeTrendData.reduce((acc, p) => acc + p.total_tx, 0);
   const totalNcTrendSum = activeTrendData.reduce((acc, p) => acc + p.nc, 0);
 
-  // SVG Coordinate calculations for Combo Chart (1000 x 300 viewBox)
+  // SVG Canvas Dimension (Standard 1000 x 350 with spacious margins & crisp 1:1 scaling)
   const svgWidth = 1000;
-  const svgHeight = 290;
-  const marginLeft = 68;
-  const marginRight = 75;
-  const marginTop = 32;
-  const marginBottom = 40;
-  const plotWidth = svgWidth - marginLeft - marginRight;
-  const plotHeight = svgHeight - marginTop - marginBottom;
-  const plotBaseline = marginTop + plotHeight; // y = 250
+  const svgHeight = 350;
+  const marginLeft = 66;
+  const marginRight = 78;
+  const marginTop = 36;
+  const marginBottom = 44;
+  const plotWidth = svgWidth - marginLeft - marginRight; // 856
+  const plotHeight = svgHeight - marginTop - marginBottom; // 270
+  const plotBaseline = marginTop + plotHeight; // y = 306
   const nPoints = activeTrendData.length;
   const stepWidth = plotWidth / nPoints;
 
@@ -697,24 +756,33 @@ export function DynamicChartsSection({
         {/* ========================================================================= */}
         {/* COMBO CHART VISUAL CANVAS (PRECISION SVG DUAL-AXIS VISUALIZATION)          */}
         {/* ========================================================================= */}
-        <div className="relative w-full bg-gradient-to-b from-slate-50/50 to-white rounded-2xl border border-slate-100 p-2 sm:p-3 overflow-hidden">
+        <div className="relative w-full bg-gradient-to-b from-slate-50/60 to-white rounded-2xl border border-slate-200/80 p-3 sm:p-4 overflow-hidden shadow-xs">
           {/* Dual Axis Header Badges */}
-          <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-wider px-2 mb-1 text-slate-400">
-            <span className="flex items-center gap-1 text-[#0c4ca3]">
-              ◀ Left Axis: {trendChartStyle === 'stacked' ? 'Stacked Flow' : trendChartStyle === 'spline_waves' ? 'Spline Curves' : 'Clustered Volume'} ({trendUnitLabel})
+          <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-wider px-1 mb-2 text-slate-400">
+            <span className="flex items-center gap-1.5 text-[#0c4ca3]">
+              <span className="w-2 h-2 rounded-full bg-[#0c4ca3]" />
+              Left Axis: {trendChartStyle === 'stacked' ? 'Stacked Turnover' : trendChartStyle === 'spline_waves' ? 'Spline Curves' : 'Clustered Volume'} ({trendUnitLabel})
             </span>
-            <span className="flex items-center gap-2 text-indigo-700">
-              <span className="text-indigo-600 font-extrabold">🟣 Total Tx ({maxTxVal.toLocaleString()} max)</span>
+            <span className="flex items-center gap-2.5 text-indigo-700">
+              <span className="text-indigo-600 font-extrabold flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-indigo-600" />
+                Total Tx ({formatAxisTick(maxTxVal)} max)
+              </span>
               <span className="text-slate-300">|</span>
-              <span className="text-emerald-600 font-extrabold">🟢 New Customers NC ({maxNcVal.toLocaleString()} max)</span>
-              <span>Right Axis ▶</span>
+              <span className="text-emerald-600 font-extrabold flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                NC Acquisition ({formatAxisTick(maxNcVal)} max)
+              </span>
+              <span className="text-slate-400 font-bold">Right Axis ▶</span>
             </span>
           </div>
 
           <svg
             viewBox={`0 0 ${svgWidth} ${svgHeight}`}
-            className="w-full h-64 sm:h-76 select-none"
-            preserveAspectRatio="none"
+            className="w-full h-[320px] sm:h-[350px] lg:h-[375px] select-none"
+            preserveAspectRatio="xMidYMid meet"
+            shapeRendering="geometricPrecision"
+            textRendering="geometricPrecision"
           >
             <defs>
               {/* Buy Bar Gradient */}
@@ -733,64 +801,64 @@ export function DynamicChartsSection({
 
               {/* Spline Wave Soft Gradients (Pinterest Ref 2) */}
               <linearGradient id="buyWaveGradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#0284c7" stopOpacity="0.30" />
-                <stop offset="65%" stopColor="#38bdf8" stopOpacity="0.10" />
+                <stop offset="0%" stopColor="#0284c7" stopOpacity="0.28" />
+                <stop offset="65%" stopColor="#38bdf8" stopOpacity="0.08" />
                 <stop offset="100%" stopColor="#ffffff" stopOpacity="0.0" />
               </linearGradient>
 
               <linearGradient id="sellWaveGradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#f43f5e" stopOpacity="0.25" />
-                <stop offset="65%" stopColor="#fda4af" stopOpacity="0.08" />
+                <stop offset="0%" stopColor="#f43f5e" stopOpacity="0.24" />
+                <stop offset="65%" stopColor="#fda4af" stopOpacity="0.06" />
                 <stop offset="100%" stopColor="#ffffff" stopOpacity="0.0" />
               </linearGradient>
 
               <linearGradient id="txWaveGradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#6366f1" stopOpacity="0.20" />
-                <stop offset="65%" stopColor="#818cf8" stopOpacity="0.05" />
+                <stop offset="0%" stopColor="#6366f1" stopOpacity="0.18" />
+                <stop offset="65%" stopColor="#818cf8" stopOpacity="0.04" />
                 <stop offset="100%" stopColor="#ffffff" stopOpacity="0.0" />
               </linearGradient>
             </defs>
 
-            {/* Horizontal Gridlines & Y-Axis Scale Marks */}
-            {[0, 0.25, 0.5, 0.75, 1.0].map((ratio, gIdx) => {
+            {/* Horizontal Gridlines & Standard Y-Axis Scale Marks */}
+            {primaryTicks.map((tickVal, gIdx) => {
+              const ratio = maxPrimaryVal > 0 ? tickVal / maxPrimaryVal : 0;
               const yPos = plotBaseline - ratio * plotHeight;
-              const leftVal = Math.round(maxPrimaryVal * ratio);
               const rightTxVal = Math.round(maxTxVal * ratio);
               const rightNcVal = Math.round(maxNcVal * ratio);
 
               return (
-                <g key={gIdx}>
-                  {/* Gridline */}
+                <g key={`gridline-${gIdx}`}>
+                  {/* Clean Gridline */}
                   <line
                     x1={marginLeft}
                     y1={yPos}
                     x2={svgWidth - marginRight}
                     y2={yPos}
-                    stroke={ratio === 0 ? '#cbd5e1' : '#f1f5f9'}
-                    strokeDasharray={ratio === 0 ? 'none' : '3 3'}
-                    strokeWidth={ratio === 0 ? '1.5' : '1'}
+                    stroke={gIdx === 0 ? '#cbd5e1' : '#f1f5f9'}
+                    strokeDasharray={gIdx === 0 ? 'none' : '4 4'}
+                    strokeWidth={gIdx === 0 ? '1.5' : '1'}
                   />
 
-                  {/* Left Primary Axis Labels (M LAK / tx / g) */}
+                  {/* Left Primary Axis Labels (Standard Ticks: 0, 20k, 40k...) */}
                   <text
-                    x={marginLeft - 8}
+                    x={marginLeft - 10}
                     y={yPos + 3.5}
                     textAnchor="end"
-                    className="text-[9.5px] font-bold fill-slate-400"
+                    className="text-[10px] font-bold fill-slate-500 font-mono tracking-tight"
                   >
-                    {leftVal >= 1000 ? `${(leftVal / 1000).toFixed(0)}k` : leftVal.toLocaleString()}
+                    {formatAxisTick(tickVal)}
                   </text>
 
                   {/* Right Secondary Axis Labels (Total Tx & NC) */}
                   <text
-                    x={svgWidth - marginRight + 8}
+                    x={svgWidth - marginRight + 10}
                     y={yPos + 3.5}
                     textAnchor="start"
-                    className="text-[9.5px] font-bold fill-indigo-600"
+                    className="text-[10px] font-bold fill-indigo-600 font-mono tracking-tight"
                   >
-                    {rightTxVal >= 1000 ? `${(rightTxVal / 1000).toFixed(0)}k` : rightTxVal.toLocaleString()}
-                    <tspan className="fill-emerald-600 text-[8.5px] font-semibold" dx="4">
-                      ({rightNcVal >= 1000 ? `${(rightNcVal / 1000).toFixed(1)}k` : rightNcVal})
+                    {formatAxisTick(rightTxVal)}
+                    <tspan className="fill-emerald-600 text-[9px] font-semibold" dx="4">
+                      ({formatAxisTick(rightNcVal)})
                     </tspan>
                   </text>
                 </g>
@@ -811,7 +879,7 @@ export function DynamicChartsSection({
                 const sellVal = getTrendPointVal(pt, 'sell');
                 const totalStackedVal = (showBuySeries ? buyVal : 0) + (showSellSeries ? sellVal : 0);
                 const cx = marginLeft + (i + 0.5) * stepWidth;
-                const colWidth = Math.min(46, stepWidth * 0.44);
+                const colWidth = Math.min(42, stepWidth * 0.40);
                 const xCol = cx - colWidth / 2;
 
                 const hBuy = (maxPrimaryVal > 0 && showBuySeries) ? (buyVal / maxPrimaryVal) * plotHeight : 0;
@@ -876,25 +944,21 @@ export function DynamicChartsSection({
                       />
                     )}
 
-                    {/* Total Value Pill Label on Top of Stack */}
-                    {totalStackedVal > 0 && (
-                      <text
-                        x={cx}
-                        y={Math.min(ySell, yBuy) - 6}
-                        textAnchor="middle"
-                        className={`text-[9px] select-none transition-all ${
-                          isHovered ? 'font-black fill-[#0c4ca3]' : 'font-bold fill-slate-500'
-                        }`}
-                      >
-                        {totalStackedVal >= 1000 ? `${(totalStackedVal / 1000).toFixed(0)}k` : totalStackedVal.toLocaleString()}
-                      </text>
+                    {/* Floating Pill on Hover: Total value displayed clearly without colliding */}
+                    {isHovered && totalStackedVal > 0 && (
+                      <g transform={`translate(${cx}, ${Math.min(ySell, yBuy) - 8})`} className="pointer-events-none">
+                        <rect x="-24" y="-15" width="48" height="16" rx="4" fill="#0f172a" stroke="#38bdf8" strokeWidth="1" />
+                        <text x="0" y="-3.5" textAnchor="middle" className="text-[9px] font-black fill-white tracking-tight">
+                          {formatAxisTick(totalStackedVal)}
+                        </text>
+                      </g>
                     )}
 
                     {/* Peak Badge */}
                     {isPeak && (
-                      <g transform={`translate(${cx}, ${Math.min(ySell, yBuy) - 18})`}>
-                        <rect x="-17" y="-8" width="34" height="11" rx="3" fill="#fef3c7" stroke="#f59e0b" strokeWidth="1" />
-                        <text x="0" y="0" textAnchor="middle" className="text-[7.5px] font-black fill-amber-800 uppercase tracking-tighter">
+                      <g transform={`translate(${cx}, ${Math.min(ySell, yBuy) - (isHovered ? 28 : 14)})`}>
+                        <rect x="-18" y="-9" width="36" height="13" rx="3.5" fill="#fef3c7" stroke="#f59e0b" strokeWidth="1" />
+                        <text x="0" y="0.5" textAnchor="middle" className="text-[7.5px] font-black fill-amber-800 uppercase tracking-wider">
                           PEAK
                         </text>
                       </g>
@@ -903,9 +967,9 @@ export function DynamicChartsSection({
                     {/* Period X-Axis Label */}
                     <text
                       x={cx}
-                      y={plotBaseline + 16}
+                      y={plotBaseline + 18}
                       textAnchor="middle"
-                      className={`text-[10px] select-none transition-all ${
+                      className={`text-[10.5px] select-none transition-all ${
                         isHovered ? 'font-black fill-[#0c4ca3]' : 'font-bold fill-slate-600'
                       }`}
                     >
@@ -914,9 +978,9 @@ export function DynamicChartsSection({
                     {pt.subLabel && (
                       <text
                         x={cx}
-                        y={plotBaseline + 28}
+                        y={plotBaseline + 31}
                         textAnchor="middle"
-                        className="text-[8.5px] font-medium fill-slate-400 select-none"
+                        className="text-[9px] font-medium fill-slate-400 select-none"
                       >
                         {pt.subLabel}
                       </text>
@@ -963,9 +1027,9 @@ export function DynamicChartsSection({
                       {/* Period X-Axis Label */}
                       <text
                         x={cx}
-                        y={plotBaseline + 16}
+                        y={plotBaseline + 18}
                         textAnchor="middle"
-                        className={`text-[10px] select-none transition-all ${
+                        className={`text-[10.5px] select-none transition-all ${
                           isHovered ? 'font-black fill-[#0c4ca3]' : 'font-bold fill-slate-600'
                         }`}
                       >
@@ -974,9 +1038,9 @@ export function DynamicChartsSection({
                       {pt.subLabel && (
                         <text
                           x={cx}
-                          y={plotBaseline + 28}
+                          y={plotBaseline + 31}
                           textAnchor="middle"
-                          className="text-[8.5px] font-medium fill-slate-400 select-none"
+                          className="text-[9px] font-medium fill-slate-400 select-none"
                         >
                           {pt.subLabel}
                         </text>
@@ -1155,9 +1219,9 @@ export function DynamicChartsSection({
                     {/* Period X-Axis Label */}
                     <text
                       x={cx}
-                      y={plotBaseline + 16}
+                      y={plotBaseline + 18}
                       textAnchor="middle"
-                      className={`text-[10px] select-none transition-all ${
+                      className={`text-[10.5px] select-none transition-all ${
                         isHovered ? 'font-black fill-[#0c4ca3]' : 'font-bold fill-slate-600'
                       }`}
                     >
@@ -1166,9 +1230,9 @@ export function DynamicChartsSection({
                     {pt.subLabel && (
                       <text
                         x={cx}
-                        y={plotBaseline + 28}
+                        y={plotBaseline + 31}
                         textAnchor="middle"
-                        className="text-[8.5px] font-medium fill-slate-400 select-none"
+                        className="text-[9px] font-medium fill-slate-400 select-none"
                       >
                         {pt.subLabel}
                       </text>
