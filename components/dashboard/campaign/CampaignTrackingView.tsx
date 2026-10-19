@@ -279,12 +279,23 @@ export function CampaignTrackingView({
           let ncCount: number | null = null;
           if (!rpcData?.mtd_new_customers) {
             try {
-              const { count } = await supabase
+              let ncQ = supabase
                 .from('monthly_data')
                 .select('*', { count: 'exact', head: true })
                 .gte('created_at', targetCamp.campaign_date_start)
                 .lte('created_at', `${asOf} 23:59:59`)
                 .eq('transaction_type', 'OPEN_ACCOUNT');
+
+              if (targetCamp.bank && targetCamp.bank.toLowerCase() !== 'all') {
+                const bList = targetCamp.bank.split(',').map((b: string) => b.trim()).filter(Boolean);
+                if (bList.length === 1) {
+                  ncQ = ncQ.ilike('bank', `%${bList[0]}%`);
+                } else if (bList.length > 1) {
+                  ncQ = ncQ.or(bList.map((b: string) => `bank.ilike.%${b}%`).join(','));
+                }
+              }
+
+              const { count } = await ncQ;
               ncCount = count;
             } catch (err) {
               console.warn('NC count direct error:', err);

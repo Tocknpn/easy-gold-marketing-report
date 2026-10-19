@@ -90,14 +90,24 @@ BEGIN
               (p_cond_op = 'all')
           );
 
-        -- Exact New Customers: STRICTLY date filtered only (no bank, no amount conditions)
+        -- Exact New Customers: STRICTLY date and bank filtered (no amount or tier conditions)
         SELECT COUNT(*)
         INTO v_mtd_nc
         FROM public.monthly_data m
         WHERE m.created_at >= v_start_ts
           AND m.created_at <= v_end_ts
-          AND m.status IN ('ສໍາເລັດ', 'ສຳເລັດ')
-          AND m.transaction_type = 'OPEN_ACCOUNT';
+          AND m.transaction_type = 'OPEN_ACCOUNT'
+          AND (
+              p_bank IS NULL 
+              OR lower(p_bank) = 'all' 
+              OR p_bank = ''
+              OR lower(m.bank) = lower(p_bank) 
+              OR m.bank ILIKE ('%' || p_bank || '%')
+              OR EXISTS (
+                  SELECT 1 FROM unnest(string_to_array(p_bank, ',')) AS b(val)
+                  WHERE m.bank ILIKE ('%' || trim(b.val) || '%')
+              )
+          );
     END IF;
 
     -- 2. Compute Backward Benchmark Actuals
@@ -148,14 +158,24 @@ BEGIN
               (p_cond_op = 'all')
           );
 
-        -- Exact New Customers for backward window: STRICTLY date filtered only
+        -- Exact New Customers for backward window: STRICTLY date and bank filtered
         SELECT COUNT(*)
         INTO v_bwd_nc
         FROM public.monthly_data m
         WHERE m.created_at >= v_bwd_start_ts
           AND m.created_at <= v_bwd_end_ts
-          AND m.status IN ('ສໍາເລັດ', 'ສຳເລັດ')
-          AND m.transaction_type = 'OPEN_ACCOUNT';
+          AND m.transaction_type = 'OPEN_ACCOUNT'
+          AND (
+              p_bank IS NULL 
+              OR lower(p_bank) = 'all' 
+              OR p_bank = ''
+              OR lower(m.bank) = lower(p_bank) 
+              OR m.bank ILIKE ('%' || p_bank || '%')
+              OR EXISTS (
+                  SELECT 1 FROM unnest(string_to_array(p_bank, ',')) AS b(val)
+                  WHERE m.bank ILIKE ('%' || trim(b.val) || '%')
+              )
+          );
     END IF;
 
     RETURN jsonb_build_object(

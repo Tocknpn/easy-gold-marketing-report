@@ -294,6 +294,14 @@ WHERE created_at >= '${backwardWindow.start}'
           .lte('created_at', `${backwardWindow.end} 23:59:59`)
           .eq('transaction_type', 'OPEN_ACCOUNT');
 
+        if (banks.length === 1) {
+          ncQuery = ncQuery.ilike('bank', `%${banks[0]}%`);
+          bwdNcQuery = bwdNcQuery.ilike('bank', `%${banks[0]}%`);
+        } else if (banks.length > 1) {
+          ncQuery = ncQuery.or(banks.map((b: string) => `bank.ilike.%${b}%`).join(','));
+          bwdNcQuery = bwdNcQuery.or(banks.map((b: string) => `bank.ilike.%${b}%`).join(','));
+        }
+
         const [ncRes, bwdNcRes] = await Promise.all([
           (!isUpcoming && !exactNc) ? ncQuery : Promise.resolve({ count: null }),
           !exactBwdNc ? bwdNcQuery : Promise.resolve({ count: null }),

@@ -585,8 +585,14 @@ WHERE created_at >= '${bwdStart}'
                 'Range-Unit': 'items',
                 Prefer: 'count=exact',
               };
-              let ncUrl = `${supabaseUrl}/rest/v1/monthly_data?select=id&transaction_type=eq.OPEN_ACCOUNT&created_at=gte.${startDate}&created_at=lte.${asOfDate}%2023:59:59&limit=1`;
-              let bwdNcUrl = `${supabaseUrl}/rest/v1/monthly_data?select=id&transaction_type=eq.OPEN_ACCOUNT&created_at=gte.${bwdStart}&created_at=lte.${bwdEnd}%2023:59:59&limit=1`;
+              let bankFilter = '';
+              if (banks.length === 1) {
+                bankFilter = `&bank=ilike.*${encodeURIComponent(banks[0])}*`;
+              } else if (banks.length > 1) {
+                bankFilter = `&or=(${banks.map(b => `bank.ilike.*${encodeURIComponent(b)}*`).join(',')})`;
+              }
+              let ncUrl = `${supabaseUrl}/rest/v1/monthly_data?select=id&transaction_type=eq.OPEN_ACCOUNT${bankFilter}&created_at=gte.${startDate}&created_at=lte.${asOfDate}%2023:59:59&limit=1`;
+              let bwdNcUrl = `${supabaseUrl}/rest/v1/monthly_data?select=id&transaction_type=eq.OPEN_ACCOUNT${bankFilter}&created_at=gte.${bwdStart}&created_at=lte.${bwdEnd}%2023:59:59&limit=1`;
 
               const [ncRes, bwdNcRes] = await Promise.all([
                 (!isUpcoming && !mtdNc) ? fetch(ncUrl, { headers: fetchHeaders }) : Promise.resolve(null),
