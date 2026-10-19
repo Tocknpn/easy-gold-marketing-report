@@ -8,8 +8,8 @@ import {
   DIMENSIONS,
 } from '@/lib/types/powerPivot.types';
 
-const META_CACHE_KEY = 'easy_gold_power_pivot_meta_v1';
-const META_TTL_MS = 12 * 60 * 60 * 1000;
+const META_CACHE_KEY = 'easy_gold_power_pivot_meta_v2';
+const META_TTL_MS = 15 * 60 * 1000;
 
 export function isSupabaseConnected(): boolean {
   const { url } = getSupabaseConfig();

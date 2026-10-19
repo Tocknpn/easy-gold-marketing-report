@@ -29,7 +29,7 @@ export const DIMENSIONS: DimensionDef[] = [
   { id: 'weight_band', label: 'Weight Band (g)', group: 'Bands', hint: '<1g ... >=15g' },
 ];
 
-export type MeasureFormat = 'int' | 'dec1' | 'dec2' | 'dec4' | 'pct';
+export type MeasureFormat = 'int' | 'dec1' | 'dec2' | 'dec4' | 'pct' | 'datetime';
 export type MeasureGroup = 'Transactions' | 'Users' | 'Revenue (mil LAK)' | 'Gold Weight' | 'Ticket & Ratios' | 'Raw Sums' | 'Custom';
 
 export interface MeasureDef {
@@ -49,6 +49,8 @@ export const BUILTIN_MEASURES: MeasureDef[] = [
   { id: 'total_sell_transac', label: 'Total Sell Transac', group: 'Transactions', format: 'int', dax: 'CALCULATE(COUNT([Source.Name]), \'Raw Data\'[type]="SALE_GOLD")' },
   { id: 'withdraw_trans', label: 'Withdraw Trans', group: 'Transactions', format: 'int', dax: 'CALCULATE(COUNT([Source.Name]), \'Raw Data\'[type]="WITHDRAW_GOLD")' },
   { id: 'new_register', label: 'New Register', group: 'Transactions', format: 'int', dax: 'CALCULATE(COUNT([Source.Name]), \'Raw Data\'[type]="OPEN_ACCOUNT")' },
+  { id: 'min_datetime', label: 'Min Datetime', group: 'Transactions', format: 'datetime', dax: 'MIN(\'Raw Data\'[created_at])' },
+  { id: 'max_datetime', label: 'Max Datetime', group: 'Transactions', format: 'datetime', dax: 'MAX(\'Raw Data\'[created_at])' },
   // Users
   { id: 'total_unique_user', label: 'Total unique user', group: 'Users', format: 'int', dax: 'CALCULATE(DISTINCTCOUNT(\'Raw Data\'[phone]), FILTER(\'Raw Data\'[phone]<>BLANK()))' },
   { id: 'user_buy', label: 'User Buy', group: 'Users', format: 'int', dax: 'CALCULATE(DISTINCTCOUNT(\'Raw Data\'[phone]), \'Raw Data\'[type]="BUY_GOLD")' },
@@ -94,10 +96,11 @@ export interface FilterFieldDef {
   label: string;
   kind: FilterKind;
   /** key in meta payload that contains pick-list options */
-  optionsKey?: 'banks' | 'branches' | 'transaction_types' | 'statuses';
+  optionsKey?: 'banks' | 'branches' | 'transaction_types' | 'statuses' | 'months';
 }
 
 export const FILTER_FIELDS: FilterFieldDef[] = [
+  { id: 'month', label: 'Month (YYYY-MM)', kind: 'txt', optionsKey: 'months' },
   { id: 'date', label: 'Transaction Date', kind: 'date' },
   { id: 'total_amount', label: 'Purchase Amount (LAK)', kind: 'num' },
   { id: 'gold_weight', label: 'Gold Weight (g)', kind: 'num' },
@@ -229,6 +232,7 @@ export interface PowerPivotMeta {
   branches: string[];
   transaction_types: string[];
   statuses: string[];
+  months?: string[];
 }
 
 // ----------------------------------------------------------------------------
@@ -275,6 +279,7 @@ export function describeFilter(f: PowerPivotFilter): string {
 
 export function formatMeasureValue(v: unknown, fmt: MeasureFormat): string {
   if (v === null || v === undefined || v === '') return '-';
+  if (fmt === 'datetime') return String(v);
   const n = Number(v);
   if (Number.isNaN(n)) return String(v);
   const dec = fmt === 'int' ? 0 : fmt === 'dec1' ? 1 : fmt === 'dec4' ? 4 : 2;

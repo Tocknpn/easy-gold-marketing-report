@@ -5,8 +5,8 @@ import {
   newFilterId,
 } from '@/lib/types/powerPivot.types';
 
-const LS_PROFILES = 'easy_gold_power_pivot_profiles_v1';
-const LS_ACTIVE = 'easy_gold_power_pivot_active_profile_v1';
+const LS_PROFILES = 'easy_gold_power_pivot_profiles_v2';
+const LS_ACTIVE = 'easy_gold_power_pivot_active_profile_v2';
 
 const nowIso = () => new Date().toISOString();
 
@@ -44,9 +44,15 @@ function preset(
 }
 
 export const PRESET_PROFILES: PowerPivotProfile[] = [
-  preset('preset-daily-buy', 'Daily Buy Activity (Excel Image 1)', 'Daily breakdown of BUY_GOLD transactions >= 500K', {
+  preset('preset-monthly-audit', 'Monthly Audit & Date Verification', 'Monthly breakdown with Min Datetime, Max Datetime, and Transaction Counts', {
+    rows: ['month'],
+    values: ['total_transaction', 'total_buy_transac', 'revenue_buy_mil', 'gold_weight_buy_g', 'min_datetime', 'max_datetime'],
+    sortBy: 'label',
+    sortDir: 'desc',
+  }),
+  preset('preset-daily-buy', 'Daily Buy Activity (Excel Image 1)', 'Daily breakdown of BUY_GOLD transactions >= 500K with timestamps', {
     rows: ['date'],
-    values: ['total_buy_transac', 'total_unique_user', 'revenue_buy_mil', 'gold_weight_buy_g', 'gold_buy_size_g'],
+    values: ['total_buy_transac', 'total_unique_user', 'revenue_buy_mil', 'gold_weight_buy_g', 'min_datetime', 'max_datetime'],
     filters: [tx('=', 'BUY_GOLD'), tx('>=', '500000', 'total_amount')],
     sortBy: 'label',
     sortDir: 'desc',

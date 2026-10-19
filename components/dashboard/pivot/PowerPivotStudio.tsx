@@ -22,7 +22,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Sparkles,
-  Loader2
+  Loader2,
+  Calendar
 } from 'lucide-react';
 import { UserProfile } from '@/lib/types/auth.types';
 import {
@@ -37,6 +38,7 @@ import {
   createEmptyConfig,
   getAllMeasures,
   describeFilter,
+  newFilterId,
 } from '@/lib/types/powerPivot.types';
 import {
   loadPowerPivotProfiles,
@@ -391,6 +393,32 @@ export function PowerPivotStudio({ currentUser }: Props) {
 
   const activeFilters = config.filters.filter((f) => f.enabled);
 
+  // Month slicer helper
+  const monthFilter = config.filters.find((f) => f.field === 'month');
+  const selectedMonth = monthFilter?.enabled ? String(monthFilter.value || '') : 'ALL';
+
+  const handleMonthChange = (val: string) => {
+    if (val === 'ALL') {
+      patch({ filters: config.filters.filter((f) => f.field !== 'month') });
+    } else {
+      const existing = config.filters.find((f) => f.field === 'month');
+      if (existing) {
+        patch({
+          filters: config.filters.map((f) =>
+            f.field === 'month' ? { ...f, op: '=', value: val, enabled: true, scope: 'row' } : f
+          ),
+        });
+      } else {
+        patch({
+          filters: [
+            ...config.filters,
+            { id: newFilterId(), scope: 'row', field: 'month', op: '=', value: val, enabled: true },
+          ],
+        });
+      }
+    }
+  };
+
   return (
     <div className="space-y-4">
       {/* HEADER + PROFILE BAR */}
@@ -625,6 +653,22 @@ export function PowerPivotStudio({ currentUser }: Props) {
                   </span>
                 </h4>
                 <div className="flex items-center gap-2 text-[10px] text-slate-500">
+                  <div className="flex items-center gap-1.5 bg-blue-50 border border-blue-200 text-blue-900 rounded-lg px-2 py-1">
+                    <Calendar className="w-3.5 h-3.5 text-[#0c4ca3]" />
+                    <span className="font-bold text-[11px]">Month:</span>
+                    <select
+                      value={selectedMonth}
+                      onChange={(e) => handleMonthChange(e.target.value)}
+                      className="bg-white text-slate-800 text-xs font-bold rounded-md px-1.5 py-0.5 border border-blue-300 focus:outline-hidden focus:ring-1 focus:ring-[#0c4ca3]"
+                    >
+                      <option value="ALL">All Months (Full Data)</option>
+                      {(meta?.months || ['2026-10', '2026-09', '2026-08', '2026-07', '2026-06', '2026-05', '2026-04', '2026-03', '2026-02', '2026-01']).map((m) => (
+                        <option key={m} value={m}>
+                          {m}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                   <Database className="w-3.5 h-3.5 text-slate-400" />
                   {meta ? (
                     <span className="font-mono">
