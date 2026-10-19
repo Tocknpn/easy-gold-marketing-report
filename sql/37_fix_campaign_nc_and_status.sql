@@ -1,6 +1,8 @@
 -- ==============================================================================
--- 37. Fix Campaign Tracking: Exact NC (OPEN_ACCOUNT) & Dual Lao Status Encoding
+-- 37. Fix Campaign Tracking: Pure Date-Filtered NC (OPEN_ACCOUNT) & Dual Lao Status
 -- ==============================================================================
+-- Note: NC (New Customers) is unaffected by bank or transaction amount conditions.
+--       NC is strictly filtered by transaction_type = 'OPEN_ACCOUNT' and datetime window.
 
 CREATE OR REPLACE FUNCTION public.get_campaign_actual_metrics(
     p_start_date DATE,
@@ -41,7 +43,7 @@ DECLARE
 BEGIN
     -- 1. Compute MTD Actuals (only if as_of_date >= start_date)
     IF p_as_of_date >= p_start_date THEN
-        -- Buy Transactions, Weight, Value, Unique Customers
+        -- Buy Transactions, Weight, Value, Unique Customers (filtered by bank & conditions)
         SELECT 
             COUNT(*),
             COUNT(DISTINCT phone),
@@ -88,21 +90,14 @@ BEGIN
               (p_cond_op = 'all')
           );
 
-        -- Exact New Customers (OPEN_ACCOUNT in period)
+        -- Exact New Customers: STRICTLY date filtered only (no bank, no amount conditions)
         SELECT COUNT(*)
         INTO v_mtd_nc
         FROM public.monthly_data m
         WHERE m.created_at >= v_start_ts
           AND m.created_at <= v_end_ts
           AND m.status IN ('ສໍາເລັດ', 'ສຳເລັດ')
-          AND m.transaction_type = 'OPEN_ACCOUNT'
-          AND (
-              p_bank IS NULL 
-              OR lower(p_bank) = 'all' 
-              OR p_bank = ''
-              OR lower(m.bank) = lower(p_bank) 
-              OR m.bank ILIKE ('%' || p_bank || '%')
-          );
+          AND m.transaction_type = 'OPEN_ACCOUNT';
     END IF;
 
     -- 2. Compute Backward Benchmark Actuals
@@ -153,21 +148,14 @@ BEGIN
               (p_cond_op = 'all')
           );
 
-        -- Exact New Customers in backward window
+        -- Exact New Customers for backward window: STRICTLY date filtered only
         SELECT COUNT(*)
         INTO v_bwd_nc
         FROM public.monthly_data m
         WHERE m.created_at >= v_bwd_start_ts
           AND m.created_at <= v_bwd_end_ts
           AND m.status IN ('ສໍາເລັດ', 'ສຳເລັດ')
-          AND m.transaction_type = 'OPEN_ACCOUNT'
-          AND (
-              p_bank IS NULL 
-              OR lower(p_bank) = 'all' 
-              OR p_bank = ''
-              OR lower(m.bank) = lower(p_bank) 
-              OR m.bank ILIKE ('%' || p_bank || '%')
-          );
+          AND m.transaction_type = 'OPEN_ACCOUNT';
     END IF;
 
     RETURN jsonb_build_object(

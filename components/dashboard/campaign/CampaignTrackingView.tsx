@@ -284,9 +284,7 @@ export function CampaignTrackingView({
             .in('status', ['ສໍາເລັດ', 'ສຳເລັດ'])
             .eq('transaction_type', 'OPEN_ACCOUNT');
 
-          if (targetCamp.bank && targetCamp.bank !== 'all') {
-            ncQuery = ncQuery.ilike('bank', `%${targetCamp.bank}%`);
-          }
+
 
           const { count: ncCount } = await ncQuery;
 

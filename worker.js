@@ -587,10 +587,7 @@ WHERE created_at >= '${bwdStart}'
             let ncUrl = `${supabaseUrl}/rest/v1/monthly_data?select=id&transaction_type=eq.OPEN_ACCOUNT&status=in.(%E0%BA%AA%E0%BA%B3%E0%BA%A5%E0%BA%B1%E0%BA%94,%E0%BA%AA%E0%BA%B1%E0%BA%9A%E0%BA%A5%E0%BA%B1%E0%BA%94)&created_at=gte.${startDate}&created_at=lte.${asOfDate}%2023:59:59&limit=1`;
             let bwdNcUrl = `${supabaseUrl}/rest/v1/monthly_data?select=id&transaction_type=eq.OPEN_ACCOUNT&status=in.(%E0%BA%AA%E0%BA%B3%E0%BA%A5%E0%BA%B1%E0%BA%94,%E0%BA%AA%E0%BA%B1%E0%BA%9A%E0%BA%A5%E0%BA%B1%E0%BA%94)&created_at=gte.${bwdStart}&created_at=lte.${bwdEnd}%2023:59:59&limit=1`;
 
-            if (banks.length === 1) {
-              ncUrl += `&bank=ilike.*${encodeURIComponent(banks[0])}*`;
-              bwdNcUrl += `&bank=ilike.*${encodeURIComponent(banks[0])}*`;
-            }
+
 
             const [ncRes, bwdNcRes] = await Promise.all([
               !isUpcoming ? fetch(ncUrl, { headers: fetchHeaders }) : Promise.resolve(null),
