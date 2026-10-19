@@ -42,6 +42,20 @@ BOLD = "\033[1m"
 DIM = "\033[2m"
 RESET = "\033[0m"
 
+# ========================================================================================
+# 1. DIRECT SUPABASE CONFIGURATION (PORTABLE MODE)
+# ========================================================================================
+# Paste your Supabase URL and Key here to make this file completely standalone so it can
+# run on ANY computer or device without needing a .env file or project setup!
+#
+# Example:
+# SUPABASE_URL = "https://your-project-id.supabase.co"
+# SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+#
+SUPABASE_URL = ""
+SUPABASE_KEY = ""
+
+# Default Excel folder path and batch size
 DEFAULT_DATA_FOLDER = r"D:\Monthly Data"
 DEFAULT_BATCH_SIZE = 500
 HISTORY_FILE = ".upload_history.json"
@@ -70,30 +84,44 @@ def load_env_file(filepath):
     return env_vars
 
 
-def get_supabase_credentials():
-    """Retrieve Supabase URL and Key from environment or .env files."""
+def get_supabase_credentials(cli_url=None, cli_key=None):
+    """Retrieve Supabase URL and Key from CLI, in-script constants, environment, or .env."""
+    sb_url = cli_url.strip() if cli_url else None
+    sb_key = cli_key.strip() if cli_key else None
+
+    # 1. Check in-script configuration (Portable mode)
+    if not sb_url and SUPABASE_URL and not any(p in SUPABASE_URL for p in ("placeholder", "your-project", "xyzcompany")):
+        sb_url = SUPABASE_URL.strip()
+    if not sb_key and SUPABASE_KEY and not any(p in SUPABASE_KEY for p in ("placeholder", "your-key")):
+        sb_key = SUPABASE_KEY.strip()
+
+    if sb_url and sb_key:
+        return sb_url, sb_key
+
+    # 2. Check .env and .env.local if present
     env = {}
-    # Read .env and .env.local if present
     for p in [ENV_FILE, ENV_LOCAL_FILE]:
         if os.path.exists(p):
             env.update(load_env_file(p))
 
-    # Also check system environment variables
-    sb_url = (
-        os.environ.get("SUPABASE_URL")
-        or os.environ.get("NEXT_PUBLIC_SUPABASE_URL")
-        or env.get("SUPABASE_URL")
-        or env.get("NEXT_PUBLIC_SUPABASE_URL")
-    )
+    # 3. Check system environment variables or .env
+    if not sb_url:
+        sb_url = (
+            os.environ.get("SUPABASE_URL")
+            or os.environ.get("NEXT_PUBLIC_SUPABASE_URL")
+            or env.get("SUPABASE_URL")
+            or env.get("NEXT_PUBLIC_SUPABASE_URL")
+        )
 
-    sb_key = (
-        os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
-        or os.environ.get("SUPABASE_KEY")
-        or os.environ.get("NEXT_PUBLIC_SUPABASE_ANON_KEY")
-        or env.get("SUPABASE_SERVICE_ROLE_KEY")
-        or env.get("SUPABASE_KEY")
-        or env.get("NEXT_PUBLIC_SUPABASE_ANON_KEY")
-    )
+    if not sb_key:
+        sb_key = (
+            os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+            or os.environ.get("SUPABASE_KEY")
+            or os.environ.get("NEXT_PUBLIC_SUPABASE_ANON_KEY")
+            or env.get("SUPABASE_SERVICE_ROLE_KEY")
+            or env.get("SUPABASE_KEY")
+            or env.get("NEXT_PUBLIC_SUPABASE_ANON_KEY")
+        )
 
     return sb_url, sb_key
 
@@ -469,6 +497,16 @@ def main():
         help=f"Number of rows per Supabase POST batch (Default: {DEFAULT_BATCH_SIZE})",
     )
     parser.add_argument(
+        "--url",
+        default=None,
+        help="Supabase Project URL (e.g. https://xyz.supabase.co)",
+    )
+    parser.add_argument(
+        "--key",
+        default=None,
+        help="Supabase Service Role Key or Anon Key",
+    )
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="Parse and validate files without uploading to Supabase",
@@ -513,7 +551,7 @@ def main():
     # 2. Check credentials unless --dry-run
     sb_url, sb_key = None, None
     if not args.dry_run:
-        sb_url, sb_key = get_supabase_credentials()
+        sb_url, sb_key = get_supabase_credentials(args.url, args.key)
         if not sb_url or not sb_key or "placeholder" in sb_url or "your-project" in sb_url:
             sb_url, sb_key = prompt_and_save_credentials()
 
