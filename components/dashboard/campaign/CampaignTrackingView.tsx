@@ -44,7 +44,9 @@ import {
   Database,
   Terminal,
   Copy,
-  Check
+  Check,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 
 interface CampaignTrackingViewProps {
@@ -104,6 +106,7 @@ export function CampaignTrackingView({
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [dbLatestDate, setDbLatestDate] = useState<string>('2026-10-18');
   const [copiedSql, setCopiedSql] = useState<boolean>(false);
+  const [showSqlScript, setShowSqlScript] = useState<boolean>(true);
 
   // Dynamically discover true latest data date from Supabase
   useEffect(() => {
@@ -233,6 +236,7 @@ export function CampaignTrackingView({
               backward_val_mil: data.backwardComparison?.buy_value_lak_backward,
               backward_weight_g: data.backwardComparison?.buy_weight_g_backward,
               backward_ticket: data.backwardComparison?.ticket_size_g_backward,
+              backward_nc: data.backwardComparison?.nc_backward,
               max_db_date: data.config?.data_update_on,
               sql_script: data.sql_script || targetCamp.sql_script,
             };
@@ -315,6 +319,7 @@ export function CampaignTrackingView({
               backward_val_mil: Number(rpcData.backward_revenue_mil_lak) || 0,
               backward_weight_g: Number(rpcData.backward_gold_weight_g) || 0,
               backward_ticket: Number(rpcData.backward_transac) > 0 ? Number((Number(rpcData.backward_gold_weight_g) / Number(rpcData.backward_transac)).toFixed(1)) : 2.8,
+              backward_nc: Number(rpcData.backward_new_customers) || 0,
               max_db_date: asOf,
               sql_script: targetCamp.sql_script,
             };
@@ -1021,6 +1026,15 @@ WHERE created_at >= '${camp.campaign_date_start}'
 
               <div className="flex items-center gap-2">
                 <button
+                  onClick={() => setShowSqlScript((prev) => !prev)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold border border-slate-700 transition-colors cursor-pointer"
+                  title={showSqlScript ? 'Hide SQL Script' : 'Show SQL Script'}
+                >
+                  {showSqlScript ? <EyeOff className="w-3.5 h-3.5 text-slate-400" /> : <Eye className="w-3.5 h-3.5 text-emerald-400" />}
+                  <span>{showSqlScript ? 'Hide SQL' : 'Show SQL'}</span>
+                </button>
+
+                <button
                   onClick={() => handleCopySql(liveData?.sql_script || defaultGeneratedSql)}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold border border-slate-700 transition-colors cursor-pointer"
                   title="Copy generated SQL script"
@@ -1042,11 +1056,13 @@ WHERE created_at >= '${camp.campaign_date_start}'
             </div>
 
             {/* SQL Script Display */}
-            <div className="relative">
-              <pre className="text-[11px] font-mono text-emerald-400 bg-slate-950 p-3.5 rounded-xl overflow-x-auto whitespace-pre border border-slate-800/80 leading-relaxed max-h-56">
-                {liveData?.sql_script || defaultGeneratedSql}
-              </pre>
-            </div>
+            {showSqlScript && (
+              <div className="relative">
+                <pre className="text-[11px] font-mono text-emerald-400 bg-slate-950 p-3.5 rounded-xl overflow-x-auto whitespace-pre border border-slate-800/80 leading-relaxed max-h-56">
+                  {liveData?.sql_script || defaultGeneratedSql}
+                </pre>
+              </div>
+            )}
           </div>
 
           {/* Export and Telemetry Bar */}

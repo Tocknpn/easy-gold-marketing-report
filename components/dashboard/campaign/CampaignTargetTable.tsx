@@ -22,6 +22,8 @@ export function CampaignTargetTable({ data, asOfDate, isLoading = false }: Campa
   const isEcBehind = data.ec_pct_hit_rr < 100;
   const isNcBehind = data.nc_pct_hit_rr < 100;
   const isDailyBehind = data.daily_compare_pct < 0;
+  const ecPaceDelta = data.pct_time_gone > 0 ? data.ec_pct_hit_mtd - data.pct_time_gone : 0;
+  const ncPaceDelta = data.pct_time_gone > 0 ? data.nc_pct_hit_mtd - data.pct_time_gone : 0;
 
   // Format date helper
   const formatDate = (dateStr?: string) => {
@@ -177,10 +179,19 @@ export function CampaignTargetTable({ data, asOfDate, isLoading = false }: Campa
                 <span className="text-xs uppercase tracking-tight">% Target Hit (Buy Focus)</span>
               </td>
               <td className="py-1.5 px-3 border-r border-slate-200 text-right font-black">
-                <span className={`inline-block px-1.5 py-0.5 rounded text-xs font-mono font-bold ${
-                  data.ec_pct_hit_mtd >= 100 ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-700'
+                <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-mono font-black border ${
+                  data.ec_pct_hit_mtd >= 100
+                    ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                    : ecPaceDelta >= 0
+                    ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                    : 'bg-rose-50 text-rose-800 border-rose-200'
                 }`}>
-                  {data.ec_pct_hit_mtd}%
+                  <span>{data.ec_pct_hit_mtd}%</span>
+                  <span className={`text-[9px] font-sans font-bold px-1 py-0.2 rounded ${
+                    ecPaceDelta >= 0 ? 'bg-emerald-200/80 text-emerald-900' : 'bg-rose-200/80 text-rose-900'
+                  }`}>
+                    {ecPaceDelta >= 0 ? `+${ecPaceDelta}% Ahead` : `${ecPaceDelta}% Slow`}
+                  </span>
                 </span>
               </td>
               <td className="py-1.5 px-3 text-right font-black">
@@ -242,10 +253,19 @@ export function CampaignTargetTable({ data, asOfDate, isLoading = false }: Campa
                     <span className="text-xs uppercase tracking-tight">% Target Hit (NC Focus)</span>
                   </td>
                   <td className="py-1.5 px-3 border-r border-slate-200 text-right font-black">
-                    <span className={`inline-block px-1.5 py-0.5 rounded text-xs font-mono font-bold ${
-                      data.nc_pct_hit_mtd >= 100 ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-700'
+                    <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-mono font-black border ${
+                      data.nc_pct_hit_mtd >= 100
+                        ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                        : ncPaceDelta >= 0
+                        ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                        : 'bg-rose-50 text-rose-800 border-rose-200'
                     }`}>
-                      {data.nc_pct_hit_mtd}%
+                      <span>{data.nc_pct_hit_mtd}%</span>
+                      <span className={`text-[9px] font-sans font-bold px-1 py-0.2 rounded ${
+                        ncPaceDelta >= 0 ? 'bg-emerald-200/80 text-emerald-900' : 'bg-rose-200/80 text-rose-900'
+                      }`}>
+                        {ncPaceDelta >= 0 ? `+${ncPaceDelta}% Ahead` : `${ncPaceDelta}% Slow`}
+                      </span>
                     </span>
                   </td>
                   <td className="py-1.5 px-3 text-right font-black">

@@ -141,6 +141,11 @@ export interface CampaignBackwardComparisonPayload {
   ticket_size_g_backward: number;
   ticket_size_pct_compare: number;    // e.g. -4%
   
+  // New Customer (NC) Acquisition
+  nc_mtd?: number;
+  nc_backward?: number;
+  nc_pct_compare?: number;            // e.g. -21%
+  
   // Baseline Normal RR comparison
   baseline_normal_rr_per_day?: number;
   avg_campaign_daily_actual?: number;

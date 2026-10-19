@@ -74,6 +74,12 @@ export function CampaignBackwardCompareTable({ data, asOfDate, isLoading = false
   const valueDelta = data.buy_value_lak_mtd - data.buy_value_lak_backward;
   const weightDelta = data.buy_weight_g_mtd - data.buy_weight_g_backward;
   const ticketDelta = data.ticket_size_g_mtd - data.ticket_size_g_backward;
+  const ncMtd = data.nc_mtd ?? 0;
+  const ncBackward = data.nc_backward ?? 0;
+  const ncDelta = ncMtd - ncBackward;
+  const ncPctCompare = data.nc_pct_compare !== undefined 
+    ? data.nc_pct_compare 
+    : (ncBackward > 0 ? Math.round(((ncMtd - ncBackward) / ncBackward) * 100) : 0);
 
   return (
     <div className="inline-block w-auto min-w-[380px] max-w-full bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden flex flex-col relative">
@@ -178,6 +184,34 @@ export function CampaignBackwardCompareTable({ data, asOfDate, isLoading = false
               </td>
               <td className="py-2 px-3 text-right align-middle bg-slate-50/50">
                 {renderComparePill(data.buy_trans_pct_compare, transDelta, 'trans')}
+              </td>
+            </tr>
+
+            {/* 2. New Customers (NC) */}
+            <tr className="hover:bg-purple-50/30 transition-colors">
+              <td className="py-2 px-3 border-r border-slate-200 font-sans">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="w-2 h-2 rounded-full bg-purple-600 shrink-0" />
+                  <span className="font-bold text-slate-900">New Customers (NC)</span>
+                  <span className="text-[10px] text-purple-900 bg-purple-50 px-1.5 py-0.5 rounded-sm font-semibold border border-purple-200">
+                    Registers
+                  </span>
+                </div>
+              </td>
+              <td className="py-2 px-3 border-r border-slate-200 text-right align-middle">
+                <span className="text-xs font-black text-purple-950">
+                  {formatNum(ncMtd)}
+                </span>
+                <span className="text-[10px] text-slate-400 font-sans font-normal ml-1">users</span>
+              </td>
+              <td className="py-2 px-3 border-r border-slate-200 text-right align-middle">
+                <span className="text-xs font-bold text-slate-700">
+                  {formatNum(ncBackward)}
+                </span>
+                <span className="text-[10px] text-slate-400 font-sans font-normal ml-1">users</span>
+              </td>
+              <td className="py-2 px-3 text-right align-middle bg-slate-50/50">
+                {renderComparePill(ncPctCompare, ncDelta, 'users')}
               </td>
             </tr>
 
