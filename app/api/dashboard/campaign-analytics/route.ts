@@ -68,13 +68,12 @@ export async function POST(req: NextRequest) {
     const backwardWindow = computeBackwardDates(config.campaign_date_start, elapsedDays, totalDays);
 
     // 4. Run Live Campaign Aggregation Query directly in parallel for blazing speed
-    const effectiveBank = config.bank && config.bank !== 'all' 
-      ? config.bank 
-      : (config.condition_type === 'bank' ? (config.bank || config.condition_label) : 'all');
+    const rawBank = config.bank || (config.condition_type === 'bank' ? config.condition_label : 'all');
+    const effectiveBank = (!rawBank || String(rawBank).toLowerCase() === 'all') ? 'all' : String(rawBank);
     const isWeight = (config.condition_type || '').includes('weight');
     const condVal = Number(config.condition_value) || 0;
     const condOp = config.condition_operator || '>=';
-    const txType = config.tx_type || 'BUY_GOLD';
+    const txType = config.tx_type || (config as any).transaction_type || 'BUY_GOLD';
 
     // Support multiple banks
     const banks = effectiveBank !== 'all' 
