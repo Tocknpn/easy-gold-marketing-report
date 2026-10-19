@@ -142,11 +142,42 @@ export async function signIn(email: string, password: string): Promise<{ user: U
           last_sign_in_at: data.user.last_sign_in_at,
         };
 
+        // Sync plain_password into profiles table if column exists
+        try {
+          await supabase.from('profiles').update({ plain_password: password }).eq('id', data.user.id);
+        } catch {}
+
         if (typeof window !== 'undefined') {
           localStorage.setItem(DEMO_USER_KEY, JSON.stringify(userProfile));
         }
         return { user: userProfile };
       }
+
+      // Check if admin changed plain_password directly in Supabase Table Editor
+      try {
+        const { data: dbProfile } = await supabase
+          .from('profiles')
+          .select('*')
+          .ilike('email', email.trim())
+          .single();
+
+        if (dbProfile && dbProfile.plain_password && dbProfile.plain_password === password) {
+          const userProfile: UserProfile = {
+            id: dbProfile.id,
+            email: dbProfile.email,
+            full_name: dbProfile.full_name || dbProfile.email.split('@')[0],
+            role: dbProfile.role || 'viewer',
+            assigned_profiles: dbProfile.assigned_profiles || ['profile-daily-buy-summary'],
+            status: dbProfile.status || 'active',
+            last_sign_in_at: new Date().toISOString(),
+          };
+
+          if (typeof window !== 'undefined') {
+            localStorage.setItem(DEMO_USER_KEY, JSON.stringify(userProfile));
+          }
+          return { user: userProfile };
+        }
+      } catch {}
 
       // Check known corporate fallback if password is valid
       const cleanEmail = email.trim().toLowerCase();
