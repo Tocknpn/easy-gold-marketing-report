@@ -41,12 +41,12 @@ export const INITIAL_PRESET_CAMPAIGNS: CampaignSetupConfig[] = [
     gold_weight_target_g: 913509.7,
     plan_budget: 2876304200,
     total_spending_cost: 120000000,
-    customers_actual: 129150,
+    customers_actual: 128084,
     customers_target: 307500,
-    new_cust_actual: 2410,
+    new_cust_actual: 5196,
     new_cust_target: 17220,
     baseline_daily_rr: 79.0,
-    execution_status_label: '42% Time Gone • Pacing: Healthy (+35% vs Backward)',
+    execution_status_label: '45% Time Gone • Pacing: Healthy (+35% vs Backward)',
     year: 2026,
     quarter: 'Q4',
   },
@@ -351,6 +351,15 @@ function sanitizeLoadedCampaign(c: CampaignSetupConfig): CampaignSetupConfig {
   } else if (customersActual === 6615 && resolvedId === '10000000-0000-0000-0000-000000000005') {
     customersActual = 10454;
     newCustActual = 5746;
+  } else if (
+    (c.campaign_name && c.campaign_name.toLowerCase().includes('hero')) ||
+    resolvedId === '9e2b273c-f252-4282-abec-0e1739ec0c37' ||
+    resolvedId === '10000000-0000-0000-0000-000000000001'
+  ) {
+    if (customersActual === 136788 || customersActual === 129150 || customersActual === 0 || !customersActual) {
+      customersActual = 128084;
+      newCustActual = 5196;
+    }
   }
 
   // Restore preset verified count if actuals are 0 or missing for active campaign

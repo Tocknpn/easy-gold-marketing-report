@@ -449,6 +449,18 @@ export default {
       const bwdStart = toYMD(bwdStartMs);
       const bwdEnd = toYMD(bwdEndMs);
 
+      const rawBank = config.bank || (config.condition_type === 'bank' ? config.condition_label : 'all');
+      const effectiveBank = (!rawBank || String(rawBank).toLowerCase() === 'all') ? 'all' : String(rawBank);
+      const txType = config.tx_type || config.transaction_type || 'BUY_GOLD';
+      const banks = effectiveBank !== 'all'
+        ? effectiveBank.split(',').map((b) => b.trim()).filter(Boolean)
+        : [];
+      const bankSql = banks.length === 1
+        ? `\n  AND bank ILIKE '%${banks[0]}%'`
+        : banks.length > 1
+        ? `\n  AND (${banks.map((b) => `bank ILIKE '%${b}%'`).join(' OR ')})`
+        : '';
+
       const rules = Array.isArray(config.conditions)
         ? config.conditions
         : (config.condition_operator !== 'all' && Number(config.condition_value) > 0 && !String(config.condition_label || '').toLowerCase().includes('no condition'))
@@ -460,6 +472,11 @@ export default {
               max_value: config.condition_max_value ? Number(config.condition_max_value) : undefined,
             }]
           : [];
+
+      const firstRule = rules[0];
+      const condOp = firstRule ? firstRule.operator : (config.condition_operator || '>=');
+      const condVal = firstRule ? Number(firstRule.value) : (Number(config.condition_value) || 0);
+      const isWeight = firstRule ? firstRule.metric === 'weight' : ((String(config.condition_type || '').includes('weight')) || String(config.condition_label || '').includes('g'));
 
       let condSql = '';
       for (const r of rules) {
@@ -491,7 +508,7 @@ SELECT
 FROM public.monthly_data
 WHERE created_at >= '${startDate}'
   AND created_at <= '${asOfDate} 23:59:59'
-  AND status = 'ສໍາເລັດ'
+  AND status IN ('ສໍາເລັດ', 'ສຳເລັດ')
   AND transaction_type = '${txType}'${bankSql}${condSql};
 
 -- 2. Equal Backward Benchmark Baseline (${bwdStart} to ${bwdEnd}, ${effectiveDays} days)
@@ -502,7 +519,7 @@ SELECT
 FROM public.monthly_data
 WHERE created_at >= '${bwdStart}'
   AND created_at <= '${bwdEnd} 23:59:59'
-  AND status = 'ສໍາເລັດ'
+  AND status IN ('ສໍາເລັດ', 'ສຳເລັດ')
   AND transaction_type = '${txType}'${bankSql}${condSql};`;
 
       let mtdTransac = 0;
@@ -512,6 +529,7 @@ WHERE created_at >= '${bwdStart}'
       let bwdTransac = 0;
       let bwdWeightG = 0;
       let bwdRevMil = 0;
+      let bwdNc = 0;
 
       let rpcDebug = null;
       let queryCatchErr = null;
@@ -524,7 +542,7 @@ WHERE created_at >= '${bwdStart}'
             p_as_of_date: asOfDate,
             p_backward_start: bwdStart,
             p_backward_end: bwdEnd,
-            p_cond_type: config.condition_type || 'amount_gte',
+            p_cond_type: isWeight ? 'weight_gte' : 'amount_gte',
             p_cond_op: condOp,
             p_cond_val: condVal > 0 ? condVal : 100000,
             p_cond_max: config.condition_max_value ? Number(config.condition_max_value) : null,
@@ -554,71 +572,47 @@ WHERE created_at >= '${bwdStart}'
               bwdTransac = Number(rpcData.backward_transac) || 0;
               bwdWeightG = Number(rpcData.backward_gold_weight_g) || 0;
               bwdRevMil = Number(rpcData.backward_revenue_mil_lak) || 0;
+              bwdNc = Number(rpcData.backward_new_customers) || 0;
             }
-          } else {
-            const errTxt = await rpcRes.text();
-            rpcDebug = { status: rpcRes.status, error: errTxt };
-            // Fallback to table queries with exact count if RPC is unavailable
-            const statusStr = encodeURIComponent('ສໍາເລັດ');
+          }
+
+          // Exact New Customer Query (OPEN_ACCOUNT in period)
+          try {
             const fetchHeaders = {
               apikey: supabaseKey,
               Authorization: `Bearer ${supabaseKey}`,
               'Range-Unit': 'items',
               Prefer: 'count=exact',
             };
+            let ncUrl = `${supabaseUrl}/rest/v1/monthly_data?select=id&transaction_type=eq.OPEN_ACCOUNT&status=in.(%E0%BA%AA%E0%BA%B3%E0%BA%A5%E0%BA%B1%E0%BA%94,%E0%BA%AA%E0%BA%B1%E0%BA%9A%E0%BA%A5%E0%BA%B1%E0%BA%94)&created_at=gte.${startDate}&created_at=lte.${asOfDate}%2023:59:59&limit=1`;
+            let bwdNcUrl = `${supabaseUrl}/rest/v1/monthly_data?select=id&transaction_type=eq.OPEN_ACCOUNT&status=in.(%E0%BA%AA%E0%BA%B3%E0%BA%A5%E0%BA%B1%E0%BA%94,%E0%BA%AA%E0%BA%B1%E0%BA%9A%E0%BA%A5%E0%BA%B1%E0%BA%94)&created_at=gte.${bwdStart}&created_at=lte.${bwdEnd}%2023:59:59&limit=1`;
 
-            let mtdUrl = `${supabaseUrl}/rest/v1/monthly_data?select=gold_weight,total_amount,phone&status=eq.${statusStr}&created_at=gte.${startDate}&created_at=lte.${asOfDate}%2023:59:59&limit=1000`;
-            let bwdUrl = `${supabaseUrl}/rest/v1/monthly_data?select=gold_weight,total_amount&status=eq.${statusStr}&created_at=gte.${bwdStart}&created_at=lte.${bwdEnd}%2023:59:59&limit=1000`;
-
-            if (txType !== 'all') {
-              mtdUrl += `&transaction_type=eq.${encodeURIComponent(txType)}`;
-              bwdUrl += `&transaction_type=eq.${encodeURIComponent(txType)}`;
-            }
             if (banks.length === 1) {
-              mtdUrl += `&bank=ilike.*${encodeURIComponent(banks[0])}*`;
-              bwdUrl += `&bank=ilike.*${encodeURIComponent(banks[0])}*`;
-            } else if (banks.length > 1) {
-              const orCond = banks.map((b) => `bank.ilike.*${encodeURIComponent(b)}*`).join(',');
-              mtdUrl += `&or=(${orCond})`;
-              bwdUrl += `&or=(${orCond})`;
-            }
-            if (condVal > 0) {
-              const col = isWeight ? 'gold_weight' : 'total_amount';
-              const op = config.condition_operator === '<=' ? 'lte' : 'gte';
-              mtdUrl += `&${col}=${op}.${condVal}`;
-              bwdUrl += `&${col}=${op}.${condVal}`;
+              ncUrl += `&bank=ilike.*${encodeURIComponent(banks[0])}*`;
+              bwdNcUrl += `&bank=ilike.*${encodeURIComponent(banks[0])}*`;
             }
 
-            const [mtdRes, bwdRes] = await Promise.all([
-              !isUpcoming ? fetch(mtdUrl, { headers: fetchHeaders }) : Promise.resolve(null),
-              fetch(bwdUrl, { headers: fetchHeaders }),
+            const [ncRes, bwdNcRes] = await Promise.all([
+              !isUpcoming ? fetch(ncUrl, { headers: fetchHeaders }) : Promise.resolve(null),
+              fetch(bwdNcUrl, { headers: fetchHeaders }),
             ]);
 
-            if (mtdRes && mtdRes.ok) {
-              const cr = mtdRes.headers.get('Content-Range');
-              const rows = await mtdRes.json();
-              mtdTransac = cr && cr.includes('/') ? parseInt(cr.split('/')[1], 10) : rows.length;
-              if (rows.length > 0) {
-                const sumW = rows.reduce((acc, r) => acc + (Number(r.gold_weight) || 0), 0);
-                const sumA = rows.reduce((acc, r) => acc + (Number(r.total_amount) || 0), 0);
-                mtdWeightG = Number(((mtdTransac * (sumW / rows.length))).toFixed(1));
-                mtdRevMil = Number(((mtdTransac * (sumA / rows.length)) / 1000000.0).toFixed(1));
-                const uniquePhones = new Set(rows.map((r) => r.phone).filter(Boolean));
-                mtdNc = Math.round(mtdTransac * (uniquePhones.size / rows.length) * 0.12);
+            if (ncRes && ncRes.ok) {
+              const cr = ncRes.headers.get('Content-Range');
+              if (cr && cr.includes('/')) {
+                const count = parseInt(cr.split('/')[1], 10);
+                if (!isNaN(count)) mtdNc = count;
               }
             }
-
-            if (bwdRes && bwdRes.ok) {
-              const cr = bwdRes.headers.get('Content-Range');
-              const rows = await bwdRes.json();
-              bwdTransac = cr && cr.includes('/') ? parseInt(cr.split('/')[1], 10) : rows.length;
-              if (rows.length > 0) {
-                const sumW = rows.reduce((acc, r) => acc + (Number(r.gold_weight) || 0), 0);
-                const sumA = rows.reduce((acc, r) => acc + (Number(r.total_amount) || 0), 0);
-                bwdWeightG = Number(((bwdTransac * (sumW / rows.length))).toFixed(1));
-                bwdRevMil = Number(((bwdTransac * (sumA / rows.length)) / 1000000.0).toFixed(1));
+            if (bwdNcRes && bwdNcRes.ok) {
+              const cr = bwdNcRes.headers.get('Content-Range');
+              if (cr && cr.includes('/')) {
+                const count = parseInt(cr.split('/')[1], 10);
+                if (!isNaN(count)) bwdNc = count;
               }
             }
+          } catch (ncErr) {
+            console.warn('Worker NC query fallback warning:', ncErr);
           }
         } catch (err) {
           queryCatchErr = err.message || String(err);

@@ -78,9 +78,20 @@ export function CampaignBackwardCompareTable({ data, asOfDate, isLoading = false
   return (
     <div className="inline-block w-auto min-w-[380px] max-w-full bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden flex flex-col relative">
       {isLoading && (
-        <div className="absolute inset-0 bg-white/80 backdrop-blur-[2px] z-20 flex flex-col items-center justify-center gap-2">
-          <div className="w-8 h-8 border-3 border-teal-600 border-t-transparent rounded-full animate-spin" />
-          <span className="text-xs font-black text-teal-800">Computing 4D Backward Benchmark...</span>
+        <div className="absolute inset-0 bg-white/92 backdrop-blur-xs z-30 flex flex-col items-center justify-center p-4 transition-all">
+          <div className="bg-white px-5 py-3.5 rounded-2xl shadow-xl border border-teal-100 flex items-center gap-3.5">
+            <div className="relative flex items-center justify-center w-7 h-7 shrink-0">
+              <div className="w-7 h-7 border-2 border-teal-100 border-t-teal-700 rounded-full animate-spin" />
+              <div className="absolute w-3.5 h-3.5 border-2 border-emerald-200 border-b-emerald-500 rounded-full animate-spin" />
+            </div>
+            <div className="text-left">
+              <p className="text-xs font-black text-slate-800 tracking-tight flex items-center gap-1.5">
+                <span>Computing Backward Benchmark</span>
+                <span className="inline-block w-1.5 h-1.5 rounded-full bg-teal-500 animate-pulse" />
+              </p>
+              <p className="text-[10px] text-slate-500 font-medium">Equal period baseline comparison...</p>
+            </div>
+          </div>
         </div>
       )}
       {/* Table Header */}

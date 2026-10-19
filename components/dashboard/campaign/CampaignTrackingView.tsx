@@ -9,7 +9,7 @@ import {
   deleteCampaignSetup,
   INITIAL_PRESET_CAMPAIGNS 
 } from '@/lib/storage/campaignStorage';
-import { computeCampaignAnalytics } from '@/lib/campaign/campaignEngine';
+import { computeCampaignAnalytics, computeBackwardDates } from '@/lib/campaign/campaignEngine';
 import { createClient } from '@/lib/supabase/client';
 import { 
   CampaignCardItem, 
@@ -212,52 +212,128 @@ export function CampaignTrackingView({
         'x-supabase-key': storedKey || envKey,
       };
 
-      const res = await fetch('/api/dashboard/campaign-analytics', {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(targetCamp),
-      });
+      let payload: any = null;
 
-      if (res.ok) {
-        const data = await res.json();
-        if (data && data.targetAchievement) {
-          const payload = {
-            ec_actual_mtd: data.targetAchievement.ec_actual_mtd,
-            nc_actual_mtd: data.targetAchievement.nc_actual_mtd,
-            mtd_buy_weight_g: data.targetAchievement.mtd_buy_weight_g,
-            mtd_buy_value_mil_lak: data.targetAchievement.mtd_buy_value_mil_lak,
-            backward_trans: data.backwardComparison?.buy_trans_backward,
-            backward_val_mil: data.backwardComparison?.buy_value_lak_backward,
-            backward_weight_g: data.backwardComparison?.buy_weight_g_backward,
-            backward_ticket: data.backwardComparison?.ticket_size_g_backward,
-            max_db_date: data.config?.data_update_on,
-            sql_script: data.sql_script || targetCamp.sql_script,
-          };
-          setLiveData(payload);
-          setLiveDataMap((prev) => ({ ...prev, [targetCamp.id]: payload }));
+      try {
+        const res = await fetch('/api/dashboard/campaign-analytics', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(targetCamp),
+        });
 
-          // Persist actuals and generated SQL directly back to Supabase and update card view
-          if (payload.ec_actual_mtd > 0) {
-            const updatedCamp: CampaignSetupConfig = {
-              ...targetCamp,
-              customers_actual: payload.ec_actual_mtd,
-              new_cust_actual: payload.nc_actual_mtd,
-              sql_script: payload.sql_script,
-              data_update_on: payload.max_db_date || targetCamp.data_update_on,
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.targetAchievement && data.targetAchievement.ec_actual_mtd > 0) {
+            payload = {
+              ec_actual_mtd: data.targetAchievement.ec_actual_mtd,
+              nc_actual_mtd: data.targetAchievement.nc_actual_mtd,
+              mtd_buy_weight_g: data.targetAchievement.mtd_buy_weight_g,
+              mtd_buy_value_mil_lak: data.targetAchievement.mtd_buy_value_mil_lak,
+              backward_trans: data.backwardComparison?.buy_trans_backward,
+              backward_val_mil: data.backwardComparison?.buy_value_lak_backward,
+              backward_weight_g: data.backwardComparison?.buy_weight_g_backward,
+              backward_ticket: data.backwardComparison?.ticket_size_g_backward,
+              max_db_date: data.config?.data_update_on,
+              sql_script: data.sql_script || targetCamp.sql_script,
             };
-            setAllCampaigns((prev) => {
-              const idx = prev.findIndex((c) => c.id === targetCamp.id);
-              if (idx >= 0) {
-                const next = [...prev];
-                next[idx] = updatedCamp;
-                return next;
-              }
-              return prev;
-            });
-            saveCampaignSetup(updatedCamp, currentUser?.id).catch((err) => {
-              console.warn('Silent save campaign evaluation error:', err);
-            });
           }
+        }
+      } catch (err) {
+        console.warn('API route campaign calculate error, falling back to direct Supabase:', err);
+      }
+
+      // If API route failed or returned empty, execute direct Supabase client queries
+      if (!payload) {
+        try {
+          const supabase = createClient();
+          const rules = Array.isArray(targetCamp.conditions) && targetCamp.conditions.length > 0
+            ? targetCamp.conditions
+            : [{
+                metric: ((targetCamp.condition_type || '').includes('weight') || (targetCamp.condition_label || '').toLowerCase().includes('g')) ? ('weight' as const) : ('amount' as const),
+                operator: targetCamp.condition_operator || '>=',
+                value: Number(targetCamp.condition_value) || 0,
+                max_value: targetCamp.condition_max_value ? Number(targetCamp.condition_max_value) : undefined,
+              }];
+          const firstRule = rules[0];
+          const isWeight = firstRule ? firstRule.metric === 'weight' : false;
+          const condOp = firstRule ? firstRule.operator : '>=';
+          const condVal = firstRule ? Number(firstRule.value) : 0;
+          const condMax = firstRule && firstRule.max_value ? Number(firstRule.max_value) : null;
+          const asOf = targetCamp.data_update_on || '2026-10-18';
+          const backwardWindow = computeBackwardDates(targetCamp.campaign_date_start, 56);
+
+          const { data: rpcData } = await supabase.rpc('get_campaign_actual_metrics', {
+            p_start_date: targetCamp.campaign_date_start,
+            p_as_of_date: asOf,
+            p_backward_start: targetCamp.same_period_backward_start || backwardWindow.start,
+            p_backward_end: targetCamp.same_period_backward_end || backwardWindow.end,
+            p_cond_type: isWeight ? 'weight_gte' : 'amount_gte',
+            p_cond_op: condOp,
+            p_cond_val: condVal > 0 ? condVal : 100000,
+            p_cond_max: condMax,
+            p_tx_type: targetCamp.tx_type || 'BUY_GOLD',
+            p_bank: targetCamp.bank || 'all',
+          });
+
+          // Exact NC Query (OPEN_ACCOUNT in period)
+          let ncQuery = supabase
+            .from('monthly_data')
+            .select('*', { count: 'exact', head: true })
+            .gte('created_at', targetCamp.campaign_date_start)
+            .lte('created_at', `${asOf} 23:59:59`)
+            .in('status', ['ສໍາເລັດ', 'ສຳເລັດ'])
+            .eq('transaction_type', 'OPEN_ACCOUNT');
+
+          if (targetCamp.bank && targetCamp.bank !== 'all') {
+            ncQuery = ncQuery.ilike('bank', `%${targetCamp.bank}%`);
+          }
+
+          const { count: ncCount } = await ncQuery;
+
+          if (rpcData && rpcData.mtd_transac !== undefined) {
+            payload = {
+              ec_actual_mtd: Number(rpcData.mtd_transac) || 0,
+              nc_actual_mtd: (ncCount !== null && ncCount !== undefined) ? ncCount : (Number(rpcData.mtd_new_customers) || 0),
+              mtd_buy_weight_g: Number(rpcData.mtd_gold_weight_g) || 0,
+              mtd_buy_value_mil_lak: Number(rpcData.mtd_revenue_mil_lak) || 0,
+              backward_trans: Number(rpcData.backward_transac) || 0,
+              backward_val_mil: Number(rpcData.backward_revenue_mil_lak) || 0,
+              backward_weight_g: Number(rpcData.backward_gold_weight_g) || 0,
+              backward_ticket: Number(rpcData.backward_transac) > 0 ? Number((Number(rpcData.backward_gold_weight_g) / Number(rpcData.backward_transac)).toFixed(1)) : 2.8,
+              max_db_date: asOf,
+              sql_script: targetCamp.sql_script,
+            };
+          }
+        } catch (dbErr) {
+          console.warn('Direct Supabase calculation fallback error:', dbErr);
+        }
+      }
+
+      if (payload) {
+        setLiveData(payload);
+        setLiveDataMap((prev) => ({ ...prev, [targetCamp.id]: payload }));
+
+        // Persist actuals and generated SQL directly back to Supabase and update card view
+        if (payload.ec_actual_mtd > 0) {
+          const updatedCamp: CampaignSetupConfig = {
+            ...targetCamp,
+            customers_actual: payload.ec_actual_mtd,
+            new_cust_actual: payload.nc_actual_mtd,
+            sql_script: payload.sql_script,
+            data_update_on: payload.max_db_date || targetCamp.data_update_on,
+          };
+          setAllCampaigns((prev) => {
+            const idx = prev.findIndex((c) => c.id === targetCamp.id);
+            if (idx >= 0) {
+              const next = [...prev];
+              next[idx] = updatedCamp;
+              return next;
+            }
+            return prev;
+          });
+          saveCampaignSetup(updatedCamp, currentUser?.id).catch((err) => {
+            console.warn('Silent save campaign evaluation error:', err);
+          });
         }
       }
     } catch (err) {

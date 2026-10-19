@@ -252,10 +252,10 @@ export function CampaignCardItem({
             </span>
             <span className="font-mono font-bold text-blue-700 flex items-center gap-1">
               {isRecording ? (
-                <>
-                  <span className="w-2.5 h-2.5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin inline-block" />
-                  <span className="text-[10px]">Calculating...</span>
-                </>
+                <span className="inline-flex items-center gap-1 text-[10px] text-blue-600 font-semibold animate-pulse">
+                  <span className="w-2 h-2 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                  <span>Syncing...</span>
+                </span>
               ) : (
                 `MTD: ${actEc.toLocaleString()} (${ecHitPct}%)`
               )}
@@ -266,7 +266,7 @@ export function CampaignCardItem({
             <div 
               className={`h-full rounded-full transition-all ${
                 ecHitPct >= 100 ? 'bg-emerald-500' : 'bg-blue-600'
-              }`}
+              } ${isRecording ? 'animate-pulse' : ''}`}
               style={{ width: `${Math.min(ecHitPct, 100)}%` }}
             />
           </div>
@@ -275,44 +275,30 @@ export function CampaignCardItem({
         {/* 4. 2x2 Micro Metrics Grid - Lightweight & Compact */}
         <div className="grid grid-cols-2 gap-1.5">
           {/* Box 1: Buy Trans */}
-          <div className="bg-[#f8fafc] rounded-lg p-1.5 border border-slate-100">
+          <div className={`bg-[#f8fafc] rounded-lg p-1.5 border border-slate-100 transition-all ${isRecording ? 'opacity-80' : ''}`}>
             <span className="text-[8px] font-black uppercase text-slate-400 tracking-wider truncate block">
               BUY TRANS (ACT/TGT)
             </span>
-            <div className="text-[11px] font-black font-mono text-slate-900 truncate">
-              {isRecording ? (
-                <div className="flex items-center gap-1 text-slate-400 font-sans text-[10px]">
-                  <span className="w-2.5 h-2.5 border-2 border-[#0c4ca3] border-t-transparent rounded-full animate-spin inline-block" />
-                  <span>Loading...</span>
-                </div>
-              ) : (
-                `${actEc.toLocaleString()} / ${tgtEc.toLocaleString()}`
-              )}
+            <div className={`text-[11px] font-black font-mono text-slate-900 truncate ${isRecording ? 'animate-pulse text-blue-700' : ''}`}>
+              {`${actEc.toLocaleString()} / ${tgtEc.toLocaleString()}`}
             </div>
             <span className={`block text-[9px] font-bold ${ecHitPct >= 100 ? 'text-emerald-600' : 'text-slate-500'}`}>
-              {isRecording ? '—' : `${ecHitPct}% hit`}
+              {`${ecHitPct}% hit`}
             </span>
           </div>
 
           {/* Box 2: New Customers if targeted, otherwise Gross Buy Value */}
-          <div className="bg-[#f8fafc] rounded-lg p-1.5 border border-slate-100">
+          <div className={`bg-[#f8fafc] rounded-lg p-1.5 border border-slate-100 transition-all ${isRecording ? 'opacity-80' : ''}`}>
             {hasNcTarget ? (
               <>
                 <span className="text-[8px] font-black uppercase text-slate-400 tracking-wider truncate block">
                   NEW CUST (ACT/TGT)
                 </span>
-                <div className="text-[11px] font-black font-mono text-slate-900 truncate">
-                  {isRecording ? (
-                    <div className="flex items-center gap-1 text-slate-400 font-sans text-[10px]">
-                      <span className="w-2.5 h-2.5 border-2 border-[#0c4ca3] border-t-transparent rounded-full animate-spin inline-block" />
-                      <span>Loading...</span>
-                    </div>
-                  ) : (
-                    `${actNc.toLocaleString()} / ${tgtNc.toLocaleString()}`
-                  )}
+                <div className={`text-[11px] font-black font-mono text-slate-900 truncate ${isRecording ? 'animate-pulse text-blue-700' : ''}`}>
+                  {`${actNc.toLocaleString()} / ${tgtNc.toLocaleString()}`}
                 </div>
                 <span className={`block text-[9px] font-bold ${ncHitPct >= 100 ? 'text-emerald-600' : 'text-slate-500'}`}>
-                  {isRecording ? '—' : `${ncHitPct}% hit`}
+                  {`${ncHitPct}% hit`}
                 </span>
               </>
             ) : (
@@ -320,18 +306,11 @@ export function CampaignCardItem({
                 <span className="text-[8px] font-black uppercase text-slate-400 tracking-wider truncate block">
                   BUY VALUE (MIL LAK)
                 </span>
-                <div className="text-[11px] font-black font-mono text-slate-900 truncate">
-                  {isRecording ? (
-                    <div className="flex items-center gap-1 text-slate-400 font-sans text-[10px]">
-                      <span className="w-2.5 h-2.5 border-2 border-[#0c4ca3] border-t-transparent rounded-full animate-spin inline-block" />
-                      <span>Loading...</span>
-                    </div>
-                  ) : (
-                    `${actRevenue.toLocaleString()} mil`
-                  )}
+                <div className={`text-[11px] font-black font-mono text-slate-900 truncate ${isRecording ? 'animate-pulse text-blue-700' : ''}`}>
+                  {`${actRevenue.toLocaleString()} mil`}
                 </div>
                 <span className="block text-[9px] font-bold text-slate-500 truncate">
-                  {isRecording ? '—' : hasRevenueTarget ? `Tgt: ${tgtRevenue?.toLocaleString()} mil` : 'Actual MTD'}
+                  {hasRevenueTarget ? `Tgt: ${tgtRevenue?.toLocaleString()} mil` : 'Actual MTD'}
                 </span>
               </>
             )}

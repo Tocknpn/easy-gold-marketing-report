@@ -177,7 +177,7 @@ WHERE created_at >= '${backwardWindow.start}'
         let mtdQuery = supabase
           .from('monthly_data')
           .select('gold_weight, total_amount, phone', { count: 'exact' })
-          .eq('status', 'ສໍາເລັດ');
+          .in('status', ['ສໍາເລັດ', 'ສຳເລັດ']);
 
         if (txType !== 'all') {
           mtdQuery = mtdQuery.eq('transaction_type', txType);
@@ -196,7 +196,7 @@ WHERE created_at >= '${backwardWindow.start}'
         let bwdQuery = supabase
           .from('monthly_data')
           .select('gold_weight, total_amount', { count: 'exact' })
-          .eq('status', 'ສໍາເລັດ');
+          .in('status', ['ສໍາເລັດ', 'ສຳເລັດ']);
 
         if (txType !== 'all') {
           bwdQuery = bwdQuery.eq('transaction_type', txType);
@@ -231,63 +231,104 @@ WHERE created_at >= '${backwardWindow.start}'
           }
         }
 
-      // Execute MTD and BWD in parallel
-      const [mtdRes, bwdRes] = await Promise.all([
-        !isUpcoming ? mtdQuery.limit(1000) : Promise.resolve({ data: [], count: 0, error: null }),
-        bwdQuery.limit(1000),
+        // Execute MTD and BWD in parallel
+        const [mtdRes, bwdRes] = await Promise.all([
+          !isUpcoming ? mtdQuery.limit(1000) : Promise.resolve({ data: [], count: 0, error: null }),
+          bwdQuery.limit(1000),
+        ]);
+
+        let mtdCount = mtdRes.count || 0;
+        let mtdWeightG = 0;
+        let mtdRevenueMil = 0;
+
+        if (mtdRes.data && mtdRes.data.length > 0) {
+          const sumW = mtdRes.data.reduce((acc, r: any) => acc + (Number(r.gold_weight) || 0), 0);
+          const sumA = mtdRes.data.reduce((acc, r: any) => acc + (Number(r.total_amount) || 0), 0);
+          mtdWeightG = Number(((mtdCount * (sumW / mtdRes.data.length))).toFixed(1));
+          mtdRevenueMil = Number(((mtdCount * (sumA / mtdRes.data.length)) / 1000000.0).toFixed(1));
+        }
+
+        let bwdCount = bwdRes.count || 0;
+        let bwdWeightG = 0;
+        let bwdRevenueMil = 0;
+
+        if (bwdRes.data && bwdRes.data.length > 0) {
+          const sumW = bwdRes.data.reduce((acc, r: any) => acc + (Number(r.gold_weight) || 0), 0);
+          const sumA = bwdRes.data.reduce((acc, r: any) => acc + (Number(r.total_amount) || 0), 0);
+          bwdWeightG = Number(((bwdCount * (sumW / bwdRes.data.length))).toFixed(1));
+          bwdRevenueMil = Number(((bwdCount * (sumA / bwdRes.data.length)) / 1000000.0).toFixed(1));
+        }
+
+        if (mtdCount > 0 || isUpcoming || bwdCount > 0) {
+          liveAgg = {
+            mtd_transac: mtdCount,
+            mtd_new_customers: 0,
+            mtd_gold_weight_g: mtdWeightG,
+            mtd_revenue_mil_lak: mtdRevenueMil,
+            backward_transac: bwdCount,
+            backward_gold_weight_g: bwdWeightG,
+            backward_revenue_mil_lak: bwdRevenueMil,
+          };
+        }
+      } catch (queryErr) {
+        console.warn('Direct parallel query failed:', queryErr);
+      }
+    }
+
+    // Exact NC Query (OPEN_ACCOUNT in period)
+    let exactNc = Number(liveAgg?.mtd_new_customers) || 0;
+    let exactBwdNc = Number(liveAgg?.backward_new_customers) || 0;
+    try {
+      let ncQuery = supabase
+        .from('monthly_data')
+        .select('*', { count: 'exact', head: true })
+        .gte('created_at', config.campaign_date_start)
+        .lte('created_at', `${asOfDate} 23:59:59`)
+        .in('status', ['ສໍາເລັດ', 'ສຳເລັດ'])
+        .eq('transaction_type', 'OPEN_ACCOUNT');
+
+      let bwdNcQuery = supabase
+        .from('monthly_data')
+        .select('*', { count: 'exact', head: true })
+        .gte('created_at', backwardWindow.start)
+        .lte('created_at', `${backwardWindow.end} 23:59:59`)
+        .in('status', ['ສໍາເລັດ', 'ສຳເລັດ'])
+        .eq('transaction_type', 'OPEN_ACCOUNT');
+
+      if (banks.length === 1) {
+        ncQuery = ncQuery.ilike('bank', `%${banks[0]}%`);
+        bwdNcQuery = bwdNcQuery.ilike('bank', `%${banks[0]}%`);
+      } else if (banks.length > 1) {
+        ncQuery = ncQuery.or(banks.map((b: string) => `bank.ilike.%${b}%`).join(','));
+        bwdNcQuery = bwdNcQuery.or(banks.map((b: string) => `bank.ilike.%${b}%`).join(','));
+      }
+
+      const [ncRes, bwdNcRes] = await Promise.all([
+        !isUpcoming ? ncQuery : Promise.resolve({ count: 0 }),
+        bwdNcQuery,
       ]);
 
-      let mtdCount = mtdRes.count || 0;
-      let mtdWeightG = 0;
-      let mtdRevenueMil = 0;
-      let mtdNewCust = 0;
-
-      if (mtdRes.data && mtdRes.data.length > 0) {
-        const sumW = mtdRes.data.reduce((acc, r: any) => acc + (Number(r.gold_weight) || 0), 0);
-        const sumA = mtdRes.data.reduce((acc, r: any) => acc + (Number(r.total_amount) || 0), 0);
-        mtdWeightG = Number(((mtdCount * (sumW / mtdRes.data.length))).toFixed(1));
-        mtdRevenueMil = Number(((mtdCount * (sumA / mtdRes.data.length)) / 1000000.0).toFixed(1));
-        const uniquePhones = new Set(mtdRes.data.map((r: any) => r.phone).filter(Boolean));
-        mtdNewCust = Math.round(mtdCount * (uniquePhones.size / mtdRes.data.length) * 0.15);
+      if (ncRes && ncRes.count !== null && ncRes.count !== undefined) {
+        exactNc = ncRes.count;
       }
-
-      let bwdCount = bwdRes.count || 0;
-      let bwdWeightG = 0;
-      let bwdRevenueMil = 0;
-
-      if (bwdRes.data && bwdRes.data.length > 0) {
-        const sumW = bwdRes.data.reduce((acc, r: any) => acc + (Number(r.gold_weight) || 0), 0);
-        const sumA = bwdRes.data.reduce((acc, r: any) => acc + (Number(r.total_amount) || 0), 0);
-        bwdWeightG = Number(((bwdCount * (sumW / bwdRes.data.length))).toFixed(1));
-        bwdRevenueMil = Number(((bwdCount * (sumA / bwdRes.data.length)) / 1000000.0).toFixed(1));
+      if (bwdNcRes && bwdNcRes.count !== null && bwdNcRes.count !== undefined) {
+        exactBwdNc = bwdNcRes.count;
       }
-
-      if (mtdCount > 0 || isUpcoming || bwdCount > 0) {
-        liveAgg = {
-          mtd_transac: mtdCount,
-          mtd_new_customers: mtdNewCust,
-          mtd_gold_weight_g: mtdWeightG,
-          mtd_revenue_mil_lak: mtdRevenueMil,
-          backward_transac: bwdCount,
-          backward_gold_weight_g: bwdWeightG,
-          backward_revenue_mil_lak: bwdRevenueMil,
-        };
-      }
-    } catch (queryErr) {
-      console.warn('Direct parallel query failed:', queryErr);
+    } catch (e) {
+      console.warn('Exact NC query error:', e);
     }
-  }
 
     // Pass live aggregation results (if any) to analytics engine
     const liveDataPayload = liveAgg
       ? {
           ec_actual_mtd: Number(liveAgg.mtd_transac) || 0,
-          nc_actual_mtd: Number(liveAgg.mtd_new_customers) || 0,
+          nc_actual_mtd: exactNc,
           mtd_buy_weight_g: Number(liveAgg.mtd_gold_weight_g) || 0,
           mtd_buy_value_mil_lak: Number(liveAgg.mtd_revenue_mil_lak) || 0,
           backward_trans: Number(liveAgg.backward_transac) || 0,
           backward_val_mil: Number(liveAgg.backward_revenue_mil_lak) || 0,
           backward_weight_g: Number(liveAgg.backward_gold_weight_g) || 0,
+          backward_nc: exactBwdNc,
           max_db_date: asOfDate,
         }
       : {
