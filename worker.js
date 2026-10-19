@@ -421,10 +421,13 @@ export default {
         config = {};
       }
 
+      const DEFAULT_SUPABASE_URL = "https://wlufvvawlbyvpyaubzph.supabase.co";
+      const DEFAULT_SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndsdWZ2dmF3bGJ5dnB5YXVienBoIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MTg1MDY0MSwiZXhwIjoyMTA3NDI2NjQxfQ.CN2Omnb-aAuxAW80EqFZubEZhilRdOlwHg8VzPn2AHk";
+
       const headerUrl = request.headers.get('x-supabase-url');
       const headerKey = request.headers.get('x-supabase-key');
-      const supabaseUrl = headerUrl || env.NEXT_PUBLIC_SUPABASE_URL;
-      const supabaseKey = headerKey || env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+      const supabaseUrl = headerUrl || (env && env.NEXT_PUBLIC_SUPABASE_URL) || DEFAULT_SUPABASE_URL;
+      const supabaseKey = headerKey || (env && env.NEXT_PUBLIC_SUPABASE_ANON_KEY) || DEFAULT_SUPABASE_KEY;
 
       const asOfDate = config.auto_sync_max_date !== false ? '2026-10-18' : (config.data_update_on || '2026-10-18');
       const startDate = config.campaign_date_start || '2026-10-16';
@@ -501,78 +504,108 @@ WHERE created_at >= '${bwdStart}'
 
       if (supabaseUrl && supabaseKey && !supabaseUrl.includes('placeholder')) {
         try {
-          const statusStr = encodeURIComponent('ສໍາເລັດ');
-          const fetchHeaders = {
-            apikey: supabaseKey,
-            Authorization: `Bearer ${supabaseKey}`,
-            'Range-Unit': 'items',
-            Prefer: 'count=exact',
+          // Direct, ultra-fast exact aggregation via Supabase RPC
+          const rpcPayload = {
+            p_start_date: startDate,
+            p_as_of_date: asOfDate,
+            p_backward_start: bwdStart,
+            p_backward_end: bwdEnd,
+            p_cond_type: config.condition_type || 'amount_gte',
+            p_cond_op: condOp,
+            p_cond_val: condVal > 0 ? condVal : 100000,
+            p_cond_max: config.condition_max_value ? Number(config.condition_max_value) : null,
+            p_tx_type: txType || 'BUY_GOLD',
+            p_bank: effectiveBank || 'all',
           };
 
-          let mtdUrl = `${supabaseUrl}/rest/v1/monthly_data?select=gold_weight,total_amount,phone&status=eq.${statusStr}&created_at=gte.${startDate}&created_at=lte.${asOfDate}%2023:59:59&limit=1000`;
-          let bwdUrl = `${supabaseUrl}/rest/v1/monthly_data?select=gold_weight,total_amount&status=eq.${statusStr}&created_at=gte.${bwdStart}&created_at=lte.${bwdEnd}%2023:59:59&limit=1000`;
+          const rpcRes = await fetch(`${supabaseUrl}/rest/v1/rpc/get_campaign_actual_metrics`, {
+            method: 'POST',
+            headers: {
+              apikey: supabaseKey,
+              Authorization: `Bearer ${supabaseKey}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(rpcPayload),
+          });
 
-          if (txType !== 'all') {
-            mtdUrl += `&transaction_type=eq.${encodeURIComponent(txType)}`;
-            bwdUrl += `&transaction_type=eq.${encodeURIComponent(txType)}`;
-          }
-          if (banks.length === 1) {
-            mtdUrl += `&bank=ilike.*${encodeURIComponent(banks[0])}*`;
-            bwdUrl += `&bank=ilike.*${encodeURIComponent(banks[0])}*`;
-          } else if (banks.length > 1) {
-            const orCond = banks.map((b) => `bank.ilike.*${encodeURIComponent(b)}*`).join(',');
-            mtdUrl += `&or=(${orCond})`;
-            bwdUrl += `&or=(${orCond})`;
-          }
-          if (condVal > 0) {
-            const col = isWeight ? 'gold_weight' : 'total_amount';
-            const op = config.condition_operator === '<=' ? 'lte' : 'gte';
-            mtdUrl += `&${col}=${op}.${condVal}`;
-            bwdUrl += `&${col}=${op}.${condVal}`;
-          }
+          if (rpcRes.ok) {
+            const rpcData = await rpcRes.json();
+            if (rpcData && rpcData.mtd_transac !== undefined) {
+              mtdTransac = Number(rpcData.mtd_transac) || 0;
+              mtdNc = Number(rpcData.mtd_new_customers) || 0;
+              mtdWeightG = Number(rpcData.mtd_gold_weight_g) || 0;
+              mtdRevMil = Number(rpcData.mtd_revenue_mil_lak) || 0;
 
-          // Execute MTD and BWD in parallel
-          const [mtdRes, bwdRes] = await Promise.all([
-            !isUpcoming ? fetch(mtdUrl, { headers: fetchHeaders }) : Promise.resolve(null),
-            fetch(bwdUrl, { headers: fetchHeaders }),
-          ]);
-
-          if (mtdRes && mtdRes.ok) {
-            const cr = mtdRes.headers.get('Content-Range');
-            const rows = await mtdRes.json();
-            mtdTransac = cr && cr.includes('/') ? parseInt(cr.split('/')[1], 10) : rows.length;
-            if (rows.length > 0) {
-              const sumW = rows.reduce((acc, r) => acc + (Number(r.gold_weight) || 0), 0);
-              const sumA = rows.reduce((acc, r) => acc + (Number(r.total_amount) || 0), 0);
-              mtdWeightG = Number(((mtdTransac * (sumW / rows.length))).toFixed(1));
-              mtdRevMil = Number(((mtdTransac * (sumA / rows.length)) / 1000000.0).toFixed(1));
-              const uniquePhones = new Set(rows.map((r) => r.phone).filter(Boolean));
-              mtdNc = Math.round(mtdTransac * (uniquePhones.size / rows.length) * 0.12);
+              bwdTransac = Number(rpcData.backward_transac) || 0;
+              bwdWeightG = Number(rpcData.backward_gold_weight_g) || 0;
+              bwdRevMil = Number(rpcData.backward_revenue_mil_lak) || 0;
             }
-          }
+          } else {
+            // Fallback to table queries with exact count if RPC is unavailable
+            const statusStr = encodeURIComponent('ສໍາເລັດ');
+            const fetchHeaders = {
+              apikey: supabaseKey,
+              Authorization: `Bearer ${supabaseKey}`,
+              'Range-Unit': 'items',
+              Prefer: 'count=exact',
+            };
 
-          if (bwdRes && bwdRes.ok) {
-            const cr = bwdRes.headers.get('Content-Range');
-            const rows = await bwdRes.json();
-            bwdTransac = cr && cr.includes('/') ? parseInt(cr.split('/')[1], 10) : rows.length;
-            if (rows.length > 0) {
-              const sumW = rows.reduce((acc, r) => acc + (Number(r.gold_weight) || 0), 0);
-              const sumA = rows.reduce((acc, r) => acc + (Number(r.total_amount) || 0), 0);
-              bwdWeightG = Number(((bwdTransac * (sumW / rows.length))).toFixed(1));
-              bwdRevMil = Number(((bwdTransac * (sumA / rows.length)) / 1000000.0).toFixed(1));
+            let mtdUrl = `${supabaseUrl}/rest/v1/monthly_data?select=gold_weight,total_amount,phone&status=eq.${statusStr}&created_at=gte.${startDate}&created_at=lte.${asOfDate}%2023:59:59&limit=1000`;
+            let bwdUrl = `${supabaseUrl}/rest/v1/monthly_data?select=gold_weight,total_amount&status=eq.${statusStr}&created_at=gte.${bwdStart}&created_at=lte.${bwdEnd}%2023:59:59&limit=1000`;
+
+            if (txType !== 'all') {
+              mtdUrl += `&transaction_type=eq.${encodeURIComponent(txType)}`;
+              bwdUrl += `&transaction_type=eq.${encodeURIComponent(txType)}`;
+            }
+            if (banks.length === 1) {
+              mtdUrl += `&bank=ilike.*${encodeURIComponent(banks[0])}*`;
+              bwdUrl += `&bank=ilike.*${encodeURIComponent(banks[0])}*`;
+            } else if (banks.length > 1) {
+              const orCond = banks.map((b) => `bank.ilike.*${encodeURIComponent(b)}*`).join(',');
+              mtdUrl += `&or=(${orCond})`;
+              bwdUrl += `&or=(${orCond})`;
+            }
+            if (condVal > 0) {
+              const col = isWeight ? 'gold_weight' : 'total_amount';
+              const op = config.condition_operator === '<=' ? 'lte' : 'gte';
+              mtdUrl += `&${col}=${op}.${condVal}`;
+              bwdUrl += `&${col}=${op}.${condVal}`;
+            }
+
+            const [mtdRes, bwdRes] = await Promise.all([
+              !isUpcoming ? fetch(mtdUrl, { headers: fetchHeaders }) : Promise.resolve(null),
+              fetch(bwdUrl, { headers: fetchHeaders }),
+            ]);
+
+            if (mtdRes && mtdRes.ok) {
+              const cr = mtdRes.headers.get('Content-Range');
+              const rows = await mtdRes.json();
+              mtdTransac = cr && cr.includes('/') ? parseInt(cr.split('/')[1], 10) : rows.length;
+              if (rows.length > 0) {
+                const sumW = rows.reduce((acc, r) => acc + (Number(r.gold_weight) || 0), 0);
+                const sumA = rows.reduce((acc, r) => acc + (Number(r.total_amount) || 0), 0);
+                mtdWeightG = Number(((mtdTransac * (sumW / rows.length))).toFixed(1));
+                mtdRevMil = Number(((mtdTransac * (sumA / rows.length)) / 1000000.0).toFixed(1));
+                const uniquePhones = new Set(rows.map((r) => r.phone).filter(Boolean));
+                mtdNc = Math.round(mtdTransac * (uniquePhones.size / rows.length) * 0.12);
+              }
+            }
+
+            if (bwdRes && bwdRes.ok) {
+              const cr = bwdRes.headers.get('Content-Range');
+              const rows = await bwdRes.json();
+              bwdTransac = cr && cr.includes('/') ? parseInt(cr.split('/')[1], 10) : rows.length;
+              if (rows.length > 0) {
+                const sumW = rows.reduce((acc, r) => acc + (Number(r.gold_weight) || 0), 0);
+                const sumA = rows.reduce((acc, r) => acc + (Number(r.total_amount) || 0), 0);
+                bwdWeightG = Number(((bwdTransac * (sumW / rows.length))).toFixed(1));
+                bwdRevMil = Number(((bwdTransac * (sumA / rows.length)) / 1000000.0).toFixed(1));
+              }
             }
           }
         } catch (err) {
           console.error('Worker live campaign query error:', err);
         }
-      }
-
-      // Safeguard: if network failed or returned 0 but campaign has valid calibrated actuals, preserve them
-      if (mtdTransac === 0 && config.customers_actual && config.customers_actual > 0 && !isUpcoming) {
-        mtdTransac = config.customers_actual;
-        mtdNc = config.new_cust_actual || Math.round(mtdTransac * 0.055);
-        mtdWeightG = Number((mtdTransac * 2.6).toFixed(1));
-        mtdRevMil = Number(((mtdTransac * 980000) / 1000000.0).toFixed(1));
       }
 
       const ecTarget = Number(config.ec_target) || 62400;

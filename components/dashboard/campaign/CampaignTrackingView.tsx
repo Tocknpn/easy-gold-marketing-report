@@ -203,10 +203,14 @@ export function CampaignTrackingView({
     try {
       const storedUrl = typeof window !== 'undefined' ? localStorage.getItem('supabase_project_url') : null;
       const storedKey = typeof window !== 'undefined' ? localStorage.getItem('supabase_anon_key') : null;
+      const envUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://wlufvvawlbyvpyaubzph.supabase.co';
+      const envKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndsdWZ2dmF3bGJ5dnB5YXVienBoIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MTg1MDY0MSwiZXhwIjoyMTA3NDI2NjQxfQ.CN2Omnb-aAuxAW80EqFZubEZhilRdOlwHg8VzPn2AHk';
 
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (storedUrl) headers['x-supabase-url'] = storedUrl;
-      if (storedKey) headers['x-supabase-key'] = storedKey;
+      const headers: Record<string, string> = { 
+        'Content-Type': 'application/json',
+        'x-supabase-url': storedUrl || envUrl,
+        'x-supabase-key': storedKey || envKey,
+      };
 
       const res = await fetch('/api/dashboard/campaign-analytics', {
         method: 'POST',
@@ -232,7 +236,7 @@ export function CampaignTrackingView({
           setLiveData(payload);
           setLiveDataMap((prev) => ({ ...prev, [targetCamp.id]: payload }));
 
-          // Persist actuals and generated SQL directly back to Supabase
+          // Persist actuals and generated SQL directly back to Supabase and update card view
           if (payload.ec_actual_mtd > 0) {
             const updatedCamp: CampaignSetupConfig = {
               ...targetCamp,
@@ -241,6 +245,15 @@ export function CampaignTrackingView({
               sql_script: payload.sql_script,
               data_update_on: payload.max_db_date || targetCamp.data_update_on,
             };
+            setAllCampaigns((prev) => {
+              const idx = prev.findIndex((c) => c.id === targetCamp.id);
+              if (idx >= 0) {
+                const next = [...prev];
+                next[idx] = updatedCamp;
+                return next;
+              }
+              return prev;
+            });
             saveCampaignSetup(updatedCamp, currentUser?.id).catch((err) => {
               console.warn('Silent save campaign evaluation error:', err);
             });
@@ -254,21 +267,16 @@ export function CampaignTrackingView({
     }
   }, [currentUser?.id]);
 
-  // Select campaign without zeroing out existing actuals
+  // Select campaign and immediately trigger live calculation if not cached
   const handleSelectCampaign = useCallback((camp: CampaignSetupConfig) => {
     setActiveCampaign(camp);
     const cached = liveDataMap[camp.id];
     if (cached) {
       setLiveData(cached);
-    } else if (camp.customers_actual && camp.customers_actual > 0) {
-      setLiveData({
-        ec_actual_mtd: camp.customers_actual,
-        nc_actual_mtd: camp.new_cust_actual || Math.round(camp.customers_actual * 0.055),
-        max_db_date: camp.data_update_on || dbLatestDate,
-        sql_script: camp.sql_script,
-      });
+    } else {
+      handleExecuteCalculate(camp);
     }
-  }, [liveDataMap, dbLatestDate]);
+  }, [liveDataMap, handleExecuteCalculate]);
 
   // Copy SQL script to clipboard
   const handleCopySql = (sql: string) => {

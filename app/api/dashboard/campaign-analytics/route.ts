@@ -119,18 +119,41 @@ WHERE created_at >= '${backwardWindow.start}'
     let liveAgg: any = null;
 
     try {
-      // Build MTD Query
-      let mtdQuery = supabase
-        .from('monthly_data')
-        .select('gold_weight, total_amount, phone', { count: 'exact' })
-        .eq('status', 'ສໍາເລັດ');
+      // 1. Ultra-fast exact aggregation directly via Supabase RPC
+      const { data: rpcData, error: rpcError } = await supabase.rpc('get_campaign_actual_metrics', {
+        p_start_date: config.campaign_date_start,
+        p_as_of_date: asOfDate,
+        p_backward_start: backwardWindow.start,
+        p_backward_end: backwardWindow.end,
+        p_cond_type: config.condition_type || 'amount_gte',
+        p_cond_op: condOp,
+        p_cond_val: condVal > 0 ? condVal : 100000,
+        p_cond_max: config.condition_max_value ? Number(config.condition_max_value) : null,
+        p_tx_type: txType,
+        p_bank: effectiveBank || 'all',
+      });
 
-      if (txType !== 'all') {
-        mtdQuery = mtdQuery.eq('transaction_type', txType);
+      if (!rpcError && rpcData && rpcData.mtd_transac !== undefined) {
+        liveAgg = rpcData;
       }
-      mtdQuery = mtdQuery
-        .gte('created_at', config.campaign_date_start)
-        .lte('created_at', `${asOfDate} 23:59:59`);
+    } catch (rpcErr) {
+      console.warn('RPC campaign calculation failed, falling back to table queries:', rpcErr);
+    }
+
+    if (!liveAgg) {
+      try {
+        // Build MTD Query
+        let mtdQuery = supabase
+          .from('monthly_data')
+          .select('gold_weight, total_amount, phone', { count: 'exact' })
+          .eq('status', 'ສໍາເລັດ');
+
+        if (txType !== 'all') {
+          mtdQuery = mtdQuery.eq('transaction_type', txType);
+        }
+        mtdQuery = mtdQuery
+          .gte('created_at', config.campaign_date_start)
+          .lte('created_at', `${asOfDate} 23:59:59`);
 
       if (banks.length === 1) {
         mtdQuery = mtdQuery.ilike('bank', `%${banks[0]}%`);
@@ -206,14 +229,6 @@ WHERE created_at >= '${backwardWindow.start}'
         bwdRevenueMil = Number(((bwdCount * (sumA / bwdRes.data.length)) / 1000000.0).toFixed(1));
       }
 
-      // If zero count but calibrated custom actual exists, use custom actual
-      if (mtdCount === 0 && config.customers_actual && config.customers_actual > 0 && !isUpcoming) {
-        mtdCount = config.customers_actual;
-        mtdNewCust = config.new_cust_actual || Math.round(mtdCount * 0.055);
-        mtdWeightG = Number((mtdCount * 2.6).toFixed(1));
-        mtdRevenueMil = Number(((mtdCount * 980000) / 1000000.0).toFixed(1));
-      }
-
       if (mtdCount > 0 || isUpcoming || bwdCount > 0) {
         liveAgg = {
           mtd_transac: mtdCount,
@@ -228,6 +243,7 @@ WHERE created_at >= '${backwardWindow.start}'
     } catch (queryErr) {
       console.warn('Direct parallel query failed:', queryErr);
     }
+  }
 
     // Pass live aggregation results (if any) to analytics engine
     const liveDataPayload = liveAgg
