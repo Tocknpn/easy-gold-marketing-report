@@ -317,30 +317,6 @@ export function UserAuthModal({
                   )}
                 </button>
               </form>
-
-              {/* Demo 1-Click Login Quick Pills */}
-              <div className="pt-3 border-t border-slate-200/80">
-                <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5 text-[#e5a812]" />
-                  <span>Quick Demo Access (1-Click)</span>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => handleDemoLogin('admin')}
-                    className="py-2 px-2.5 rounded-xl text-[11px] font-bold bg-blue-50 text-[#0c4ca3] hover:bg-blue-100 border border-blue-200 transition-colors text-left flex items-center gap-1.5"
-                  >
-                    <span>👑 Operations Director</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleDemoLogin('manager')}
-                    className="py-2 px-2.5 rounded-xl text-[11px] font-bold bg-amber-50 text-amber-900 hover:bg-amber-100 border border-amber-200 transition-colors text-left flex items-center gap-1.5"
-                  >
-                    <span>📊 Marketing Manager</span>
-                  </button>
-                </div>
-              </div>
             </div>
           )}
         </div>
