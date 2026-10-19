@@ -206,32 +206,21 @@ export function computeCampaignAnalytics(
   const isBogus1731 = config.customers_actual === 1731 && config.ec_target !== 1731;
   const hasValidCustomActual = Boolean(config.customers_actual && config.customers_actual > 0 && !isBogus1731);
 
-  if (liveData?.ec_actual_mtd !== undefined) {
+  const hasLiveEc = liveData?.ec_actual_mtd !== undefined && (liveData.ec_actual_mtd > 0 || !hasValidCustomActual);
+
+  if (hasLiveEc) {
     // Priority 1: Supabase Live Database Aggregation
-    ec_actual_mtd = liveData.ec_actual_mtd;
-    nc_actual_mtd = liveData.nc_actual_mtd ?? Math.round(ec_actual_mtd * 0.055);
-    mtd_buy_weight_g = liveData.mtd_buy_weight_g ?? Number((ec_actual_mtd * avgTicketWeightG).toFixed(1));
-    mtd_buy_value_mil_lak = liveData.mtd_buy_value_mil_lak ?? Number(((ec_actual_mtd * avgTicketValueLak) / 1000000).toFixed(1));
+    ec_actual_mtd = liveData!.ec_actual_mtd ?? (config.customers_actual || 0);
+    nc_actual_mtd = liveData!.nc_actual_mtd ?? Math.round(ec_actual_mtd * 0.055);
+    mtd_buy_weight_g = liveData!.mtd_buy_weight_g ?? Number((ec_actual_mtd * avgTicketWeightG).toFixed(1));
+    mtd_buy_value_mil_lak = liveData!.mtd_buy_value_mil_lak ?? Number(((ec_actual_mtd * avgTicketValueLak) / 1000000).toFixed(1));
 
-    backward_trans = liveData.backward_trans ?? Math.round(ec_actual_mtd * 0.74);
-    backward_val_mil = liveData.backward_val_mil ?? Number((mtd_buy_value_mil_lak * 0.75).toFixed(1));
-    backward_weight_g = liveData.backward_weight_g ?? Number((mtd_buy_weight_g * 0.76).toFixed(1));
+    backward_trans = liveData!.backward_trans ?? Math.round(ec_actual_mtd * 0.74);
+    backward_val_mil = liveData!.backward_val_mil ?? Number((mtd_buy_value_mil_lak * 0.75).toFixed(1));
+    backward_weight_g = liveData!.backward_weight_g ?? Number((mtd_buy_weight_g * 0.76).toFixed(1));
     backward_ticket = backward_trans > 0 ? Number((backward_weight_g / backward_trans).toFixed(1)) : avgTicketWeightG;
-  } else if (is_upcoming) {
-    // Priority 2: Upcoming campaign (Starts in future -> 0 MTD volume, benchmark is pre-campaign horizon)
-    ec_actual_mtd = 0;
-    nc_actual_mtd = 0;
-    mtd_buy_weight_g = 0;
-    mtd_buy_value_mil_lak = 0;
-
-    // Backward baseline over total_days prior to campaign start for this specific condition & bank
-    const bwdDaily = conditionDailyBaseline * 0.74;
-    backward_trans = Math.max(1, Math.round(bwdDaily * backward_days));
-    backward_weight_g = Number((backward_trans * avgTicketWeightG).toFixed(1));
-    backward_val_mil = Number(((backward_trans * avgTicketValueLak) / 1000000).toFixed(1));
-    backward_ticket = avgTicketWeightG;
   } else if (hasValidCustomActual && config.customers_actual) {
-    // Priority 3: Explicitly calibrated customer actuals
+    // Priority 2: Explicitly calibrated customer actuals (never drop to 0)
     ec_actual_mtd = config.customers_actual;
     nc_actual_mtd = config.new_cust_actual && config.new_cust_actual > 0 
       ? config.new_cust_actual 
@@ -243,6 +232,19 @@ export function computeCampaignAnalytics(
     backward_trans = Math.max(1, Math.round(ec_actual_mtd / 1.35));
     backward_val_mil = Number(((backward_trans * avgTicketValueLak) / 1000000).toFixed(1));
     backward_weight_g = Number((backward_trans * avgTicketWeightG).toFixed(1));
+    backward_ticket = avgTicketWeightG;
+  } else if (is_upcoming) {
+    // Priority 3: Upcoming campaign (Starts in future -> 0 MTD volume, benchmark is pre-campaign horizon)
+    ec_actual_mtd = 0;
+    nc_actual_mtd = 0;
+    mtd_buy_weight_g = 0;
+    mtd_buy_value_mil_lak = 0;
+
+    // Backward baseline over total_days prior to campaign start for this specific condition & bank
+    const bwdDaily = conditionDailyBaseline * 0.74;
+    backward_trans = Math.max(1, Math.round(bwdDaily * backward_days));
+    backward_weight_g = Number((backward_trans * avgTicketWeightG).toFixed(1));
+    backward_val_mil = Number(((backward_trans * avgTicketValueLak) / 1000000).toFixed(1));
     backward_ticket = avgTicketWeightG;
   } else {
     // Priority 4: Dynamic analytical model calibrated to the specific campaign plan, timeline, condition & bank

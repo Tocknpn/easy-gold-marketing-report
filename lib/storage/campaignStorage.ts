@@ -1,7 +1,7 @@
 import { CampaignSetupConfig } from '@/lib/types/campaign.types';
 import { createClient } from '@/lib/supabase/client';
 
-const LOCAL_STORAGE_CAMPAIGNS_KEY = 'easy_gold_saved_campaign_setups_v5';
+const LOCAL_STORAGE_CAMPAIGNS_KEY = 'easy_gold_saved_campaign_setups_v6';
 
 const LEGACY_ID_MAP: Record<string, string> = {
   'campaign-buy-500k-mega': '10000000-0000-0000-0000-000000000001',
@@ -242,10 +242,11 @@ export async function loadCampaignSetups(userId?: string): Promise<CampaignSetup
           location: d.location,
           total_spending_cost: d.total_spending_cost !== undefined ? Number(d.total_spending_cost) : undefined,
           plan_budget: d.plan_budget !== undefined ? Number(d.plan_budget) : undefined,
-          customers_actual: d.customers_actual !== undefined ? Number(d.customers_actual) : undefined,
+          customers_actual: (d.actual_ec !== undefined && d.actual_ec !== null && Number(d.actual_ec) > 0) ? Number(d.actual_ec) : (d.customers_actual !== undefined ? Number(d.customers_actual) : undefined),
           customers_target: d.customers_target !== undefined ? Number(d.customers_target) : undefined,
-          new_cust_actual: d.new_cust_actual !== undefined ? Number(d.new_cust_actual) : undefined,
+          new_cust_actual: (d.actual_nc !== undefined && d.actual_nc !== null && Number(d.actual_nc) > 0) ? Number(d.actual_nc) : (d.new_cust_actual !== undefined ? Number(d.new_cust_actual) : undefined),
           new_cust_target: d.new_cust_target !== undefined ? Number(d.new_cust_target) : undefined,
+          sql_script: d.sql_script || undefined,
           cpo_actual: d.cpo_actual !== undefined ? Number(d.cpo_actual) : undefined,
           cpo_target: d.cpo_target !== undefined ? Number(d.cpo_target) : undefined,
           cpa_actual: d.cpa_actual !== undefined ? Number(d.cpa_actual) : undefined,
@@ -312,9 +313,15 @@ function sanitizeLoadedCampaign(c: CampaignSetupConfig): CampaignSetupConfig {
     customersActual = 0;
     newCustActual = 0;
   } else if (customersActual === 1731 && c.ec_target !== 1731) {
-    // Corrupted dummy value 1731: reset to 0 so the engine dynamically computes accurate condition-specific pacing
     customersActual = 0;
     newCustActual = 0;
+  }
+
+  // Restore preset verified count if actuals are 0 or missing for active campaign
+  const preset = INITIAL_PRESET_CAMPAIGNS.find((p) => p.id === resolvedId);
+  if ((customersActual === undefined || customersActual === 0) && preset && preset.customers_actual && !isUpcoming) {
+    customersActual = preset.customers_actual;
+    newCustActual = preset.new_cust_actual;
   }
 
   return {
@@ -370,6 +377,8 @@ export async function saveCampaignSetup(campaign: CampaignSetupConfig, userId?: 
         gold_weight_target_g: toSave.gold_weight_target_g,
         baseline_daily_rr: toSave.baseline_daily_rr,
         status: toSave.status || 'active',
+        actual_ec: toSave.customers_actual ?? 0,
+        actual_nc: toSave.new_cust_actual ?? 0,
         sql_script: toSave.sql_script || null,
         updated_at: new Date().toISOString(),
       };

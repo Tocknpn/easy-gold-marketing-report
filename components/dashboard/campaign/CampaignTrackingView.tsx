@@ -60,7 +60,7 @@ export function CampaignTrackingView({
   const [allCampaigns, setAllCampaigns] = useState<CampaignSetupConfig[]>(() => {
     if (typeof window !== 'undefined') {
       try {
-        const raw = localStorage.getItem('easy_gold_saved_campaign_setups_v5');
+        const raw = localStorage.getItem('easy_gold_saved_campaign_setups_v6');
         if (raw) {
           const parsed = JSON.parse(raw);
           if (Array.isArray(parsed) && parsed.length > 0) return parsed;
@@ -73,7 +73,7 @@ export function CampaignTrackingView({
   const [activeCampaign, setActiveCampaign] = useState<CampaignSetupConfig | null>(() => {
     if (typeof window !== 'undefined') {
       try {
-        const raw = localStorage.getItem('easy_gold_saved_campaign_setups_v5');
+        const raw = localStorage.getItem('easy_gold_saved_campaign_setups_v6');
         if (raw) {
           const parsed = JSON.parse(raw);
           if (Array.isArray(parsed) && parsed.length > 0) return parsed[0];
