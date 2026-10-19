@@ -20,6 +20,9 @@ export interface MtdMetricItem {
 export interface MtdReportPayload {
   as_of_date: string; // ISO date '2026-10-11'
   display_as_of_date: string; // '11/10/2026'
+  latest_data_date?: string; // ISO date of the newest day with data, e.g. '2026-10-18'
+  comparison_cutoff_date?: string; // Last day of the comparison month included in comp MTD
+  error?: string; // Set by the API when the report cannot be computed
   current_month_label: string; // "Oct'26"
   current_month_year: number; // 2026
   current_month_num: number; // 10
@@ -46,3 +49,11 @@ export interface MtdReportPayload {
     month: number;
   }>;
 }
+
+export interface MtdQuery {
+  asOfDate?: string;
+  compYear?: number;
+  compMonth?: number;
+  mode?: MtdCalculationMode;
+}
+

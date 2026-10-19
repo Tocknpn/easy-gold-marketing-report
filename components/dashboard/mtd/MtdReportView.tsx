@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { MtdReportPayload, MtdCalculationMode } from '@/lib/types/mtd.types';
+import { MtdReportPayload, MtdCalculationMode, MtdQuery } from '@/lib/types/mtd.types';
 import { MtdBuyActivitySection } from './MtdBuyActivitySection';
 import { MtdSellActivitySection } from './MtdSellActivitySection';
 import { MtdPlatformSection } from './MtdPlatformSection';
@@ -19,37 +19,46 @@ import {
   ChevronDown,
   ChevronUp,
   RotateCcw,
-  Loader2
+  Loader2,
+  AlertTriangle
 } from 'lucide-react';
 
 interface MtdReportViewProps {
   initialData: MtdReportPayload;
-  onRefresh?: () => Promise<void>;
+  onRefresh?: (query?: MtdQuery) => Promise<void>;
   loading?: boolean;
+  error?: string | null;
 }
 
-export function MtdReportView({ initialData, onRefresh, loading = false }: MtdReportViewProps) {
-  const [data, setData] = useState<MtdReportPayload>(initialData);
+export function MtdReportView({ initialData, onRefresh, loading = false, error = null }: MtdReportViewProps) {
   const [selectedCompMonth, setSelectedCompMonth] = useState<string>(initialData.comparison_month_label);
   const [mode, setMode] = useState<MtdCalculationMode>(initialData.calculation_mode);
   const [asOfDate, setAsOfDate] = useState<string>(initialData.as_of_date || '2026-10-18');
+
   const [selectedBranch, setSelectedBranch] = useState<string>('all');
   const [selectedBank, setSelectedBank] = useState<string>('all');
   const [forecastScenario, setForecastScenario] = useState<'standard' | 'working_days' | 'conservative' | 'optimistic' | 'payday_surge'>('standard');
-  const [hasExecuted, setHasExecuted] = useState<boolean>(false);
+  const [hasExecuted, setHasExecuted] = useState<boolean>(true);
   const [isExecuting, setIsExecuting] = useState<boolean>(false);
   const [isExporting, setIsExporting] = useState<boolean>(false);
   const [isSlicersExpanded, setIsSlicersExpanded] = useState<boolean>(false);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [showFormulaInfo, setShowFormulaInfo] = useState<boolean>(false);
   const [showAnalystBrief, setShowAnalystBrief] = useState<boolean>(true);
-  const [executionTimestamp, setExecutionTimestamp] = useState<string>('');
+  const [executionTimestamp, setExecutionTimestamp] = useState<string>(() => new Date().toLocaleTimeString());
 
-  const handleExecuteMtd = async () => {
+  const handleExecuteMtd = async (overrideCompMonth?: string, overrideMode?: MtdCalculationMode, overrideDate?: string) => {
     setIsExecuting(true);
     try {
       if (onRefresh) {
-        await onRefresh();
+        const targetMonthLabel = overrideCompMonth || selectedCompMonth;
+        const matchedMonth = displayedData.available_months?.find(m => m.label === targetMonthLabel);
+        await onRefresh({
+          asOfDate: overrideDate || asOfDate,
+          compYear: matchedMonth?.year,
+          compMonth: matchedMonth?.month,
+          mode: overrideMode || mode,
+        });
       }
     } finally {
       setIsExecuting(false);
@@ -57,6 +66,7 @@ export function MtdReportView({ initialData, onRefresh, loading = false }: MtdRe
       setExecutionTimestamp(new Date().toLocaleTimeString());
     }
   };
+
 
   // Available Branches
   const branches = [
@@ -151,16 +161,25 @@ export function MtdReportView({ initialData, onRefresh, loading = false }: MtdRe
 
   const handleModeChange = (newMode: MtdCalculationMode) => {
     setMode(newMode);
+    handleExecuteMtd(selectedCompMonth, newMode, asOfDate);
+  };
+
+  const handleCompMonthChange = (newMonth: string) => {
+    setSelectedCompMonth(newMonth);
+    handleExecuteMtd(newMonth, mode, asOfDate);
   };
 
   const handleResetFilters = () => {
-    setAsOfDate('2026-10-11');
+    const defaultDate = initialData.as_of_date || '2026-10-18';
+    setAsOfDate(defaultDate);
     setSelectedBranch('all');
     setSelectedBank('all');
     setForecastScenario('standard');
     setMode('calendar_days');
     setSelectedCompMonth("Sep'26");
+    handleExecuteMtd("Sep'26", 'calendar_days', defaultDate);
   };
+
 
   const handleExportCsv = () => {
     setIsExporting(true);
@@ -206,6 +225,18 @@ export function MtdReportView({ initialData, onRefresh, loading = false }: MtdRe
 
   return (
     <div className="w-full flex flex-col gap-4">
+      {error && (
+        <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-300 text-amber-900 text-xs flex items-start gap-2.5 shadow-xs">
+          <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+          <div className="space-y-1">
+            <div className="font-bold">Live Supabase Sync Notice</div>
+            <p className="text-[11px] text-amber-800 leading-relaxed">
+              {error} Showing calibrated actual baseline data. To enable live RPC recalculation across all months, run <code className="bg-amber-100/80 px-1 py-0.5 rounded font-mono font-semibold">sql/36_mtd_daily_summary_and_rpc.sql</code> in your Supabase SQL Editor.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* 1. Header Row matching screenshot */}
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 pb-2 border-b border-slate-200/80">
         <div>
@@ -276,7 +307,7 @@ export function MtdReportView({ initialData, onRefresh, loading = false }: MtdRe
             <Calendar className="w-3.5 h-3.5 text-[#0c4ca3] absolute left-2.5 pointer-events-none" />
             <select
               value={selectedCompMonth}
-              onChange={(e) => setSelectedCompMonth(e.target.value)}
+              onChange={(e) => handleCompMonthChange(e.target.value)}
               className="text-xs font-black text-slate-800 bg-white border border-slate-300/80 rounded-xl pl-8 pr-3 py-1.5 shadow-xs cursor-pointer focus:ring-1 focus:ring-[#0c4ca3]"
               title="Select comparison month"
             >
@@ -310,7 +341,7 @@ export function MtdReportView({ initialData, onRefresh, loading = false }: MtdRe
 
           {/* Calculate MTD Report Button */}
           <button
-            onClick={handleExecuteMtd}
+            onClick={() => handleExecuteMtd()}
             disabled={isExecuting || loading}
             className="flex items-center gap-2 px-4 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-500 hover:to-teal-600 text-white text-xs font-black shadow-sm hover:shadow-md ring-1 ring-emerald-400/30 transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
             title="Execute MTD report on Supabase"
@@ -498,7 +529,7 @@ export function MtdReportView({ initialData, onRefresh, loading = false }: MtdRe
           </div>
 
           <button
-            onClick={handleExecuteMtd}
+            onClick={() => handleExecuteMtd()}
             disabled={isExecuting || loading}
             className="flex items-center gap-2.5 px-7 py-3 rounded-2xl text-sm font-black bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-500 hover:to-teal-600 text-white shadow-md hover:shadow-lg transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
           >
@@ -523,7 +554,7 @@ export function MtdReportView({ initialData, onRefresh, loading = false }: MtdRe
             <div className="flex items-center gap-3">
               <span className="text-emerald-700 text-[11px]">Computed at {executionTimestamp}</span>
               <button
-                onClick={handleExecuteMtd}
+                onClick={() => handleExecuteMtd()}
                 disabled={isExecuting || loading}
                 className="text-xs font-black text-emerald-800 hover:text-emerald-950 underline flex items-center gap-1 cursor-pointer"
               >

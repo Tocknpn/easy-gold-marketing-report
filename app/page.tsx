@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { PlatformOverviewSection } from '@/components/dashboard/PlatformOverviewSection';
 import { BuyActivitySection } from '@/components/dashboard/BuyActivitySection';
 import { SellActivitySection } from '@/components/dashboard/SellActivitySection';
@@ -16,7 +16,7 @@ import { AdminUserManagementModal } from '@/components/dashboard/admin/AdminUser
 import { SystemCheckAndValidationModal } from '@/components/dashboard/audit/SystemCheckAndValidationModal';
 import { FreshnessBadge } from '@/components/dashboard/FreshnessBadge';
 import { ExecutiveDashboardData, WeeklyMetricRow, MetricVariances } from '@/lib/types/dashboard.types';
-import { MtdReportPayload } from '@/lib/types/mtd.types';
+import { MtdReportPayload, MtdQuery } from '@/lib/types/mtd.types';
 import { UserProfile } from '@/lib/types/auth.types';
 import { getCurrentUser } from '@/lib/supabase/authHelper';
 import { 
@@ -83,6 +83,9 @@ export default function DashboardPage() {
   // MTD data state initialized with default values for instant render
   const [mtdData, setMtdData] = useState<MtdReportPayload>(DEFAULT_MTD_PAYLOAD);
   const [mtdLoading, setMtdLoading] = useState(false);
+  const [mtdError, setMtdError] = useState<string | null>(null);
+  // Last filters used by the MTD report, so page-level refreshes keep the user's selection
+  const mtdQueryRef = useRef<MtdQuery>({});
 
   // Fetch weekly summary
   const fetchWeeklySummary = async () => {
@@ -104,16 +107,30 @@ export default function DashboardPage() {
   };
 
   // Fetch MTD & Forecast report
-  const fetchMtdData = async () => {
+  const fetchMtdData = async (query?: MtdQuery) => {
+    if (query) mtdQueryRef.current = query;
+    const q = mtdQueryRef.current;
+    const params = new URLSearchParams();
+    if (q.asOfDate) params.set('as_of_date', q.asOfDate);
+    if (q.compYear && q.compMonth) {
+      params.set('comp_year', String(q.compYear));
+      params.set('comp_month', String(q.compMonth));
+    }
+    if (q.mode) params.set('mode', q.mode);
+
     setMtdLoading(true);
     try {
-      const res = await fetch('/api/dashboard/mtd-forecast');
-      if (res.ok) {
-        const json: MtdReportPayload = await res.json();
-        setMtdData(json);
+      const res = await fetch(`/api/dashboard/mtd-forecast?${params.toString()}`, { cache: 'no-store' });
+      const json = await res.json();
+      if (res.ok && json?.metrics) {
+        setMtdData(json as MtdReportPayload);
+        setMtdError(null);
+      } else {
+        setMtdError(json?.error || `MTD report failed (HTTP ${res.status})`);
       }
     } catch (err) {
       console.error('Failed to load MTD forecast report', err);
+      setMtdError('Failed to load MTD forecast report.');
     } finally {
       setMtdLoading(false);
     }
@@ -542,6 +559,7 @@ export default function DashboardPage() {
                 initialData={mtdData}
                 onRefresh={fetchMtdData}
                 loading={mtdLoading}
+                error={mtdError}
               />
             ) : null}
           </div>
