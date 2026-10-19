@@ -167,7 +167,7 @@ export const INITIAL_PRESET_CAMPAIGNS: CampaignSetupConfig[] = [
     location: 'Nationwide & App',
     status: 'active',
     image_url: 'https://images.unsplash.com/photo-1610375461246-83df859d849d?w=150&auto=format&fit=crop&q=80',
-    campaign_date_start: '2026-10-16',
+    campaign_date_start: '2026-10-15',
     campaign_date_end: '2026-10-27',
     data_update_on: '2026-10-18',
     auto_sync_max_date: true,
@@ -401,7 +401,18 @@ export async function saveCampaignSetup(campaign: CampaignSetupConfig, userId?: 
 
   // Update local storage
   if (typeof window !== 'undefined') {
-    const existing = await loadCampaignSetups(userId);
+    let existing: CampaignSetupConfig[] = [];
+    try {
+      const raw = localStorage.getItem(LOCAL_STORAGE_CAMPAIGNS_KEY);
+      if (raw) {
+        existing = JSON.parse(raw);
+      }
+    } catch (e) {
+      console.warn('Could not read existing local campaigns:', e);
+    }
+    if (!existing || existing.length === 0) {
+      existing = [...INITIAL_PRESET_CAMPAIGNS];
+    }
     const index = existing.findIndex((c) => c.id === toSave.id || c.id === campaign.id);
     let updated: CampaignSetupConfig[];
     if (index >= 0) {

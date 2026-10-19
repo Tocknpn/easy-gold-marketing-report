@@ -126,11 +126,15 @@ export function computeCampaignAnalytics(
   const isMmoney = hasSpecificBank && (targetBank.includes('MMONEY') || targetBank.includes('M-MONEY'));
 
   let bankFactor = 1.0;
-  if (isLdb) bankFactor = 0.22;
-  else if (isBcel) bankFactor = 0.58;
-  else if (isJdb) bankFactor = 0.08;
-  else if (isApb) bankFactor = 0.04;
-  else if (isUmoney || isMmoney) bankFactor = 0.05;
+  if (hasSpecificBank) {
+    let combinedFactor = 0;
+    if (isBcel) combinedFactor += 0.58;
+    if (isLdb) combinedFactor += 0.22;
+    if (isJdb) combinedFactor += 0.08;
+    if (isApb) combinedFactor += 0.04;
+    if (isUmoney || isMmoney) combinedFactor += 0.05;
+    bankFactor = Math.min(1.0, Math.max(0.04, combinedFactor || 1.0));
+  }
 
   const condType = (config.condition_type || '').toLowerCase();
   const condVal = Number(config.condition_value) || 0;

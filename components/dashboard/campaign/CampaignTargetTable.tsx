@@ -112,17 +112,17 @@ export function CampaignTargetTable({ data, asOfDate }: CampaignTargetTableProps
               </td>
             </tr>
 
-            {/* 2. EC Target Group Header */}
+            {/* 2. Buy Transactions Target Group Header */}
             <tr className="bg-blue-50/50 border-t border-b border-blue-100">
               <td colSpan={3} className="py-1 px-3 font-sans font-black text-[10px] text-[#0c4ca3] uppercase tracking-wider">
                 <div className="flex items-center gap-1.5">
                   <span className="w-1.5 h-1.5 rounded-full bg-[#0c4ca3]" />
-                  <span>Condition Transactions Target (EC)</span>
+                  <span>Condition Buy Transactions Target</span>
                 </div>
               </td>
             </tr>
 
-            {/* EC Actual Metric - Clean with subtitle text removed */}
+            {/* Buy Trans Actual Metric - Clean with subtitle text removed */}
             <tr className="hover:bg-slate-50/80 transition-colors">
               <td className="py-1.5 px-3 border-r border-slate-200 font-sans font-bold text-slate-800">
                 <span className="text-[#0c4ca3] font-bold">{data.condition_label}</span>
@@ -135,10 +135,10 @@ export function CampaignTargetTable({ data, asOfDate }: CampaignTargetTableProps
               </td>
             </tr>
 
-            {/* EC Target - Clean with subtitle text removed */}
+            {/* Buy Trans Target - Clean with subtitle text removed */}
             <tr className="hover:bg-slate-50/80 transition-colors">
               <td className="py-1.5 px-3 border-r border-slate-200 font-sans font-medium text-slate-700">
-                Campaign Target (EC)
+                Campaign Target (Buy Trans)
               </td>
               <td className="py-1.5 px-3 border-r border-slate-200 text-right font-bold text-slate-700">
                 {formatNum(data.ec_target)}
@@ -148,7 +148,7 @@ export function CampaignTargetTable({ data, asOfDate }: CampaignTargetTableProps
               </td>
             </tr>
 
-            {/* FOCUS ROW: EC % Target Hit */}
+            {/* FOCUS ROW: Buy Trans % Target Hit */}
             <tr className={`border-y transition-colors ${
               isEcBehind 
                 ? 'bg-rose-50/70 border-rose-200 text-rose-900' 
@@ -156,7 +156,7 @@ export function CampaignTargetTable({ data, asOfDate }: CampaignTargetTableProps
             }`}>
               <td className="py-1.5 px-3 border-r border-slate-200 font-sans font-black flex items-center gap-1.5">
                 <span className={`w-2 h-2 rounded-full ${isEcBehind ? 'bg-rose-500' : 'bg-emerald-500'}`} />
-                <span className="text-xs uppercase tracking-tight">% Target Hit (EC Focus)</span>
+                <span className="text-xs uppercase tracking-tight">% Target Hit (Buy Focus)</span>
               </td>
               <td className="py-1.5 px-3 border-r border-slate-200 text-right font-black">
                 <span className={`inline-block px-1.5 py-0.5 rounded text-xs font-mono font-bold ${

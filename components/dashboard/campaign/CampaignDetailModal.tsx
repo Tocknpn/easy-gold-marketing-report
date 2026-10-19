@@ -174,7 +174,7 @@ export function CampaignDetailModal({
                   {/* EC Target */}
                   <tr className="hover:bg-slate-50">
                     <td className="py-3 px-4 font-sans font-bold text-slate-800">
-                      EC: Buy Transactions ({campaign.condition_label})
+                      Buy Transactions ({campaign.condition_label})
                     </td>
                     <td className="py-3 px-3 text-right font-bold text-slate-700">
                       {t1.ec_target.toLocaleString()}
@@ -369,7 +369,13 @@ FROM public.monthly_data
 WHERE created_at >= '${campaign.campaign_date_start}'
   AND created_at <= '${campaign.data_update_on || '2026-10-18'} 23:59:59'
   AND status = 'ສໍາເລັດ'
-  AND transaction_type = '${campaign.tx_type || 'BUY_GOLD'}'${campaign.bank && campaign.bank !== 'all' ? `\n  AND bank ILIKE '%${campaign.bank}%'` : ''}${campaign.condition_value ? `\n  AND ${(campaign.condition_type || '').includes('weight') ? 'gold_weight' : 'total_amount'} ${campaign.condition_operator || '>='} ${campaign.condition_value}` : ''};`}
+  AND transaction_type = '${campaign.tx_type || 'BUY_GOLD'}'${(() => {
+    if (!campaign.bank || campaign.bank === 'all') return '';
+    const banks = campaign.bank.split(',').map((b: string) => b.trim()).filter(Boolean);
+    if (banks.length === 1) return `\n  AND bank ILIKE '%${banks[0]}%'`;
+    if (banks.length > 1) return `\n  AND (${banks.map((b: string) => `bank ILIKE '%${b}%'`).join(' OR ')})`;
+    return '';
+  })()}${campaign.condition_value ? `\n  AND ${(campaign.condition_type || '').includes('weight') ? 'gold_weight' : 'total_amount'} ${campaign.condition_operator || '>='} ${campaign.condition_value}` : ''};`}
             </pre>
           </div>
 

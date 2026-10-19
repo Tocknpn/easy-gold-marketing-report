@@ -229,7 +229,7 @@ export function CampaignProfileCard({
         <div className="bg-white p-3 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col justify-between">
           <div className="flex items-center justify-between">
             <span className="text-[10px] font-black uppercase text-slate-500 tracking-wider">
-              EC Target (Tx)
+              Buy Target (Tx)
             </span>
             <Target className="w-3.5 h-3.5 text-[#0c4ca3]" />
           </div>

@@ -76,8 +76,15 @@ export async function POST(req: NextRequest) {
     const condOp = config.condition_operator || '>=';
     const txType = config.tx_type || 'BUY_GOLD';
 
-    // Generate human-readable SQL script for Supabase
-    const bankSql = effectiveBank !== 'all' ? `\n  AND bank ILIKE '%${effectiveBank}%'` : '';
+    // Support multiple banks
+    const banks = effectiveBank !== 'all' 
+      ? effectiveBank.split(',').map((b: string) => b.trim()).filter(Boolean)
+      : [];
+    const bankSql = banks.length === 1 
+      ? `\n  AND bank ILIKE '%${banks[0]}%'` 
+      : banks.length > 1 
+      ? `\n  AND (${banks.map((b: string) => `bank ILIKE '%${b}%'`).join(' OR ')})` 
+      : '';
     const condCol = isWeight ? 'gold_weight' : 'total_amount';
     const condSql = condVal > 0 ? `\n  AND ${condCol} ${condOp} ${condVal}` : '';
 
@@ -125,8 +132,10 @@ WHERE created_at >= '${backwardWindow.start}'
         .gte('created_at', config.campaign_date_start)
         .lte('created_at', `${asOfDate} 23:59:59`);
 
-      if (effectiveBank !== 'all') {
-        mtdQuery = mtdQuery.ilike('bank', `%${effectiveBank}%`);
+      if (banks.length === 1) {
+        mtdQuery = mtdQuery.ilike('bank', `%${banks[0]}%`);
+      } else if (banks.length > 1) {
+        mtdQuery = mtdQuery.or(banks.map((b: string) => `bank.ilike.%${b}%`).join(','));
       }
       if (condVal > 0) {
         if (condOp === '<=') {
@@ -151,8 +160,10 @@ WHERE created_at >= '${backwardWindow.start}'
         .gte('created_at', backwardWindow.start)
         .lte('created_at', `${backwardWindow.end} 23:59:59`);
 
-      if (effectiveBank !== 'all') {
-        bwdQuery = bwdQuery.ilike('bank', `%${effectiveBank}%`);
+      if (banks.length === 1) {
+        bwdQuery = bwdQuery.ilike('bank', `%${banks[0]}%`);
+      } else if (banks.length > 1) {
+        bwdQuery = bwdQuery.or(banks.map((b: string) => `bank.ilike.%${b}%`).join(','));
       }
       if (condVal > 0) {
         if (condOp === '<=') {

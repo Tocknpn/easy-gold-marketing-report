@@ -24,6 +24,19 @@ import {
 } from 'lucide-react';
 import { calculateDateDiffDays, computeBackwardDates } from '@/lib/campaign/campaignEngine';
 
+export const BANK_OPTIONS = [
+  { id: 'BCEL', label: 'BCEL (OnePay)' },
+  { id: 'LDB', label: 'LDB (TrustBank)' },
+  { id: 'JDB', label: 'JDB (Yes Pay)' },
+  { id: 'UMONEY', label: 'u-money' },
+  { id: 'MMONEY', label: 'M-Money' },
+  { id: 'ACLEDA', label: 'ACLEDA' },
+  { id: 'APB', label: 'APB' },
+  { id: 'LVB', label: 'LVB' },
+  { id: 'PSVB', label: 'PSVB' },
+  { id: 'STB', label: 'STB' },
+];
+
 interface CampaignSetupModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -58,6 +71,30 @@ export function CampaignSetupModal({
   const [conditionLabel, setConditionLabel] = useState('Buy trans >= 500k');
   const [txType, setTxType] = useState('BUY_GOLD');
   const [bank, setBank] = useState<string>('all');
+
+  const selectedBanksList = React.useMemo(() => {
+    if (!bank || bank === 'all') return ['all'];
+    return bank.split(',').map((b) => b.trim()).filter(Boolean);
+  }, [bank]);
+
+  const handleToggleBank = (bankId: string) => {
+    if (bankId === 'all') {
+      setBank('all');
+      return;
+    }
+    const current = selectedBanksList.filter((b) => b !== 'all');
+    let next: string[];
+    if (current.includes(bankId)) {
+      next = current.filter((b) => b !== bankId);
+    } else {
+      next = [...current, bankId];
+    }
+    if (next.length === 0) {
+      setBank('all');
+    } else {
+      setBank(next.join(', '));
+    }
+  };
 
   // Targets
   const [selectedTargets, setSelectedTargets] = useState<('ec' | 'nc' | 'revenue' | 'weight')[]>([
@@ -647,27 +684,10 @@ export function CampaignSetupModal({
                     : 'Threshold Value'}
                 </label>
                 {conditionType === 'bank' ? (
-                  <select
-                    value={bank}
-                    onChange={(e) => {
-                      const selectedBank = e.target.value;
-                      setBank(selectedBank);
-                      setConditionLabel(`Bank: ${selectedBank}`);
-                    }}
-                    className="w-full px-3 py-2 text-xs border border-indigo-300 bg-indigo-50/50 rounded-xl focus:ring-2 focus:ring-[#0c4ca3] focus:outline-hidden font-bold text-indigo-950"
-                  >
-                    <option value="all">All Banks (ທຸກທະນາຄານ)</option>
-                    <option value="BCEL">BCEL (OnePay)</option>
-                    <option value="LDB">LDB (Lao Development Bank)</option>
-                    <option value="JDB">JDB (Yes Pay)</option>
-                    <option value="UMONEY">u-money (Unitel)</option>
-                    <option value="MMONEY">M-Money (Lao Telecom)</option>
-                    <option value="ACLEDA">ACLEDA Bank</option>
-                    <option value="APB">APB (Agri Promotion Bank)</option>
-                    <option value="LVB">LVB Bank</option>
-                    <option value="PSVB">Phongsavanh Bank</option>
-                    <option value="STB">ST Bank</option>
-                  </select>
+                  <div className="w-full px-3 py-2 text-xs border border-indigo-200 bg-indigo-50/70 rounded-xl font-bold text-indigo-950 flex items-center justify-between">
+                    <span className="truncate">{bank === 'all' ? 'All Banks' : bank}</span>
+                    <span className="text-[10px] text-indigo-600 font-semibold shrink-0 ml-1">(See bank filter)</span>
+                  </div>
                 ) : (
                   <input
                     type="number"
@@ -708,48 +728,63 @@ export function CampaignSetupModal({
               )}
             </div>
 
-            {/* Dedicated Bank Channel Scope & Filter Selector */}
-            <div className="bg-slate-50 border border-slate-200/90 rounded-xl p-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-              <div className="flex items-center gap-2">
-                <Landmark className="w-4 h-4 text-indigo-600 shrink-0" />
-                <div>
-                  <span className="text-xs font-bold text-slate-800">Bank Channel Filter:</span>
-                  <span className="text-[10px] text-slate-500 ml-1.5 hidden sm:inline">
-                    Filter campaign transactions by payment bank / partner
-                  </span>
+            {/* Dedicated Multi-Select Bank Channel Scope & Filter Selector */}
+            <div className="bg-slate-50 border border-slate-200/90 rounded-2xl p-3 space-y-2">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div className="flex items-center gap-2">
+                  <Landmark className="w-4 h-4 text-indigo-600 shrink-0" />
+                  <div>
+                    <span className="text-xs font-bold text-slate-800">Bank Channel Filter:</span>
+                    <span className="text-[10px] text-slate-500 ml-1.5 hidden sm:inline">
+                      (Multi-selection — click multiple banks to combine)
+                    </span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  {bank === 'all' ? (
+                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-200 text-slate-700">
+                      All Banks Selected
+                    </span>
+                  ) : (
+                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-100 text-indigo-800 border border-indigo-200 max-w-[280px] truncate" title={bank}>
+                      {selectedBanksList.length} Bank{selectedBanksList.length > 1 ? 's' : ''}: {bank}
+                    </span>
+                  )}
                 </div>
               </div>
-              <div className="flex items-center gap-2">
-                <select
-                  value={bank}
-                  onChange={(e) => {
-                    const newBank = e.target.value;
-                    setBank(newBank);
-                    if (newBank !== 'all' && !conditionLabel.includes(newBank)) {
-                      setConditionLabel((prev) => `${prev.replace(/\s*\([A-Z]+\)$/, '')} (${newBank})`);
-                    } else if (newBank === 'all') {
-                      setConditionLabel((prev) => prev.replace(/\s*\([A-Z]+\)$/, ''));
-                    }
-                  }}
-                  className="px-3 py-1.5 text-xs font-bold border border-slate-300 rounded-xl focus:ring-2 focus:ring-[#0c4ca3] focus:outline-hidden bg-white text-slate-800"
+
+              {/* Multi-Select Bank Interactive Chips */}
+              <div className="flex flex-wrap gap-1.5 pt-1">
+                <button
+                  type="button"
+                  onClick={() => handleToggleBank('all')}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                    bank === 'all'
+                      ? 'bg-indigo-600 text-white shadow-2xs'
+                      : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
+                  }`}
                 >
-                  <option value="all">🏦 All Banks (ທຸກທະນາຄານ)</option>
-                  <option value="BCEL">BCEL (OnePay)</option>
-                  <option value="LDB">LDB (Lao Development Bank)</option>
-                  <option value="JDB">JDB (Yes Pay)</option>
-                  <option value="UMONEY">u-money (Unitel)</option>
-                  <option value="MMONEY">M-Money (Lao Telecom)</option>
-                  <option value="ACLEDA">ACLEDA Bank</option>
-                  <option value="APB">APB (Agri Promotion Bank)</option>
-                  <option value="LVB">LVB Bank</option>
-                  <option value="PSVB">Phongsavanh Bank</option>
-                  <option value="STB">ST Bank</option>
-                </select>
-                {bank !== 'all' && (
-                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-100 text-indigo-800 border border-indigo-200 whitespace-nowrap">
-                    Active: {bank}
-                  </span>
-                )}
+                  <span>🏦 All Banks (ທຸກທະນາຄານ)</span>
+                  {bank === 'all' && <Check className="w-3 h-3" />}
+                </button>
+                {BANK_OPTIONS.map((b) => {
+                  const isSelected = bank !== 'all' && selectedBanksList.includes(b.id);
+                  return (
+                    <button
+                      key={b.id}
+                      type="button"
+                      onClick={() => handleToggleBank(b.id)}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                        isSelected
+                          ? 'bg-indigo-600 text-white shadow-2xs ring-1 ring-indigo-500'
+                          : 'bg-white border border-slate-200 text-slate-700 hover:border-slate-300 hover:bg-slate-50'
+                      }`}
+                    >
+                      <span>{b.label}</span>
+                      {isSelected && <Check className="w-3 h-3" />}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           </div>
@@ -777,7 +812,7 @@ export function CampaignSetupModal({
                     : 'bg-white border-slate-200 text-slate-500'
                 }`}
               >
-                <span>EC (Transactions)</span>
+                <span>Buy Transactions</span>
                 {selectedTargets.includes('ec') && <Check className="w-3.5 h-3.5" />}
               </button>
 
@@ -826,7 +861,7 @@ export function CampaignSetupModal({
               {selectedTargets.includes('ec') && (
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
-                    EC Target (Existing/Total Customers Transactions) *
+                    Buy Transactions Target *
                   </label>
                   <input
                     type="number"

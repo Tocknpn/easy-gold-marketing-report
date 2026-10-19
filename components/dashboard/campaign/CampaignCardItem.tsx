@@ -177,7 +177,8 @@ export function CampaignCardItem({
 
   return (
     <div 
-      className={`bg-white rounded-xl border transition-all flex flex-col justify-between overflow-hidden relative ${badgeStyle.topBorder} ${
+      onClick={() => onSelectCampaign(campaign)}
+      className={`bg-white rounded-xl border transition-all flex flex-col justify-between overflow-hidden relative cursor-pointer ${badgeStyle.topBorder} ${
         isActive 
           ? 'border-[#0c4ca3] ring-2 ring-[#0c4ca3]/30 shadow-md bg-blue-50/15' 
           : 'border-slate-200/90 shadow-2xs hover:shadow-md hover:border-slate-300'
@@ -266,10 +267,10 @@ export function CampaignCardItem({
 
         {/* 4. 2x2 Micro Metrics Grid - Lightweight & Compact */}
         <div className="grid grid-cols-2 gap-1.5">
-          {/* Box 1: EC Trans */}
+          {/* Box 1: Buy Trans */}
           <div className="bg-[#f8fafc] rounded-lg p-1.5 border border-slate-100">
             <span className="text-[8px] font-black uppercase text-slate-400 tracking-wider truncate block">
-              EC TRANS (ACT/TGT)
+              BUY TRANS (ACT/TGT)
             </span>
             <div className="text-[11px] font-black font-mono text-slate-900 truncate">
               {actEc.toLocaleString()} / {tgtEc.toLocaleString()}
@@ -340,18 +341,12 @@ export function CampaignCardItem({
       <div className="px-2.5 py-1.5 bg-[#fafbfe] border-t border-slate-100 flex items-center justify-between gap-1.5">
         <div className="flex items-center gap-1.5">
           <button
-            onClick={() => onSelectCampaign(campaign)}
-            className="flex items-center gap-1 px-2 py-1 rounded-md bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-[10px] font-bold shadow-2xs transition-all active:scale-95 cursor-pointer"
-            title="Inspect Target Achievement & Backward comparison tables below"
-          >
-            <BarChart3 className="w-3 h-3 text-[#0c4ca3]" />
-            <span>Analysis</span>
-          </button>
-
-          <button
-            onClick={() => onRecord(campaign)}
+            onClick={(e) => {
+              e.stopPropagation();
+              onRecord(campaign);
+            }}
             disabled={isRecording}
-            className="flex items-center gap-1 px-2.5 py-1 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-black shadow-2xs transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
+            className="flex items-center gap-1 px-3 py-1 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-black shadow-2xs transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
             title="Execute live Supabase calculation for this campaign"
           >
             {isRecording ? (
@@ -363,21 +358,27 @@ export function CampaignCardItem({
           </button>
         </div>
 
-        <div className="flex items-center gap-0.5">
+        <div className="flex items-center gap-1">
           <button
-            onClick={() => onEdit(campaign)}
+            onClick={(e) => {
+              e.stopPropagation();
+              onEdit(campaign);
+            }}
             className="p-1 rounded-md text-slate-400 hover:text-slate-800 hover:bg-slate-200/60 transition-colors cursor-pointer"
             title="Edit campaign parameters"
           >
-            <Edit3 className="w-3 h-3" />
+            <Edit3 className="w-3.5 h-3.5" />
           </button>
 
           <button
-            onClick={() => onDelete(campaign.id)}
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete(campaign.id);
+            }}
             className="p-1 rounded-md text-rose-400 hover:text-rose-700 hover:bg-rose-50 transition-colors cursor-pointer"
             title="Delete campaign"
           >
-            <Trash2 className="w-3 h-3" />
+            <Trash2 className="w-3.5 h-3.5" />
           </button>
         </div>
       </div>

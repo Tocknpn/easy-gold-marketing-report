@@ -302,7 +302,12 @@ export function CampaignTrackingView({
     const condCol = (camp.condition_type || '').includes('weight') ? 'gold_weight' : 'total_amount';
     const condOp = camp.condition_operator || '>=';
     const condVal = camp.condition_value ?? 100000;
-    const bankFilter = camp.bank && camp.bank !== 'all' ? `\n  AND bank ILIKE '%${camp.bank}%'` : '';
+    const banks = camp.bank && camp.bank !== 'all' ? camp.bank.split(',').map((b: string) => b.trim()).filter(Boolean) : [];
+    const bankFilter = banks.length === 1 
+      ? `\n  AND bank ILIKE '%${banks[0]}%'` 
+      : banks.length > 1 
+      ? `\n  AND (${banks.map((b: string) => `bank ILIKE '%${b}%'`).join(' OR ')})` 
+      : '';
     const condFilter = `\n  AND ${condCol} ${condOp} ${condVal}`;
 
     return `-- 1. Actual MTD Performance Query (${camp.campaign_name})
@@ -327,16 +332,30 @@ WHERE created_at >= '${camp.campaign_date_start}'
 
   // Save (Create / Update) Campaign
   const handleSaveCampaign = async (config: CampaignSetupConfig) => {
+    // 1. Immediately update UI state in memory so edited date displays instantly
+    setAllCampaigns((prev) => {
+      const idx = prev.findIndex((c) => c.id === config.id);
+      if (idx >= 0) {
+        const next = [...prev];
+        next[idx] = config;
+        return next;
+      }
+      return [config, ...prev];
+    });
+    setActiveCampaign(config);
+
+    // 2. Persist to Supabase and localStorage
     const saved = await saveCampaignSetup(config, currentUser?.id);
-    const updatedList = await loadCampaignSetups(currentUser?.id);
-    setAllCampaigns(updatedList);
-    setActiveCampaign(saved);
+    
+    // 3. Clear cached calculation and recalculate with new dates immediately
     setLiveData(null);
     setLiveDataMap((prev) => {
       const next = { ...prev };
       delete next[config.id];
       return next;
     });
+
+    handleExecuteCalculate(saved);
   };
 
   // Delete Campaign
@@ -385,7 +404,7 @@ WHERE created_at >= '${camp.campaign_date_start}'
         [],
         ['Metric', 'MTD Volume', 'RR Projection', 'Target Goal', '% Hit MTD', '% Hit RR'],
         [
-          'EC Transactions',
+          'Buy Transactions',
           analytics.targetAchievement.ec_actual_mtd,
           analytics.targetAchievement.ec_rr_projected,
           analytics.targetAchievement.ec_target,
@@ -611,7 +630,7 @@ WHERE created_at >= '${camp.campaign_date_start}'
                   <th className="py-2.5 px-3 whitespace-nowrap">Status</th>
                   <th className="py-2.5 px-3 whitespace-nowrap">Campaign &amp; Rule</th>
                   <th className="py-2.5 px-3 whitespace-nowrap">Timeline</th>
-                  <th className="py-2.5 px-3 text-right whitespace-nowrap">EC Target (Act / % Hit)</th>
+                  <th className="py-2.5 px-3 text-right whitespace-nowrap">Buy Trans (Act / % Hit)</th>
                   <th className="py-2.5 px-3 text-right whitespace-nowrap">New Cust (Act / Tgt)</th>
                   <th className="py-2.5 px-3 text-right whitespace-nowrap">Buy Weight</th>
                   <th className="py-2.5 px-3 text-right whitespace-nowrap">RR Projection</th>
