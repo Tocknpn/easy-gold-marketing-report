@@ -7,9 +7,10 @@ import { History, TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight, Calend
 interface CampaignBackwardCompareTableProps {
   data: CampaignBackwardComparisonPayload;
   asOfDate?: string;
+  isLoading?: boolean;
 }
 
-export function CampaignBackwardCompareTable({ data, asOfDate }: CampaignBackwardCompareTableProps) {
+export function CampaignBackwardCompareTable({ data, asOfDate, isLoading = false }: CampaignBackwardCompareTableProps) {
   const formatNum = (val: number, decimals: number = 0) => {
     return (val || 0).toLocaleString('en-US', {
       minimumFractionDigits: decimals,
@@ -75,7 +76,13 @@ export function CampaignBackwardCompareTable({ data, asOfDate }: CampaignBackwar
   const ticketDelta = data.ticket_size_g_mtd - data.ticket_size_g_backward;
 
   return (
-    <div className="inline-block w-auto min-w-[380px] max-w-full bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden flex flex-col">
+    <div className="inline-block w-auto min-w-[380px] max-w-full bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden flex flex-col relative">
+      {isLoading && (
+        <div className="absolute inset-0 bg-white/80 backdrop-blur-[2px] z-20 flex flex-col items-center justify-center gap-2">
+          <div className="w-8 h-8 border-3 border-teal-600 border-t-transparent rounded-full animate-spin" />
+          <span className="text-xs font-black text-teal-800">Computing 4D Backward Benchmark...</span>
+        </div>
+      )}
       {/* Table Header */}
       <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-[#0c4ca3] px-3.5 py-2 flex items-center justify-between text-white gap-3">
         <div className="flex items-center gap-2">

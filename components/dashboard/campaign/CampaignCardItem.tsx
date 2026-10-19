@@ -250,8 +250,15 @@ export function CampaignCardItem({
             <span className="text-slate-500 font-medium">
               Target: <strong className="font-mono text-slate-800">{tgtEc.toLocaleString()}</strong> trans
             </span>
-            <span className="font-mono font-bold text-blue-700">
-              MTD: {actEc.toLocaleString()} ({ecHitPct}%)
+            <span className="font-mono font-bold text-blue-700 flex items-center gap-1">
+              {isRecording ? (
+                <>
+                  <span className="w-2.5 h-2.5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin inline-block" />
+                  <span className="text-[10px]">Calculating...</span>
+                </>
+              ) : (
+                `MTD: ${actEc.toLocaleString()} (${ecHitPct}%)`
+              )}
             </span>
           </div>
           {/* Visual Mini Progress Bar */}
@@ -273,10 +280,17 @@ export function CampaignCardItem({
               BUY TRANS (ACT/TGT)
             </span>
             <div className="text-[11px] font-black font-mono text-slate-900 truncate">
-              {actEc.toLocaleString()} / {tgtEc.toLocaleString()}
+              {isRecording ? (
+                <div className="flex items-center gap-1 text-slate-400 font-sans text-[10px]">
+                  <span className="w-2.5 h-2.5 border-2 border-[#0c4ca3] border-t-transparent rounded-full animate-spin inline-block" />
+                  <span>Loading...</span>
+                </div>
+              ) : (
+                `${actEc.toLocaleString()} / ${tgtEc.toLocaleString()}`
+              )}
             </div>
             <span className={`block text-[9px] font-bold ${ecHitPct >= 100 ? 'text-emerald-600' : 'text-slate-500'}`}>
-              {ecHitPct}% hit
+              {isRecording ? '—' : `${ecHitPct}% hit`}
             </span>
           </div>
 
@@ -288,10 +302,17 @@ export function CampaignCardItem({
                   NEW CUST (ACT/TGT)
                 </span>
                 <div className="text-[11px] font-black font-mono text-slate-900 truncate">
-                  {actNc.toLocaleString()} / {tgtNc.toLocaleString()}
+                  {isRecording ? (
+                    <div className="flex items-center gap-1 text-slate-400 font-sans text-[10px]">
+                      <span className="w-2.5 h-2.5 border-2 border-[#0c4ca3] border-t-transparent rounded-full animate-spin inline-block" />
+                      <span>Loading...</span>
+                    </div>
+                  ) : (
+                    `${actNc.toLocaleString()} / ${tgtNc.toLocaleString()}`
+                  )}
                 </div>
                 <span className={`block text-[9px] font-bold ${ncHitPct >= 100 ? 'text-emerald-600' : 'text-slate-500'}`}>
-                  {ncHitPct}% hit
+                  {isRecording ? '—' : `${ncHitPct}% hit`}
                 </span>
               </>
             ) : (
@@ -300,10 +321,17 @@ export function CampaignCardItem({
                   BUY VALUE (MIL LAK)
                 </span>
                 <div className="text-[11px] font-black font-mono text-slate-900 truncate">
-                  {actRevenue.toLocaleString()} mil
+                  {isRecording ? (
+                    <div className="flex items-center gap-1 text-slate-400 font-sans text-[10px]">
+                      <span className="w-2.5 h-2.5 border-2 border-[#0c4ca3] border-t-transparent rounded-full animate-spin inline-block" />
+                      <span>Loading...</span>
+                    </div>
+                  ) : (
+                    `${actRevenue.toLocaleString()} mil`
+                  )}
                 </div>
                 <span className="block text-[9px] font-bold text-slate-500 truncate">
-                  {hasRevenueTarget ? `Tgt: ${tgtRevenue?.toLocaleString()} mil` : 'Actual MTD'}
+                  {isRecording ? '—' : hasRevenueTarget ? `Tgt: ${tgtRevenue?.toLocaleString()} mil` : 'Actual MTD'}
                 </span>
               </>
             )}
@@ -315,10 +343,17 @@ export function CampaignCardItem({
               BUY WEIGHT
             </span>
             <div className="text-[11px] font-black font-mono text-slate-900 truncate">
-              {formatWeightShort(actWeight)}
+              {isRecording ? (
+                <div className="flex items-center gap-1 text-slate-400 font-sans text-[10px]">
+                  <span className="w-2.5 h-2.5 border-2 border-[#0c4ca3] border-t-transparent rounded-full animate-spin inline-block" />
+                  <span>Loading...</span>
+                </div>
+              ) : (
+                formatWeightShort(actWeight)
+              )}
             </div>
             <span className="block text-[9px] font-bold text-slate-500 truncate">
-              {hasWeightTarget ? `${formatWeightShort(tgtWeight)} tgt (${weightHitPct}%)` : hasRevenueTarget ? formatTargetRevenue(actRevenue) : 'Volume basis'}
+              {isRecording ? '—' : hasWeightTarget ? `${formatWeightShort(tgtWeight)} tgt (${weightHitPct}%)` : hasRevenueTarget ? formatTargetRevenue(actRevenue) : 'Volume basis'}
             </span>
           </div>
 
@@ -328,10 +363,17 @@ export function CampaignCardItem({
               RR PROJECTION
             </span>
             <div className="text-[11px] font-black font-mono text-slate-900 truncate">
-              {rrProjected.toLocaleString()}
+              {isRecording ? (
+                <div className="flex items-center gap-1 text-slate-400 font-sans text-[10px]">
+                  <span className="w-2.5 h-2.5 border-2 border-[#0c4ca3] border-t-transparent rounded-full animate-spin inline-block" />
+                  <span>Loading...</span>
+                </div>
+              ) : (
+                rrProjected.toLocaleString()
+              )}
             </div>
             <span className="block text-[9px] font-bold text-emerald-600 truncate">
-              {tgtEc > 0 ? `${Math.round((rrProjected / tgtEc) * 100)}% pace` : 'Healthy pace'}
+              {isRecording ? '—' : tgtEc > 0 ? `${Math.round((rrProjected / tgtEc) * 100)}% pace` : 'Healthy pace'}
             </span>
           </div>
         </div>

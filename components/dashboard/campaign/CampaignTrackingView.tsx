@@ -60,7 +60,7 @@ export function CampaignTrackingView({
   const [allCampaigns, setAllCampaigns] = useState<CampaignSetupConfig[]>(() => {
     if (typeof window !== 'undefined') {
       try {
-        const raw = localStorage.getItem('easy_gold_saved_campaign_setups_v6');
+        const raw = localStorage.getItem('easy_gold_saved_campaign_setups_v7');
         if (raw) {
           const parsed = JSON.parse(raw);
           if (Array.isArray(parsed) && parsed.length > 0) return parsed;
@@ -73,7 +73,7 @@ export function CampaignTrackingView({
   const [activeCampaign, setActiveCampaign] = useState<CampaignSetupConfig | null>(() => {
     if (typeof window !== 'undefined') {
       try {
-        const raw = localStorage.getItem('easy_gold_saved_campaign_setups_v6');
+        const raw = localStorage.getItem('easy_gold_saved_campaign_setups_v7');
         if (raw) {
           const parsed = JSON.parse(raw);
           if (Array.isArray(parsed) && parsed.length > 0) return parsed[0];
@@ -277,6 +277,13 @@ export function CampaignTrackingView({
       handleExecuteCalculate(camp);
     }
   }, [liveDataMap, handleExecuteCalculate]);
+
+  // Auto-trigger live calculation on initial mount if not cached
+  useEffect(() => {
+    if (currentTargetCampaign && !liveDataMap[currentTargetCampaign.id] && !recordingId) {
+      handleExecuteCalculate(currentTargetCampaign);
+    }
+  }, [currentTargetCampaign?.id, liveDataMap, recordingId, handleExecuteCalculate]);
 
   // Copy SQL script to clipboard
   const handleCopySql = (sql: string) => {
@@ -868,12 +875,14 @@ WHERE created_at >= '${camp.campaign_date_start}'
             <CampaignTargetTable 
               data={analytics.targetAchievement} 
               asOfDate={latestDataDate}
+              isLoading={recordingId === currentTargetCampaign.id || isLoadingCampaigns}
             />
 
             {/* Table 2: Comparison vs Same Period Backward (Past Baseline Benchmark) */}
             <CampaignBackwardCompareTable 
               data={analytics.backwardComparison} 
               asOfDate={latestDataDate}
+              isLoading={recordingId === currentTargetCampaign.id || isLoadingCampaigns}
             />
           </div>
 

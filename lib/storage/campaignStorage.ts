@@ -1,7 +1,7 @@
 import { CampaignSetupConfig } from '@/lib/types/campaign.types';
 import { createClient } from '@/lib/supabase/client';
 
-const LOCAL_STORAGE_CAMPAIGNS_KEY = 'easy_gold_saved_campaign_setups_v6';
+const LOCAL_STORAGE_CAMPAIGNS_KEY = 'easy_gold_saved_campaign_setups_v7';
 
 const LEGACY_ID_MAP: Record<string, string> = {
   'campaign-buy-500k-mega': '10000000-0000-0000-0000-000000000001',
@@ -186,12 +186,12 @@ export const INITIAL_PRESET_CAMPAIGNS: CampaignSetupConfig[] = [
     gold_weight_target_g: 913509.7,
     plan_budget: 395700000,
     total_spending_cost: 0,
-    customers_actual: 6615,
+    customers_actual: 10454,
     customers_target: 62400,
-    new_cust_actual: 0,
+    new_cust_actual: 5746,
     new_cust_target: 0,
     baseline_daily_rr: 79.0,
-    execution_status_label: 'Active Campaign (3d elapsed)',
+    execution_status_label: 'Active Campaign (4d elapsed)',
     year: 2026,
     quarter: 'Q4',
   },
@@ -315,6 +315,9 @@ function sanitizeLoadedCampaign(c: CampaignSetupConfig): CampaignSetupConfig {
   } else if (customersActual === 1731 && c.ec_target !== 1731) {
     customersActual = 0;
     newCustActual = 0;
+  } else if (customersActual === 6615 && resolvedId === '10000000-0000-0000-0000-000000000005') {
+    customersActual = 10454;
+    newCustActual = 5746;
   }
 
   // Restore preset verified count if actuals are 0 or missing for active campaign

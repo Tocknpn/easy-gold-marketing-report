@@ -7,9 +7,10 @@ import { Target, TrendingUp, TrendingDown, CheckCircle2, AlertTriangle, Clock, C
 interface CampaignTargetTableProps {
   data: CampaignTargetAchievementPayload;
   asOfDate?: string;
+  isLoading?: boolean;
 }
 
-export function CampaignTargetTable({ data, asOfDate }: CampaignTargetTableProps) {
+export function CampaignTargetTable({ data, asOfDate, isLoading = false }: CampaignTargetTableProps) {
   // Format numbers cleanly with commas and decimals
   const formatNum = (val: number, decimals: number = 0) => {
     return (val || 0).toLocaleString('en-US', {
@@ -38,7 +39,13 @@ export function CampaignTargetTable({ data, asOfDate }: CampaignTargetTableProps
   const displayAsOf = formatDate(asOfDate);
 
   return (
-    <div className="inline-block w-auto min-w-[340px] max-w-full bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden flex flex-col">
+    <div className="inline-block w-auto min-w-[340px] max-w-full bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden flex flex-col relative">
+      {isLoading && (
+        <div className="absolute inset-0 bg-white/80 backdrop-blur-[2px] z-20 flex flex-col items-center justify-center gap-2">
+          <div className="w-8 h-8 border-3 border-[#0c4ca3] border-t-transparent rounded-full animate-spin" />
+          <span className="text-xs font-black text-[#0c4ca3]">Querying Live Data from Supabase...</span>
+        </div>
+      )}
       {/* Table Header */}
       <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-[#0c4ca3] px-3.5 py-2 flex items-center justify-between text-white gap-3">
         <div className="flex items-center gap-2">
