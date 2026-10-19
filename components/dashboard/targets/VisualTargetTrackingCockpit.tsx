@@ -16,9 +16,13 @@ import {
 
 interface VisualTargetTrackingCockpitProps {
   data: RunRateComparisonPayload;
+  /** Show %Est. Target Hit / Est. Year End columns. Hidden for completed past months. */
+  showEst?: boolean;
 }
 
-export function VisualTargetTrackingCockpit({ data }: VisualTargetTrackingCockpitProps) {
+const fmt = (n: number) => Math.round(n).toLocaleString();
+
+export function VisualTargetTrackingCockpit({ data, showEst = true }: VisualTargetTrackingCockpitProps) {
   const {
     current_month_label,
     display_as_of_date,
@@ -59,11 +63,11 @@ export function VisualTargetTrackingCockpit({ data }: VisualTargetTrackingCockpi
       </div>
 
       {/* Dual Cards Grid: Monthly Target Tracking & YTD Tracking */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-stretch">
         {/* ==================================================================== */}
         {/* CARD 1: MONTHLY TARGET TRACKING                                      */}
         {/* ==================================================================== */}
-        <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm p-5 sm:p-6 flex flex-col justify-between">
+        <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm p-3.5 sm:p-4 flex flex-col justify-between">
           <div>
             {/* Card Header with Days Gone */}
             <div className="flex items-center justify-between pb-4 border-b border-slate-100">
@@ -81,14 +85,17 @@ export function VisualTargetTrackingCockpit({ data }: VisualTargetTrackingCockpi
             </div>
 
             {/* Target Column Label */}
-            <div className="flex justify-end pt-3 pb-1">
-              <span className="text-[11px] font-black text-slate-700 tracking-tight">
-                %Est Target Hit
-              </span>
+            <div className="flex justify-between pt-2 pb-1">
+              <span className="text-[10px] font-bold text-slate-500">Actual / Target</span>
+              {showEst && (
+                <span className="text-[10px] font-black text-slate-700 tracking-tight">
+                  %Est Target Hit
+                </span>
+              )}
             </div>
 
             {/* Metrics List with Progress Bars & Benchmark Line */}
-            <div className="space-y-4">
+            <div className="space-y-2.5">
               {monthly_tracking.metrics.map((metric) => {
                 const isAhead = metric.est_target_hit_pct >= 100;
                 const barColor = isAhead ? 'bg-[#10b981]' : 'bg-[#ef4444]';
@@ -102,14 +109,17 @@ export function VisualTargetTrackingCockpit({ data }: VisualTargetTrackingCockpi
                     </div>
 
                     {/* Metric Label */}
-                    <div className="w-28 sm:w-32 shrink-0">
-                      <span className="text-xs font-bold text-slate-800 line-clamp-1">
+                    <div className="w-28 sm:w-32 shrink-0 leading-tight">
+                      <span className="text-xs font-bold text-slate-800 line-clamp-1 block">
                         {metric.label}
+                      </span>
+                      <span className="text-[9px] font-mono font-medium text-slate-500 block">
+                        {fmt(metric.actual)} / {fmt(metric.target)}
                       </span>
                     </div>
 
                     {/* Progress Bar Container with vertical benchmark line */}
-                    <div className="flex-1 relative h-6 bg-slate-100 rounded-lg overflow-hidden flex items-center">
+                    <div className="flex-1 relative h-5 bg-slate-100 rounded-md overflow-hidden flex items-center">
                       {/* Vertical Benchmark Line for % Month Gone */}
                       <div
                         className="absolute top-0 bottom-0 w-[1.5px] bg-slate-400 z-10"
@@ -132,11 +142,13 @@ export function VisualTargetTrackingCockpit({ data }: VisualTargetTrackingCockpi
                     </div>
 
                     {/* Right Readout: %Est Target Hit */}
-                    <div className="w-12 text-right shrink-0">
-                      <span className={`font-mono text-sm sm:text-base font-black ${hitColor}`}>
-                        {metric.est_target_hit_pct}%
-                      </span>
-                    </div>
+                    {showEst && (
+                      <div className="w-11 text-right shrink-0">
+                        <span className={`font-mono text-xs sm:text-sm font-black ${hitColor}`}>
+                          {metric.est_target_hit_pct}%
+                        </span>
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -195,7 +207,7 @@ export function VisualTargetTrackingCockpit({ data }: VisualTargetTrackingCockpi
         {/* ==================================================================== */}
         {/* CARD 2: YTD TRACKING (2026)                                          */}
         {/* ==================================================================== */}
-        <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm p-5 sm:p-6 flex flex-col justify-between">
+        <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm p-3.5 sm:p-4 flex flex-col justify-between">
           <div>
             {/* Card Header with Year Days Gone */}
             <div className="flex items-center justify-between pb-4 border-b border-slate-100">
@@ -213,14 +225,17 @@ export function VisualTargetTrackingCockpit({ data }: VisualTargetTrackingCockpi
             </div>
 
             {/* Target Column Label */}
-            <div className="flex justify-end pt-3 pb-1">
-              <span className="text-[11px] font-black text-slate-700 tracking-tight">
-                Est. Year End
-              </span>
+            <div className="flex justify-between pt-2 pb-1">
+              <span className="text-[10px] font-bold text-slate-500">Actual / Target</span>
+              {showEst && (
+                <span className="text-[10px] font-black text-slate-700 tracking-tight">
+                  Est. Year End
+                </span>
+              )}
             </div>
 
             {/* Metrics List with Progress Bars & Benchmark Line */}
-            <div className="space-y-4">
+            <div className="space-y-2.5">
               {ytd_tracking.metrics.map((metric) => {
                 const isAhead = metric.est_year_end_pct >= 100;
                 const barColor = isAhead ? 'bg-[#10b981]' : 'bg-[#ef4444]';
@@ -234,14 +249,17 @@ export function VisualTargetTrackingCockpit({ data }: VisualTargetTrackingCockpi
                     </div>
 
                     {/* Metric Label */}
-                    <div className="w-28 sm:w-32 shrink-0">
-                      <span className="text-xs font-bold text-slate-800 line-clamp-1">
+                    <div className="w-28 sm:w-32 shrink-0 leading-tight">
+                      <span className="text-xs font-bold text-slate-800 line-clamp-1 block">
                         {metric.label}
+                      </span>
+                      <span className="text-[9px] font-mono font-medium text-slate-500 block">
+                        {fmt(metric.ytd_actual)} / {fmt(metric.ytd_target)}
                       </span>
                     </div>
 
                     {/* Progress Bar Container with vertical benchmark line */}
-                    <div className="flex-1 relative h-6 bg-slate-100 rounded-lg overflow-hidden flex items-center">
+                    <div className="flex-1 relative h-5 bg-slate-100 rounded-md overflow-hidden flex items-center">
                       {/* Vertical Benchmark Line for % Year Gone */}
                       <div
                         className="absolute top-0 bottom-0 w-[1.5px] bg-slate-400 z-10"
@@ -260,11 +278,13 @@ export function VisualTargetTrackingCockpit({ data }: VisualTargetTrackingCockpi
                     </div>
 
                     {/* Right Readout: Est. Year End % */}
-                    <div className="w-12 text-right shrink-0">
-                      <span className={`font-mono text-sm sm:text-base font-black ${hitColor}`}>
-                        {metric.est_year_end_pct}%
-                      </span>
-                    </div>
+                    {showEst && (
+                      <div className="w-11 text-right shrink-0">
+                        <span className={`font-mono text-xs sm:text-sm font-black ${hitColor}`}>
+                          {metric.est_year_end_pct}%
+                        </span>
+                      </div>
+                    )}
                   </div>
                 );
               })}

@@ -456,7 +456,7 @@ export default function DashboardPage() {
               }`}
             >
               <Target className="w-4 h-4 text-amber-400" />
-              <span>Target &amp; Run-Rate</span>
+              <span>Business Target</span>
               <span className="px-1.5 py-0.2 rounded-full text-[9px] font-black bg-amber-400 text-slate-950">
                 2026
               </span>

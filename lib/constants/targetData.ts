@@ -27,6 +27,9 @@ export function getDaysInMonth(year: number, month: number): number {
   return new Date(year, month, 0).getDate();
 }
 
+// Latest date with uploaded data. Treated as "current month / today" by the Business Target report.
+export const LATEST_DATA_DATE = { year: 2026, month: 10, day: 18 };
+
 // 2. BASELINE MONTHLY METRICS FOR 2026 (Historical Actuals)
 // Sept Full Month & Day 1-15 actuals matching Image 2
 export const HISTORICAL_ACTUALS: Record<number, {
