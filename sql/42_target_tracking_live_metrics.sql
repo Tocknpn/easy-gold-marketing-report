@@ -12,6 +12,55 @@
 --      live calculation of Run-Rate, Table 1, Table 2, Monthly and YTD cards.
 -- ==============================================================================
 
+-- STEP 0: Ensure monthly_marketing_targets table exists and seeded
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+CREATE TABLE IF NOT EXISTS public.monthly_marketing_targets (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    year INT NOT NULL,
+    month INT NOT NULL CHECK (month BETWEEN 1 AND 12),
+    target_nc NUMERIC(18, 2) NOT NULL DEFAULT 9500,
+    buy_trans NUMERIC(18, 2) NOT NULL DEFAULT 0,
+    buy_weight_g NUMERIC(18, 2) NOT NULL DEFAULT 0,
+    sell_trans NUMERIC(18, 2) NOT NULL DEFAULT 0,
+    sell_weight_g NUMERIC(18, 2) NOT NULL DEFAULT 0,
+    buy_value_mil_lak NUMERIC(18, 2) DEFAULT 0,
+    sell_value_mil_lak NUMERIC(18, 2) DEFAULT 0,
+    notes TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CONSTRAINT uq_marketing_targets_year_month UNIQUE (year, month)
+);
+
+CREATE INDEX IF NOT EXISTS idx_marketing_targets_year_month 
+ON public.monthly_marketing_targets (year, month);
+
+INSERT INTO public.monthly_marketing_targets (
+    year, month, target_nc, buy_trans, buy_weight_g, sell_trans, sell_weight_g, notes
+) VALUES
+(2026, 1,  9500,  164099, 279167.00, 68079,  218957.75, 'Jan 2026 Board Target'),
+(2026, 2,  9500,  172501, 293460.00, 71565,  230167.59, 'Feb 2026 Board Target'),
+(2026, 3,  9500,  180902, 307752.00, 75050,  241377.43, 'Mar 2026 Board Target'),
+(2026, 4,  9500,  189303, 322044.00, 78536,  252587.28, 'Apr 2026 Board Target (Lao New Year)'),
+(2026, 5,  9500,  197705, 336337.00, 82021,  263797.12, 'May 2026 Board Target'),
+(2026, 6,  9500,  206106, 350629.00, 85507,  275006.97, 'Jun 2026 Board Target (Mid-Year)'),
+(2026, 7,  9500,  214507, 364921.00, 88992,  286216.81, 'Jul 2026 Board Target'),
+(2026, 8,  9500,  222908, 379214.00, 92477,  297426.65, 'Aug 2026 Board Target'),
+(2026, 9,  9500,  231310, 393506.00, 95963,  308636.50, 'Sep 2026 Board Target (Q3 Close)'),
+(2026, 10, 9500,  239711, 407798.00, 99448,  319846.34, 'Oct 2026 Board Target (Boun Suang Heua)'),
+(2026, 11, 9500,  248112, 422091.00, 102934, 331056.18, 'Nov 2026 Board Target (That Luang Festival)'),
+(2026, 12, 12940, 256514, 436383.00, 106419, 342266.03, 'Dec 2026 Board Target (Year-End Peak & Bonus)')
+ON CONFLICT (year, month) DO UPDATE SET
+    target_nc = EXCLUDED.target_nc,
+    buy_trans = EXCLUDED.buy_trans,
+    buy_weight_g = EXCLUDED.buy_weight_g,
+    sell_trans = EXCLUDED.sell_trans,
+    sell_weight_g = EXCLUDED.sell_weight_g,
+    notes = EXCLUDED.notes,
+    updated_at = now();
+
+GRANT SELECT, INSERT, UPDATE ON public.monthly_marketing_targets TO anon, authenticated, service_role;
+
 -- STEP 1: Add missing metric columns to summary_daily_metrics
 ALTER TABLE public.summary_daily_metrics
 ADD COLUMN IF NOT EXISTS buy_value_mil_lak NUMERIC(16, 2) NOT NULL DEFAULT 0,
