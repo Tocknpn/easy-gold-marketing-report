@@ -431,8 +431,10 @@ def upload_batch_to_supabase(sb_url, sb_key, batch, retries=3):
 def call_rpc_refresh(sb_url, sb_key, min_date=None, max_date=None):
     """
     Invoke backend recalculation triggers:
-    1. public.sync_all_weekly_summaries()
-    2. public.refresh_handbook_facts_range(min_date, max_date)
+    1. public.refresh_summary_daily(p_start, p_end) -> Updates summary_daily_metrics for MTD
+    2. public.sync_active_week_summary() -> Updates current active week (e.g. W43)
+    3. public.sync_all_weekly_summaries() -> Updates all historical weekly metrics
+    4. public.refresh_handbook_facts_range(min_date, max_date)
     """
     headers = {
         "apikey": sb_key,
@@ -440,31 +442,59 @@ def call_rpc_refresh(sb_url, sb_key, min_date=None, max_date=None):
         "Content-Type": "application/json",
     }
 
-    # 1. Sync weekly summary metrics
+    # Default date range to last 30 days if not explicitly supplied
+    today_dt = datetime.date.today()
+    default_start = (today_dt - datetime.timedelta(days=30)).strftime("%Y-%m-%d")
+    default_end = (today_dt + datetime.timedelta(days=1)).strftime("%Y-%m-%d")
+
+    start_d = min_date or default_start
+    end_d = max_date or default_end
+
+    # 1. Refresh daily summary metrics (for MTD report)
+    try:
+        ep_daily = f"{sb_url.rstrip('/')}/rest/v1/rpc/refresh_summary_daily"
+        payload_daily = json.dumps({"p_start": start_d, "p_end": end_d}).encode("utf-8")
+        req_daily = urllib.request.Request(ep_daily, data=payload_daily, headers=headers, method="POST")
+        with urllib.request.urlopen(req_daily) as resp:
+            if resp.status in (200, 201):
+                log(f"  [+] Refreshed daily summary metrics (summary_daily_metrics) for {start_d} to {end_d}.", GREEN)
+    except Exception as e:
+        log(f"  [!] Note on daily summary refresh: {e}", YELLOW)
+
+    # 2. Sync active week summary (immediate recalculation of current in-progress week)
+    try:
+        ep_active = f"{sb_url.rstrip('/')}/rest/v1/rpc/sync_active_week_summary"
+        req_active = urllib.request.Request(ep_active, data=b"{}", headers=headers, method="POST")
+        with urllib.request.urlopen(req_active) as resp:
+            if resp.status in (200, 201):
+                log("  [+] Refreshed active week summary (summary_weekly_metrics).", GREEN)
+    except Exception:
+        pass
+
+    # 3. Sync all historical weekly summary metrics
     try:
         ep1 = f"{sb_url.rstrip('/')}/rest/v1/rpc/sync_all_weekly_summaries"
         req = urllib.request.Request(ep1, data=b"{}", headers=headers, method="POST")
         with urllib.request.urlopen(req) as resp:
             if resp.status in (200, 201):
-                log("  [+] Synchronized weekly summary metrics (summary_weekly_metrics).", GREEN)
+                log("  [+] Synchronized all weekly summary metrics (summary_weekly_metrics).", GREEN)
     except Exception:
         pass
 
-    # 2. Refresh fact tables if handbook engine is installed
-    if min_date and max_date:
-        try:
-            ep2 = f"{sb_url.rstrip('/')}/rest/v1/rpc/refresh_handbook_facts_range"
-            payload = json.dumps({
-                "p_start_date": min_date,
-                "p_end_date": max_date,
-                "p_job_name": "DAILY_UPLOAD_PY",
-            }).encode("utf-8")
-            req = urllib.request.Request(ep2, data=payload, headers=headers, method="POST")
-            with urllib.request.urlopen(req) as resp:
-                if resp.status in (200, 201):
-                    log("  [+] Refreshed BI fact tables (fact_daily_core, wide, hourly, customer).", GREEN)
-        except Exception:
-            pass
+    # 4. Refresh fact tables if handbook engine is installed
+    try:
+        ep2 = f"{sb_url.rstrip('/')}/rest/v1/rpc/refresh_handbook_facts_range"
+        payload = json.dumps({
+            "p_start_date": start_d,
+            "p_end_date": end_d,
+            "p_job_name": "DAILY_UPLOAD_PY",
+        }).encode("utf-8")
+        req = urllib.request.Request(ep2, data=payload, headers=headers, method="POST")
+        with urllib.request.urlopen(req) as resp:
+            if resp.status in (200, 201):
+                log("  [+] Refreshed BI fact tables (fact_daily_core, wide, hourly, customer).", GREEN)
+    except Exception:
+        pass
 
 
 def main():
@@ -516,6 +546,21 @@ def main():
         action="store_true",
         help="Parse and validate files without uploading to Supabase",
     )
+    parser.add_argument(
+        "--resync",
+        action="store_true",
+        help="Re-sync and recalculate summary tables (MTD Daily & Weekly Metrics) without uploading new files",
+    )
+    parser.add_argument(
+        "--start-date",
+        default=None,
+        help="Start date for resync (YYYY-MM-DD)",
+    )
+    parser.add_argument(
+        "--end-date",
+        default=None,
+        help="End date for resync (YYYY-MM-DD)",
+    )
 
     args = parser.parse_args()
 
@@ -523,7 +568,23 @@ def main():
     log("       EASY GOLD MARKETING & BI - SUPABASE UPLOAD ENGINE        ", CYAN, bold=True)
     log("=" * 70, CYAN, bold=True)
 
-    # 1. Discover target files
+    # 1. Connect to Supabase unless --dry-run
+    sb_url, sb_key = None, None
+    if not args.dry_run:
+        sb_url, sb_key = get_supabase_credentials(args.url, args.key)
+        if not sb_url or not sb_key or "placeholder" in sb_url or "your-project" in sb_url:
+            sb_url, sb_key = prompt_and_save_credentials()
+
+        log(f"[*] Connected Supabase Endpoint: {sb_url}", GREEN)
+
+    # If --resync is requested, run recalculations immediately and exit
+    if args.resync:
+        log("\n[*] Running manual re-sync of summary tables (MTD Daily & Weekly Metrics)...", CYAN, bold=True)
+        call_rpc_refresh(sb_url, sb_key, args.start_date, args.end_date)
+        log("\n[+] Re-sync completed! All MTD and Weekly reports are up to date.", GREEN, bold=True)
+        sys.exit(0)
+
+    # 2. Discover target files
     target_files = []
     if args.file:
         if not os.path.exists(args.file):
@@ -552,15 +613,6 @@ def main():
     for tf in target_files:
         fsize_kb = os.path.getsize(tf) / 1024
         log(f"    - {os.path.basename(tf)} ({fsize_kb:,.1f} KB)", DIM)
-
-    # 2. Check credentials unless --dry-run
-    sb_url, sb_key = None, None
-    if not args.dry_run:
-        sb_url, sb_key = get_supabase_credentials(args.url, args.key)
-        if not sb_url or not sb_key or "placeholder" in sb_url or "your-project" in sb_url:
-            sb_url, sb_key = prompt_and_save_credentials()
-
-        log(f"[*] Connected Supabase Endpoint: {sb_url}", GREEN)
 
     history = load_history()
     files_to_process = []

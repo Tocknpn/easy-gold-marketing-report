@@ -57,7 +57,9 @@ BEGIN
     RETURN CASE p_id
         WHEN '__all'           THEN $q$'Total'::text$q$
         WHEN 'date'            THEN $q$COALESCE(to_char(b.tx_ts, 'YYYY-MM-DD'), '(no date)')$q$
-        WHEN 'day_mon', 'day', 'day_month' THEN $q$COALESCE(to_char(b.tx_ts, 'DD-Mon'), '(no date)')$q$
+        WHEN 'day_mon'         THEN $q$COALESCE(to_char(b.tx_ts, 'DD-Mon'), '(no date)')$q$
+        WHEN 'day'             THEN $q$COALESCE(to_char(b.tx_ts, 'DD-Mon'), '(no date)')$q$
+        WHEN 'day_month'       THEN $q$COALESCE(to_char(b.tx_ts, 'DD-Mon'), '(no date)')$q$
         WHEN 'month'           THEN $q$COALESCE(to_char(b.tx_ts, 'YYYY-MM'), '(no date)')$q$
         WHEN 'week'            THEN $q$COALESCE(to_char(b.tx_ts, 'IYYY-"W"IW'), '(no date)')$q$
         WHEN 'weekday'         THEN $q$COALESCE(to_char(b.tx_ts, 'ID-Dy'), '(no date)')$q$
