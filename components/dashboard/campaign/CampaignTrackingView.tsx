@@ -104,7 +104,7 @@ export function CampaignTrackingView({
   const [liveDataMap, setLiveDataMap] = useState<Record<string, any>>({});
   const [isExporting, setIsExporting] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [dbLatestDate, setDbLatestDate] = useState<string>('2026-10-18');
+  const [dbLatestDate, setDbLatestDate] = useState<string>('2026-10-19');
   const [copiedSql, setCopiedSql] = useState<boolean>(false);
   const [showSqlScript, setShowSqlScript] = useState<boolean>(true);
 
@@ -113,6 +113,26 @@ export function CampaignTrackingView({
     async function fetchLatestDate() {
       try {
         const supabase = createClient();
+        // 1. Try ultra-fast RPC get_max_monthly_data_date
+        const { data: rpcMaxDate } = await supabase.rpc('get_max_monthly_data_date');
+        if (rpcMaxDate) {
+          const cleanDate = String(rpcMaxDate).split('T')[0];
+          setDbLatestDate(cleanDate);
+          return;
+        }
+
+        // 2. Fallback to summary daily metrics
+        const { data: dailyRow } = await supabase
+          .from('summary_daily_metrics')
+          .select('date_id')
+          .order('date_id', { ascending: false })
+          .limit(1);
+        if (dailyRow && dailyRow.length > 0 && dailyRow[0].date_id) {
+          setDbLatestDate(dailyRow[0].date_id);
+          return;
+        }
+
+        // 3. Fallback to top monthly_data rows
         const { data: latestRows } = await supabase
           .from('monthly_data')
           .select('created_at')
@@ -218,10 +238,17 @@ export function CampaignTrackingView({
       let payload: any = null;
 
       try {
+        const effectiveAsOfDate = (targetCamp.auto_sync_max_date !== false && dbLatestDate) 
+          ? dbLatestDate 
+          : (targetCamp.data_update_on || dbLatestDate || '2026-10-19');
+
         const res = await fetch('/api/dashboard/campaign-analytics', {
           method: 'POST',
           headers,
-          body: JSON.stringify(targetCamp),
+          body: JSON.stringify({
+            ...targetCamp,
+            data_update_on: effectiveAsOfDate,
+          }),
         });
 
         if (res.ok) {
@@ -263,7 +290,9 @@ export function CampaignTrackingView({
           const condOp = firstRule ? firstRule.operator : '>=';
           const condVal = firstRule ? Number(firstRule.value) : 0;
           const condMax = firstRule && firstRule.max_value ? Number(firstRule.max_value) : null;
-          const asOf = targetCamp.data_update_on || '2026-10-18';
+          const asOf = (targetCamp.auto_sync_max_date !== false && dbLatestDate) 
+            ? dbLatestDate 
+            : (targetCamp.data_update_on || dbLatestDate || '2026-10-19');
           const backwardWindow = computeBackwardDates(targetCamp.campaign_date_start, 56);
 
           const { data: rpcData } = await supabase.rpc('get_campaign_actual_metrics', {
@@ -390,9 +419,9 @@ export function CampaignTrackingView({
     }
   };
 
-  // Format date helper: 2026-10-18 -> 18 Oct 2026
+  // Format date helper: YYYY-MM-DD -> DD Mon YYYY
   const formatDisplayDate = (dStr?: string) => {
-    const target = dStr || dbLatestDate || '2026-10-18';
+    const target = dStr || dbLatestDate || '2026-10-19';
     const parts = target.split('-');
     if (parts.length === 3) {
       const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -404,7 +433,9 @@ export function CampaignTrackingView({
   };
 
   // Latest data date for report
-  const latestDataDate = liveData?.max_db_date || dbLatestDate || currentTargetCampaign?.data_update_on || '2026-10-18';
+  const latestDataDate = (currentTargetCampaign?.auto_sync_max_date !== false && dbLatestDate)
+    ? dbLatestDate
+    : (liveData?.max_db_date || dbLatestDate || currentTargetCampaign?.data_update_on || '2026-10-19');
 
   // Generate fallback SQL script for target campaign
   const defaultGeneratedSql = useMemo(() => {

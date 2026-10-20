@@ -212,24 +212,30 @@ export default function DashboardPage() {
 
     // Detect if current selected week is partial in-progress week (W43)
     const isPartial = rawWeek.week_label === 'W43';
+    const latestDbDateStr = mtdData?.as_of_date || mtdData?.latest_data_date || '2026-10-19';
+
+    // Calculate dynamic elapsed days for partial week (e.g., Oct 18 to Oct 19 = 2 days)
+    const elapsedDays = isPartial
+      ? Math.max(1, Math.min(7, Math.round((new Date(latestDbDateStr).getTime() - new Date(rawWeek.start_date).getTime()) / (1000 * 60 * 60 * 24)) + 1))
+      : 7;
 
     const rawBuyVal = rawWeek.buy_value_mil_lak ?? Math.round(Number(rawWeek.buy_weight_15g) * 15 * 3.14);
     const rawSellVal = rawWeek.sell_value_mil_lak ?? Math.round(Number(rawWeek.sell_weight_15g) * 15 * 3.14);
 
-    // Prorated 7-day run-rate (1 day elapsed in W43: divide by 1 and multiply by 7 for standard week)
+    // Prorated 7-day run-rate based on dynamic elapsed days
     const currentWeek: WeeklyMetricRow = (isProratedWoW && isPartial)
       ? {
           ...rawWeek,
-          all_transactions: Math.round((rawWeek.all_transactions / 1) * 7),
-          active_users: Math.round((rawWeek.active_users / 1) * 3.5),
-          new_registers: Math.round((rawWeek.new_registers / 1) * 7),
-          withdraw_gold_grams: Number(((Number(rawWeek.withdraw_gold_grams) / 1) * 7).toFixed(2)),
-          buy_weight_15g: Math.round((Number(rawWeek.buy_weight_15g) / 1) * 7),
-          buy_transactions: Math.round((rawWeek.buy_transactions / 1) * 7),
-          buy_value_mil_lak: Math.round((rawBuyVal / 1) * 7),
-          sell_weight_15g: Math.round((Number(rawWeek.sell_weight_15g) / 1) * 7),
-          sell_transactions: Math.round((rawWeek.sell_transactions / 1) * 7),
-          sell_value_mil_lak: Math.round((rawSellVal / 1) * 7),
+          all_transactions: Math.round((rawWeek.all_transactions / elapsedDays) * 7),
+          active_users: Math.round((rawWeek.active_users / elapsedDays) * Math.min(7, elapsedDays * 1.5 + 2)),
+          new_registers: Math.round((rawWeek.new_registers / elapsedDays) * 7),
+          withdraw_gold_grams: Number(((Number(rawWeek.withdraw_gold_grams) / elapsedDays) * 7).toFixed(2)),
+          buy_weight_15g: Math.round((Number(rawWeek.buy_weight_15g) / elapsedDays) * 7),
+          buy_transactions: Math.round((rawWeek.buy_transactions / elapsedDays) * 7),
+          buy_value_mil_lak: Math.round((rawBuyVal / elapsedDays) * 7),
+          sell_weight_15g: Math.round((Number(rawWeek.sell_weight_15g) / elapsedDays) * 7),
+          sell_transactions: Math.round((rawWeek.sell_transactions / elapsedDays) * 7),
+          sell_value_mil_lak: Math.round((rawSellVal / elapsedDays) * 7),
         }
       : {
           ...rawWeek,
@@ -311,8 +317,9 @@ export default function DashboardPage() {
       totalTransactions,
       buyTxPct,
       orderFlowRatio,
+      elapsedDays,
     };
-  }, [weeklyData, sortedHistory, selectedWeekLabel, isProratedWoW]);
+  }, [weeklyData, sortedHistory, selectedWeekLabel, isProratedWoW, mtdData]);
 
   // Format date to DD/MM/YYYY
   const formatDisplayDate = (dateStr?: string) => {
@@ -580,7 +587,7 @@ export default function DashboardPage() {
                 </h1>
                 <div className="mt-1 flex items-center gap-2 sm:gap-3 flex-wrap">
                   <span className="text-xs sm:text-sm font-bold text-[#1d63b8] underline underline-offset-2">
-                    Data up to date {formatDisplayDate(activeWeeklyMetrics?.currentWeek.week_label === 'W43' ? '2026-10-18' : activeWeeklyMetrics?.currentWeek.end_date)}
+                    Data up to date {formatDisplayDate(activeWeeklyMetrics?.isPartial ? (mtdData?.as_of_date || mtdData?.latest_data_date || '2026-10-19') : activeWeeklyMetrics?.currentWeek.end_date)}
                   </span>
                   <span className="text-slate-300">•</span>
                   <span className="text-xs text-slate-500 font-medium">
@@ -708,7 +715,7 @@ export default function DashboardPage() {
                             In-Progress Partial Week Detected: {selectedWeekLabel}
                           </h4>
                           <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-slate-950/30 text-amber-100">
-                            1 Day Elapsed
+                            {activeWeeklyMetrics?.elapsedDays || 1} Day{activeWeeklyMetrics?.elapsedDays && activeWeeklyMetrics.elapsedDays > 1 ? 's' : ''} Elapsed
                           </span>
                         </div>
                         <p className="text-xs text-amber-100/90 font-medium mt-0.5">

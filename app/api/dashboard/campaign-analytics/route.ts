@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     // 1. Get MAX(created_at) from monthly_data
-    let maxDbDateStr = config.auto_sync_max_date ? '2026-10-18' : (config.data_update_on || '2026-10-18');
+    let maxDbDateStr = config.data_update_on || '2026-10-19';
     try {
       const { data: maxDateRow, error: maxDateErr } = await supabase.rpc('get_max_monthly_data_date');
       if (!maxDateErr && maxDateRow) {
@@ -40,21 +40,21 @@ export async function POST(req: NextRequest) {
     } catch {
       // Direct fast fallback using summary table
       try {
-        const { data: latestSummary } = await supabase
-          .from('summary_weekly_metrics')
-          .select('end_date')
-          .order('end_date', { ascending: false })
+        const { data: latestDaily } = await supabase
+          .from('summary_daily_metrics')
+          .select('date_id')
+          .order('date_id', { ascending: false })
           .limit(1);
 
-        if (latestSummary && latestSummary.length > 0 && latestSummary[0].end_date) {
-          maxDbDateStr = '2026-10-18';
+        if (latestDaily && latestDaily.length > 0 && latestDaily[0].date_id) {
+          maxDbDateStr = latestDaily[0].date_id;
         }
       } catch (e) {
-        console.warn('Could not query max date, using default date:', e);
+        console.warn('Could not query max date, using fallback:', e);
       }
     }
 
-    const asOfDate = config.auto_sync_max_date ? (maxDbDateStr || '2026-10-18') : (config.data_update_on || '2026-10-18');
+    const asOfDate = config.auto_sync_max_date !== false ? (maxDbDateStr || config.data_update_on || '2026-10-19') : (config.data_update_on || maxDbDateStr || '2026-10-19');
 
     // 2. Timeline calculations
     const totalDays = calculateDateDiffDays(config.campaign_date_start, config.campaign_date_end);

@@ -73,7 +73,8 @@ export function computeCampaignAnalytics(
     max_db_date?: string;
   }
 ): CampaignAnalyticsPayload {
-  const asOfDateStr = liveData?.max_db_date || (config.auto_sync_max_date !== false ? '2026-10-18' : (config.data_update_on || '2026-10-18'));
+  const asOfDateStr = liveData?.max_db_date 
+    || (config.auto_sync_max_date !== false ? (liveData?.max_db_date || config.data_update_on || new Date().toISOString().split('T')[0]) : (config.data_update_on || '2026-10-19'));
 
   // 1. Total duration of the campaign
   const total_days = calculateDateDiffDays(config.campaign_date_start, config.campaign_date_end);

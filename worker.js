@@ -11,17 +11,17 @@ const DEFAULT_FALLBACK_DATA = {
     year: 2026,
     start_date: '2026-10-18',
     end_date: '2026-10-24',
-    all_transactions: 3387,
-    active_users: 2688,
-    new_registers: 47,
+    all_transactions: 9258,
+    active_users: 5978,
+    new_registers: 117,
     withdraw_gold_grams: 1284.89,
     buy_weight_15g: 91.5,
-    buy_transactions: 1869,
-    buy_ticket_size_g: 0.7,
+    buy_transactions: 5567,
+    buy_ticket_size_g: 0.2,
     buy_value_mil_lak: 4214.9,
     sell_weight_15g: 132.1,
-    sell_transactions: 1421,
-    sell_ticket_size_g: 1.4,
+    sell_transactions: 3467,
+    sell_ticket_size_g: 0.6,
     sell_value_mil_lak: 6013.2,
   },
   previous_week: {
@@ -74,7 +74,7 @@ const DEFAULT_FALLBACK_DATA = {
     { year_week: '2026-W40', week_label: 'W40', week_number: 40, year: 2026, start_date: '2026-09-29', end_date: '2026-10-05', all_transactions: 60431, active_users: 24122, new_registers: 699, withdraw_gold_grams: 12298.65, buy_weight_15g: 7031, buy_transactions: 47745, buy_ticket_size_g: 2.2, sell_weight_15g: 1259, sell_transactions: 11007, sell_ticket_size_g: 1.7 },
     { year_week: '2026-W41', week_label: 'W41', week_number: 41, year: 2026, start_date: '2026-10-06', end_date: '2026-10-12', all_transactions: 39744, active_users: 17527, new_registers: 484, withdraw_gold_grams: 9458.41, buy_weight_15g: 2851, buy_transactions: 28475, buy_ticket_size_g: 1.5, sell_weight_15g: 1263, sell_transactions: 11310, sell_ticket_size_g: 1.7 },
     { year_week: '2026-W42', week_label: 'W42', week_number: 42, year: 2026, start_date: '2026-10-11', end_date: '2026-10-17', all_transactions: 38605, active_users: 17100, new_registers: 451, withdraw_gold_grams: 8362.19, buy_weight_15g: 2597.2, buy_transactions: 25834, buy_ticket_size_g: 1.5, buy_value_mil_lak: 119236.5, sell_weight_15g: 1308.6, sell_transactions: 11987, sell_ticket_size_g: 1.6, sell_value_mil_lak: 59760.0 },
-    { year_week: '2026-W43', week_label: 'W43', week_number: 43, year: 2026, start_date: '2026-10-18', end_date: '2026-10-24', all_transactions: 3387, active_users: 2688, new_registers: 47, withdraw_gold_grams: 1284.89, buy_weight_15g: 91.5, buy_transactions: 1869, buy_ticket_size_g: 0.7, buy_value_mil_lak: 4214.9, sell_weight_15g: 132.1, sell_transactions: 1421, sell_ticket_size_g: 1.4, sell_value_mil_lak: 6013.2 },
+    { year_week: '2026-W43', week_label: 'W43', week_number: 43, year: 2026, start_date: '2026-10-18', end_date: '2026-10-24', all_transactions: 9258, active_users: 5978, new_registers: 117, withdraw_gold_grams: 1284.89, buy_weight_15g: 91.5, buy_transactions: 5567, buy_ticket_size_g: 0.2, buy_value_mil_lak: 4214.9, sell_weight_15g: 132.1, sell_transactions: 3467, sell_ticket_size_g: 0.6, sell_value_mil_lak: 6013.2 },
   ],
   variances: {
     all_transactions: -91,
@@ -102,9 +102,12 @@ export default {
       const cache = caches.default;
 
       // Check Edge Cache first (sub-5ms response)
-      let cachedResponse = await cache.match(cacheKey);
-      if (cachedResponse) {
-        return cachedResponse;
+      const bypassCache = url.searchParams.get('refresh') === 'true' || request.headers.get('cache-control')?.includes('no-store');
+      if (!bypassCache) {
+        let cachedResponse = await cache.match(cacheKey);
+        if (cachedResponse) {
+          return cachedResponse;
+        }
       }
 
       let payload = DEFAULT_FALLBACK_DATA;
@@ -156,10 +159,13 @@ export default {
       const cacheUrl = new URL(request.url);
       const cacheKey = new Request(cacheUrl.toString(), request);
       const cache = caches.default;
+      const bypassCache = url.searchParams.get('refresh') === 'true' || request.headers.get('cache-control')?.includes('no-store');
 
-      let cachedResponse = await cache.match(cacheKey);
-      if (cachedResponse) {
-        return cachedResponse;
+      if (!bypassCache) {
+        let cachedResponse = await cache.match(cacheKey);
+        if (cachedResponse) {
+          return cachedResponse;
+        }
       }
 
       let payload = {
@@ -268,7 +274,7 @@ export default {
       if (supabaseUrl && supabaseKey && !supabaseUrl.includes('placeholder')) {
         try {
           const rpcUrl = `${supabaseUrl}/rest/v1/rpc/get_mtd_forecast_report`;
-          const asOfDate = url.searchParams.get('as_of_date') || '2026-10-18';
+          const asOfDate = url.searchParams.get('as_of_date') || null;
           const mode = url.searchParams.get('mode') || 'calendar_days';
           const compMonth = parseInt(url.searchParams.get('comp_month') || '9', 10);
           const compYear = parseInt(url.searchParams.get('comp_year') || '2026', 10);
