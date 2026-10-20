@@ -115,6 +115,7 @@ export function TargetReportView() {
 
   // ---- Section 2: Run Rate filters ----
   const [rrMonth, setRrMonth] = useState<number>(LATEST_DATA_DATE.month);
+  const [rrCompYear, setRrCompYear] = useState<number>(2026);
   const [rrCompMonth, setRrCompMonth] = useState<number>(Math.max(1, LATEST_DATA_DATE.month - 1));
   const [rrDay, setRrDay] = useState<number>(LATEST_DATA_DATE.day);
 
@@ -175,8 +176,8 @@ export function TargetReportView() {
   );
 
   const rrData: RunRateComparisonPayload = useMemo(
-    () => calculateRunRateComparison(currentYear, rrMonth, currentYear, rrCompMonth, rrDay, targets, dailyRows),
-    [currentYear, rrMonth, rrCompMonth, rrDay, targets, dailyRows]
+    () => calculateRunRateComparison(currentYear, rrMonth, rrCompYear, rrCompMonth, rrDay, targets, dailyRows),
+    [currentYear, rrMonth, rrCompYear, rrCompMonth, rrDay, targets, dailyRows]
   );
 
   // Past month at full cutoff = final achievement, so no estimate is shown.
@@ -328,17 +329,30 @@ export function TargetReportView() {
               </select>
             </div>
             <div className="flex flex-col gap-1">
-              <label className={labelClass}>Comparison Month</label>
+              <label className={labelClass}>Comparison Period</label>
               <select
-                value={rrCompMonth}
-                onChange={(e) => setRrCompMonth(parseInt(e.target.value, 10))}
+                value={`${rrCompYear}-${rrCompMonth}`}
+                onChange={(e) => {
+                  const [y, m] = e.target.value.split('-').map(Number);
+                  setRrCompYear(y);
+                  setRrCompMonth(m);
+                }}
                 className={selectClass}
               >
-                {MONTH_NAMES.map((name, idx) => (
-                  <option key={`rr-comp-${name}`} value={idx + 1}>
-                    {name} 2026
-                  </option>
-                ))}
+                <optgroup label="2026 Months">
+                  {MONTH_NAMES.map((name, idx) => (
+                    <option key={`rr-comp-2026-${name}`} value={`2026-${idx + 1}`}>
+                      {name} 2026
+                    </option>
+                  ))}
+                </optgroup>
+                <optgroup label="2025 Historical (YoY)">
+                  {MONTH_NAMES.map((name, idx) => (
+                    <option key={`rr-comp-2025-${name}`} value={`2025-${idx + 1}`}>
+                      {name} 2025 (Last Year)
+                    </option>
+                  ))}
+                </optgroup>
               </select>
             </div>
             <CutoffSlider

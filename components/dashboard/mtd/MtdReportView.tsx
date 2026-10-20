@@ -417,7 +417,7 @@ export function MtdReportView({ initialData, onRefresh, loading = false, error =
               <input
                 type="date"
                 value={asOfDate}
-                min="2026-01-01"
+                min="2025-01-01"
                 max="2026-12-31"
                 onChange={(e) => setAsOfDate(e.target.value)}
                 className="text-xs font-semibold bg-slate-50 border border-slate-300 rounded-xl px-2.5 py-1.5 focus:ring-2 focus:ring-[#0c4ca3] focus:outline-hidden text-slate-800"
