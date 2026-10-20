@@ -243,8 +243,13 @@ export function DynamicFilterBar({
       start = `${yyyy}-${mm}-01`;
       end = todayStr;
     } else if (preset === 'last_month') {
-      start = '2026-09-01';
-      end = '2026-09-30';
+      const prevMonthFirst = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+      const prevMonthLast = new Date(today.getFullYear(), today.getMonth(), 0);
+      const prevY = prevMonthFirst.getFullYear();
+      const prevM = String(prevMonthFirst.getMonth() + 1).padStart(2, '0');
+      const prevLastD = String(prevMonthLast.getDate()).padStart(2, '0');
+      start = `${prevY}-${prevM}-01`;
+      end = `${prevY}-${prevM}-${prevLastD}`;
     } else if (preset === 'aug_month') {
       start = '2026-08-01';
       end = '2026-08-31';

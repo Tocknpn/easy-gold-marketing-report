@@ -18,18 +18,9 @@ import { ClassicRunRateTables } from './ClassicRunRateTables';
 import { VisualTargetTrackingCockpit } from './VisualTargetTrackingCockpit';
 import { Table2, Download, Target as TargetIcon, TrendingUp, CheckCircle2, RefreshCw } from 'lucide-react';
 
-const CURRENT_YEAR = LATEST_DATA_DATE.year;
-const CURRENT_MONTH = LATEST_DATA_DATE.month;
-
-// Months selectable as "current" (cannot go beyond the latest data month)
-const SELECTABLE_MONTHS = MONTH_NAMES.map((name, idx) => ({ name, value: idx + 1 })).filter(
-  (m) => m.value <= CURRENT_MONTH
-);
-
-// Highest day that can be selected for a month.
-// Current month: capped at the latest data date. Past months: whole month.
-const getDayCap = (month: number, latestCapDay: number = 19) =>
-  month === CURRENT_MONTH ? latestCapDay : getDaysInMonth(CURRENT_YEAR, month);
+// Dynamic day cap calculation
+const getDayCap = (month: number, latestCapMonth: number = 10, latestCapDay: number = 19, year: number = 2026) =>
+  month === latestCapMonth ? latestCapDay : getDaysInMonth(year, month);
 
 const selectClass =
   'w-full bg-slate-50 border border-slate-300 rounded-xl px-2.5 py-1.5 text-xs font-black text-slate-800 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-500';
@@ -41,12 +32,14 @@ interface CutoffSliderProps {
   onChange: (day: number) => void;
   timeGonePct: number;
   latestCapDay: number;
+  latestCapMonth: number;
+  year: number;
 }
 
-function CutoffSlider({ month, day, onChange, timeGonePct, latestCapDay }: CutoffSliderProps) {
-  const cap = getDayCap(month, latestCapDay);
-  const total = getDaysInMonth(CURRENT_YEAR, month);
-  const isCurrent = month === CURRENT_MONTH;
+function CutoffSlider({ month, day, onChange, timeGonePct, latestCapDay, latestCapMonth, year }: CutoffSliderProps) {
+  const cap = getDayCap(month, latestCapMonth, latestCapDay, year);
+  const total = getDaysInMonth(year, month);
+  const isCurrent = month === latestCapMonth;
   const quick = [11, 15, 19].filter((d) => d < cap);
 
   return (
@@ -111,15 +104,27 @@ export function TargetReportView() {
   const [isLiveConnected, setIsLiveConnected] = useState<boolean>(false);
   const [isLoadingLive, setIsLoadingLive] = useState<boolean>(true);
 
-  // ---- Section 1: Target Tracking filters (default = current month, latest day) ----
+  // Dynamic calendar bounds discovered from Supabase
+  const [currentYear, setCurrentYear] = useState<number>(LATEST_DATA_DATE.year);
+  const [latestMonth, setLatestMonth] = useState<number>(LATEST_DATA_DATE.month);
   const [latestDay, setLatestDay] = useState<number>(LATEST_DATA_DATE.day);
-  const [tgtMonth, setTgtMonth] = useState<number>(CURRENT_MONTH);
-  const [tgtDay, setTgtDay] = useState<number>(getDayCap(CURRENT_MONTH, LATEST_DATA_DATE.day));
+
+  // ---- Section 1: Target Tracking filters (default = current month, latest day) ----
+  const [tgtMonth, setTgtMonth] = useState<number>(LATEST_DATA_DATE.month);
+  const [tgtDay, setTgtDay] = useState<number>(LATEST_DATA_DATE.day);
 
   // ---- Section 2: Run Rate filters ----
-  const [rrMonth, setRrMonth] = useState<number>(CURRENT_MONTH);
-  const [rrCompMonth, setRrCompMonth] = useState<number>(CURRENT_MONTH - 1);
-  const [rrDay, setRrDay] = useState<number>(getDayCap(CURRENT_MONTH, LATEST_DATA_DATE.day));
+  const [rrMonth, setRrMonth] = useState<number>(LATEST_DATA_DATE.month);
+  const [rrCompMonth, setRrCompMonth] = useState<number>(Math.max(1, LATEST_DATA_DATE.month - 1));
+  const [rrDay, setRrDay] = useState<number>(LATEST_DATA_DATE.day);
+
+  // Months selectable as "current" (dynamically updates when new months like Nov arrive)
+  const selectableMonths = useMemo(() => {
+    const maxSelectable = Math.min(12, Math.max(latestMonth, 10));
+    return MONTH_NAMES.map((name, idx) => ({ name, value: idx + 1 })).filter(
+      (m) => m.value <= maxSelectable
+    );
+  }, [latestMonth]);
 
   // Dynamically sync true daily summary rows from Supabase
   const fetchLiveData = async () => {
@@ -137,11 +142,19 @@ export function TargetReportView() {
 
         const lastRow = rows[rows.length - 1];
         if (lastRow?.date_id) {
-          const d = parseInt(String(lastRow.date_id).split('-')[2], 10);
-          if (!isNaN(d) && d > 0) {
+          const parts = String(lastRow.date_id).split('-');
+          const y = parseInt(parts[0], 10);
+          const m = parseInt(parts[1], 10);
+          const d = parseInt(parts[2], 10);
+          if (!isNaN(y) && !isNaN(m) && !isNaN(d)) {
+            setCurrentYear(y);
+            setLatestMonth(m);
             setLatestDay(d);
-            setTgtDay((prev) => (tgtMonth === CURRENT_MONTH ? d : prev));
-            setRrDay((prev) => (rrMonth === CURRENT_MONTH ? d : prev));
+            setTgtMonth(m);
+            setTgtDay(d);
+            setRrMonth(m);
+            setRrCompMonth(Math.max(1, m - 1));
+            setRrDay(d);
           }
         }
       }
@@ -157,26 +170,26 @@ export function TargetReportView() {
   }, []);
 
   const tgtData: RunRateComparisonPayload = useMemo(
-    () => calculateRunRateComparison(CURRENT_YEAR, tgtMonth, CURRENT_YEAR, Math.max(1, tgtMonth - 1), tgtDay, targets, dailyRows),
-    [tgtMonth, tgtDay, targets, dailyRows]
+    () => calculateRunRateComparison(currentYear, tgtMonth, currentYear, Math.max(1, tgtMonth - 1), tgtDay, targets, dailyRows),
+    [currentYear, tgtMonth, tgtDay, targets, dailyRows]
   );
 
   const rrData: RunRateComparisonPayload = useMemo(
-    () => calculateRunRateComparison(CURRENT_YEAR, rrMonth, CURRENT_YEAR, rrCompMonth, rrDay, targets, dailyRows),
-    [rrMonth, rrCompMonth, rrDay, targets, dailyRows]
+    () => calculateRunRateComparison(currentYear, rrMonth, currentYear, rrCompMonth, rrDay, targets, dailyRows),
+    [currentYear, rrMonth, rrCompMonth, rrDay, targets, dailyRows]
   );
 
   // Past month at full cutoff = final achievement, so no estimate is shown.
-  const showEst = !(tgtMonth < CURRENT_MONTH && tgtDay === getDayCap(tgtMonth, latestDay));
+  const showEst = !(tgtMonth < latestMonth && tgtDay === getDayCap(tgtMonth, latestMonth, latestDay, currentYear));
 
   const handleTgtMonth = (m: number) => {
     setTgtMonth(m);
-    setTgtDay(getDayCap(m, latestDay));
+    setTgtDay(getDayCap(m, latestMonth, latestDay, currentYear));
   };
 
   const handleRrMonth = (m: number) => {
     setRrMonth(m);
-    setRrDay(getDayCap(m, latestDay));
+    setRrDay(getDayCap(m, latestMonth, latestDay, currentYear));
   };
 
   // Export RR table to CSV
@@ -258,7 +271,7 @@ export function TargetReportView() {
                 onChange={(e) => handleTgtMonth(parseInt(e.target.value, 10))}
                 className={selectClass}
               >
-                {SELECTABLE_MONTHS.map((m) => (
+                {selectableMonths.map((m) => (
                   <option key={`tgt-${m.name}`} value={m.value}>
                     {m.name} 2026
                   </option>
@@ -271,6 +284,8 @@ export function TargetReportView() {
               onChange={setTgtDay}
               timeGonePct={tgtData.time_gone_pct}
               latestCapDay={latestDay}
+              latestCapMonth={latestMonth}
+              year={currentYear}
             />
           </div>
         </div>
@@ -305,7 +320,7 @@ export function TargetReportView() {
                 onChange={(e) => handleRrMonth(parseInt(e.target.value, 10))}
                 className={selectClass}
               >
-                {SELECTABLE_MONTHS.map((m) => (
+                {selectableMonths.map((m) => (
                   <option key={`rr-curr-${m.name}`} value={m.value}>
                     {m.name} 2026
                   </option>
@@ -332,6 +347,8 @@ export function TargetReportView() {
               onChange={setRrDay}
               timeGonePct={rrData.time_gone_pct}
               latestCapDay={latestDay}
+              latestCapMonth={latestMonth}
+              year={currentYear}
             />
           </div>
         </div>

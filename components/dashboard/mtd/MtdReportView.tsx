@@ -92,10 +92,12 @@ export function MtdReportView({ initialData, onRefresh, loading = false, error =
   // Apply filters and scale metrics dynamically
   const displayedData = useMemo(() => {
     const parts = asOfDate.split('-');
-    const day = parts.length === 3 ? parseInt(parts[2], 10) : (initialData.elapsed_days || 18);
-    const totalDays = 31;
+    const currYear = parts.length === 3 ? (parseInt(parts[0], 10) || 2026) : (initialData.current_month_year || 2026);
+    const currMonth = parts.length === 3 ? (parseInt(parts[1], 10) || 10) : (initialData.current_month_num || 10);
+    const day = parts.length === 3 ? (parseInt(parts[2], 10) || 18) : (initialData.elapsed_days || 18);
+    const totalDays = initialData.total_days_current_month || new Date(currYear, currMonth, 0).getDate();
     
-    // Scale factor for branch and bank selection
+    // Scale factor for branch and bank selection (historical share distribution)
     let branchFactor = 1.0;
     if (selectedBranch === 'hq') branchFactor = 0.38;
     else if (selectedBranch === 'morning_market') branchFactor = 0.22;
@@ -118,7 +120,12 @@ export function MtdReportView({ initialData, onRefresh, loading = false, error =
     if (forecastScenario === 'conservative') runRateMultiplier *= 0.90;
     if (forecastScenario === 'optimistic') runRateMultiplier *= 1.10;
     if (forecastScenario === 'payday_surge') runRateMultiplier *= 1.15; // Lao payday surge (25th-30th)
-    if (mode === 'working_days') runRateMultiplier = (22 / Math.max(1, Math.round(day * (22 / 31))));
+    
+    const totalWd = initialData.total_working_days_current_month || Math.round(totalDays * (22 / 31));
+    const elapsedWd = initialData.elapsed_working_days || Math.max(1, Math.round(day * (totalWd / totalDays)));
+    if (mode === 'working_days') {
+      runRateMultiplier = totalWd / Math.max(1, elapsedWd);
+    }
 
     const updatedMetrics = { ...initialData.metrics };
     Object.keys(updatedMetrics).forEach((key) => {
@@ -410,8 +417,8 @@ export function MtdReportView({ initialData, onRefresh, loading = false, error =
               <input
                 type="date"
                 value={asOfDate}
-                min="2026-10-01"
-                max="2026-10-31"
+                min="2026-01-01"
+                max="2026-12-31"
                 onChange={(e) => setAsOfDate(e.target.value)}
                 className="text-xs font-semibold bg-slate-50 border border-slate-300 rounded-xl px-2.5 py-1.5 focus:ring-2 focus:ring-[#0c4ca3] focus:outline-hidden text-slate-800"
               />
@@ -469,6 +476,15 @@ export function MtdReportView({ initialData, onRefresh, loading = false, error =
                 <option value="optimistic">Optimistic (+10% Month-End Rally)</option>
               </select>
             </div>
+
+            {(selectedBranch !== 'all' || selectedBank !== 'all') && (
+              <div className="col-span-full bg-amber-50 border border-amber-200 text-amber-900 text-[11px] rounded-xl px-3 py-1.5 flex items-center gap-2">
+                <Info className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+                <span>
+                  <strong>Channel Distribution Estimate:</strong> Applying historical channel share. For exact ledger counts and sums by bank or branch, view <strong>Dynamic BI</strong> or <strong>Power Pivot Studio</strong>.
+                </span>
+              </div>
+            )}
           </div>
         </div>
       )}

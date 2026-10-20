@@ -34,8 +34,13 @@ export const ALL_AVAILABLE_BRANCHES = [
   'Digital App / Online',
 ];
 
+const getInitialMonthStart = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+};
+
 export const DEFAULT_FILTER_STATE: DynamicFilterState = {
-  startDate: '2026-10-01',
+  startDate: typeof window !== 'undefined' ? getInitialMonthStart() : '2026-10-01',
   endDate: typeof window !== 'undefined' ? new Date().toISOString().split('T')[0] : '2026-10-18',
   quickPreset: 'this_month',
   selectedBanks: [],
