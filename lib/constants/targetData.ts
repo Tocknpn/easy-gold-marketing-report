@@ -316,8 +316,8 @@ export function calculateRunRateComparison(
     cur_with_ref = curAgg.with_ref;
     cur_buy_wt = curAgg.buy_wt;
     cur_sell_wt = curAgg.sell_wt;
-    cur_buy_val = curAgg.buy_val > 0 ? curAgg.buy_val : (currMonth === 10 ? 365532 : 365532);
-    cur_sell_val = curAgg.sell_val > 0 ? curAgg.sell_val : (currMonth === 10 ? 164006 : 164006);
+    cur_buy_val = curAgg.buy_val;
+    cur_sell_val = curAgg.sell_val;
 
     comp_same_buy_tx = compSameAgg.buy_tx;
     comp_same_sell_tx = compSameAgg.sell_tx;
@@ -326,8 +326,8 @@ export function calculateRunRateComparison(
     comp_same_with_ref = compSameAgg.with_ref;
     comp_same_buy_wt = compSameAgg.buy_wt;
     comp_same_sell_wt = compSameAgg.sell_wt;
-    comp_same_buy_val = compSameAgg.buy_val > 0 ? compSameAgg.buy_val : (compMonth === 9 ? 361214 : 361214);
-    comp_same_sell_val = compSameAgg.sell_val > 0 ? compSameAgg.sell_val : (compMonth === 9 ? 221868 : 221868);
+    comp_same_buy_val = compSameAgg.buy_val;
+    comp_same_sell_val = compSameAgg.sell_val;
 
     comp_full_buy_tx = compFullAgg.buy_tx;
     comp_full_sell_tx = compFullAgg.sell_tx;
@@ -336,8 +336,8 @@ export function calculateRunRateComparison(
     comp_full_with_ref = compFullAgg.with_ref;
     comp_full_buy_wt = compFullAgg.buy_wt;
     comp_full_sell_wt = compFullAgg.sell_wt;
-    comp_full_buy_val = compFullAgg.buy_val > 0 ? compFullAgg.buy_val : (compMonth === 9 ? 710899 : 710899);
-    comp_full_sell_val = compFullAgg.sell_val > 0 ? compFullAgg.sell_val : (compMonth === 9 ? 310431 : 310431);
+    comp_full_buy_val = compFullAgg.buy_val;
+    comp_full_sell_val = compFullAgg.sell_val;
 
     ytd_buy_tx = ytdAgg.buy_tx;
     ytd_buy_wt = ytdAgg.buy_wt;

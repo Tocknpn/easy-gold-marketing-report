@@ -169,6 +169,8 @@ export function DynamicReportView() {
             branches={reportData.branches}
             weightBrackets={reportData.weight_brackets}
             measures={reportData.dax_measures}
+            dayOfWeek={reportData.day_of_week}
+            timelineTrend={reportData.timeline_trend}
           />
 
           {/* 4. Complete PowerBI / Excel DAX Measures Table */}

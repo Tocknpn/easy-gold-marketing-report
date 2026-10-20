@@ -119,6 +119,34 @@ export interface WeightBracketMetric {
   total_amount_lak: number;
 }
 
+export interface DayOfWeekMetric {
+  day_code: string;
+  day_label: string;
+  day_full: string;
+  total_tx: number;
+  buy_tx: number;
+  sell_tx: number;
+  buy_weight_g: number;
+  sell_weight_g: number;
+  total_amount_lak: number;
+}
+
+export interface TrendPoint {
+  label: string;
+  subLabel?: string;
+  tx_date?: string;
+  buy_val: number;
+  sell_val: number;
+  total_val: number;
+  buy_tx: number;
+  sell_tx: number;
+  total_tx: number;
+  buy_weight_g: number;
+  sell_weight_g: number;
+  net_weight_g: number;
+  nc: number;
+}
+
 export interface DynamicReportPayload {
   meta: {
     start_date: string;
@@ -130,6 +158,8 @@ export interface DynamicReportPayload {
   banks: BankMetric[];
   branches: BranchMetric[];
   weight_brackets: WeightBracketMetric[];
+  day_of_week?: DayOfWeekMetric[];
+  timeline_trend?: TrendPoint[];
 }
 
 export interface DaxMeasureRow {

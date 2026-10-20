@@ -25,7 +25,9 @@ import {
   BankMetric, 
   BranchMetric, 
   WeightBracketMetric, 
-  DaxMeasuresPayload 
+  DaxMeasuresPayload,
+  DayOfWeekMetric,
+  TrendPoint
 } from '@/lib/types/dynamicReport.types';
 
 interface DynamicChartsSectionProps {
@@ -34,19 +36,8 @@ interface DynamicChartsSectionProps {
   branches: BranchMetric[];
   weightBrackets: WeightBracketMetric[];
   measures?: DaxMeasuresPayload;
-}
-
-// 7-day cyclical baseline data for Day Activity Curve
-interface DayOfWeekMetric {
-  day_code: string;
-  day_label: string;
-  day_full: string;
-  total_tx: number;
-  buy_tx: number;
-  sell_tx: number;
-  buy_weight_g: number;
-  sell_weight_g: number;
-  total_amount_lak: number;
+  dayOfWeek?: DayOfWeekMetric[];
+  timelineTrend?: TrendPoint[];
 }
 
 const BASELINE_DAY_OF_WEEK: DayOfWeekMetric[] = [
@@ -58,22 +49,6 @@ const BASELINE_DAY_OF_WEEK: DayOfWeekMetric[] = [
   { day_code: 'sat', day_label: 'Sat', day_full: 'Saturday', total_tx: 10950, buy_tx: 7880, sell_tx: 3070, buy_weight_g: 838.2, sell_weight_g: 318.5, total_amount_lak: 19350000000 },
   { day_code: 'sun', day_label: 'Sun', day_full: 'Sunday', total_tx: 5412, buy_tx: 3878, sell_tx: 1534, buy_weight_g: 414.0, sell_weight_g: 158.2, total_amount_lak: 9560000000 },
 ];
-
-// Baseline trend points for Day, Week, and Month
-interface TrendPoint {
-  label: string;
-  subLabel?: string;
-  buy_val: number;
-  sell_val: number;
-  total_val: number;
-  buy_tx: number;
-  sell_tx: number;
-  total_tx: number;
-  buy_weight_g: number;
-  sell_weight_g: number;
-  net_weight_g: number;
-  nc: number; // Total New Customers (First-time buyers)
-}
 
 const BASELINE_MONTH_TREND: TrendPoint[] = [
   { label: "May '26", subLabel: 'Closed', buy_val: 245000, sell_val: 82000, total_val: 327000, buy_tx: 98200, sell_tx: 37000, total_tx: 135200, buy_weight_g: 165400, sell_weight_g: 72100, net_weight_g: 93300, nc: 11240 },
@@ -189,7 +164,14 @@ export function DynamicChartsSection({
   branches,
   weightBrackets,
   measures,
+  dayOfWeek,
+  timelineTrend,
 }: DynamicChartsSectionProps) {
+  // Memoized Day-of-Week (dynamic live data from filtered database, fallback to baseline)
+  const activeDayOfWeek: DayOfWeekMetric[] = useMemo(() => {
+    if (dayOfWeek && dayOfWeek.length > 0) return dayOfWeek;
+    return BASELINE_DAY_OF_WEEK;
+  }, [dayOfWeek]);
   // Chart Global Metric Mode: 'tx' (Transactions) | 'weight' (Gold Grams) | 'amount' (Revenue M LAK)
   const [metricMode, setMetricMode] = useState<'tx' | 'weight' | 'amount'>('tx');
 
@@ -274,7 +256,7 @@ export function DynamicChartsSection({
   const unitLabel = metricMode === 'weight' ? 'g' : metricMode === 'amount' ? 'M LAK' : 'tx';
 
   const maxHourlyVal = Math.max(...hourly.map(getHourlyVal), 1);
-  const maxDayVal = Math.max(...BASELINE_DAY_OF_WEEK.map(getDayVal), 1);
+  const maxDayVal = Math.max(...activeDayOfWeek.map(getDayVal), 1);
   const maxBankVal = Math.max(...banks.map(getBankVal), 1);
   const maxBranchVal = Math.max(...branches.map(getBranchVal), 1);
 
@@ -357,12 +339,52 @@ export function DynamicChartsSection({
   const topBank = banks.length > 0 ? banks[0] : null;
   const hasHighBankConcentration = topBank && topBank.share_pct > 60;
 
-  // Active trend series data
+  // Active trend series data (dynamically computed from live DB timeline or fallback baseline)
   const activeTrendData: TrendPoint[] = useMemo(() => {
+    if (timelineTrend && timelineTrend.length > 0) {
+      if (trendGranularity === 'day') return timelineTrend;
+      if (trendGranularity === 'week') {
+        const weeks: TrendPoint[] = [];
+        for (let i = 0; i < timelineTrend.length; i += 7) {
+          const chunk = timelineTrend.slice(i, i + 7);
+          const first = chunk[0];
+          const last = chunk[chunk.length - 1];
+          weeks.push({
+            label: `W${Math.floor(i / 7) + 1}`,
+            subLabel: `${first.label} - ${last.label}`,
+            buy_val: Math.round(chunk.reduce((acc, p) => acc + p.buy_val, 0) * 10) / 10,
+            sell_val: Math.round(chunk.reduce((acc, p) => acc + p.sell_val, 0) * 10) / 10,
+            total_val: Math.round(chunk.reduce((acc, p) => acc + p.total_val, 0) * 10) / 10,
+            buy_tx: chunk.reduce((acc, p) => acc + p.buy_tx, 0),
+            sell_tx: chunk.reduce((acc, p) => acc + p.sell_tx, 0),
+            total_tx: chunk.reduce((acc, p) => acc + p.total_tx, 0),
+            buy_weight_g: Math.round(chunk.reduce((acc, p) => acc + p.buy_weight_g, 0) * 10) / 10,
+            sell_weight_g: Math.round(chunk.reduce((acc, p) => acc + p.sell_weight_g, 0) * 10) / 10,
+            net_weight_g: Math.round(chunk.reduce((acc, p) => acc + p.net_weight_g, 0) * 10) / 10,
+            nc: chunk.reduce((acc, p) => acc + p.nc, 0),
+          });
+        }
+        return weeks;
+      }
+      return [{
+        label: 'Period Total',
+        subLabel: 'Live Filter',
+        buy_val: Math.round(timelineTrend.reduce((acc, p) => acc + p.buy_val, 0) * 10) / 10,
+        sell_val: Math.round(timelineTrend.reduce((acc, p) => acc + p.sell_val, 0) * 10) / 10,
+        total_val: Math.round(timelineTrend.reduce((acc, p) => acc + p.total_val, 0) * 10) / 10,
+        buy_tx: timelineTrend.reduce((acc, p) => acc + p.buy_tx, 0),
+        sell_tx: timelineTrend.reduce((acc, p) => acc + p.sell_tx, 0),
+        total_tx: timelineTrend.reduce((acc, p) => acc + p.total_tx, 0),
+        buy_weight_g: Math.round(timelineTrend.reduce((acc, p) => acc + p.buy_weight_g, 0) * 10) / 10,
+        sell_weight_g: Math.round(timelineTrend.reduce((acc, p) => acc + p.sell_weight_g, 0) * 10) / 10,
+        net_weight_g: Math.round(timelineTrend.reduce((acc, p) => acc + p.net_weight_g, 0) * 10) / 10,
+        nc: timelineTrend.reduce((acc, p) => acc + p.nc, 0),
+      }];
+    }
     if (trendGranularity === 'day') return BASELINE_DAY_TREND;
     if (trendGranularity === 'week') return BASELINE_WEEK_TREND;
     return BASELINE_MONTH_TREND;
-  }, [trendGranularity]);
+  }, [timelineTrend, trendGranularity]);
 
   // Scaled trend values
   const getTrendPointVal = (p: TrendPoint, series: 'buy' | 'sell' | 'total' | 'net') => {
@@ -1442,7 +1464,7 @@ export function DynamicChartsSection({
       {/* ========================================================================= */}
       {(() => {
         // Calculate totals for % contribution shares
-        const totalDayWeekVal = BASELINE_DAY_OF_WEEK.reduce((acc, d) => acc + getDayVal(d), 0) || 1;
+        const totalDayWeekVal = activeDayOfWeek.reduce((acc, d) => acc + getDayVal(d), 0) || 1;
         const totalHourlyVal = hourly.reduce((acc, h) => acc + getHourlyVal(h), 0) || 1;
 
         return (
@@ -1603,10 +1625,10 @@ export function DynamicChartsSection({
 
                 {/* 7-Day Day-of-Week Bar Chart with % Contribution Share Data Labels */}
                 <div className="h-48 flex items-end gap-2 sm:gap-3 pt-8 pb-2 px-2 border-b border-slate-100">
-                  {BASELINE_DAY_OF_WEEK.map((d) => {
+                  {activeDayOfWeek.map((d) => {
                     const val = getDayVal(d);
                     const heightPct = Math.max(5, Math.round((val / maxDayVal) * 100));
-                    const isPeakDay = d.day_code === 'fri';
+                    const isPeakDay = val === maxDayVal;
                     const sharePct = ((val / totalDayWeekVal) * 100).toFixed(1);
 
                     return (
