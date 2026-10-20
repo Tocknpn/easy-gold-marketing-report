@@ -2,14 +2,8 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { 
-  Download, 
-  RefreshCw, 
   SlidersHorizontal, 
-  Sparkles, 
-  Calendar, 
-  CheckCircle2,
-  FileSpreadsheet,
-  Loader2
+  FileSpreadsheet
 } from 'lucide-react';
 import { DynamicFilterState, DynamicReportPayload } from '@/lib/types/dynamicReport.types';
 import { 
@@ -94,45 +88,16 @@ export function DynamicReportView() {
 
   return (
     <div className="space-y-4">
-      {/* Dynamic Report Top Header Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-gradient-to-r from-[#0c4ca3] via-[#093d84] to-[#062c60] p-4 rounded-2xl text-white shadow-md">
-        <div>
-          <div className="flex items-center gap-2">
-            <SlidersHorizontal className="w-5 h-5 text-[#e5a812]" />
-            <h2 className="text-base sm:text-lg font-black tracking-tight uppercase">
-              Dynamic BI Performance &amp; Measures Explorer
-            </h2>
-            <span className="hidden sm:inline-block px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-[#e5a812] text-slate-950">
-              Live Aggregations
-            </span>
-          </div>
-          <p className="text-xs text-white/80 mt-1 font-medium">
-            Multi-dimensional cross-filtering across 1.4M rows. Select your target date and dimensions, then click GO!
-          </p>
-        </div>
-
-        {/* Action Controls */}
-        <div className="flex items-center gap-2 self-start sm:self-auto">
-          {hasExecuted && (
-            <button
-              onClick={handleExportCsv}
-              disabled={isExporting}
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-black bg-[#e5a812] hover:bg-[#d4970b] text-slate-950 shadow-sm transition-all"
-            >
-              <FileSpreadsheet className="w-4 h-4 text-slate-950" />
-              <span>{isExporting ? 'Exporting...' : 'Export CSV'}</span>
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* 1. Multi-Dimensional Filter Bar */}
+      {/* 1. Multi-Dimensional Filter Bar with single Calculate and Export controls */}
       <DynamicFilterBar
         filters={filters}
         onFilterChange={setFilters}
         onReset={handleResetFilters}
         isLoading={isLoading}
         onExecuteQuery={() => fetchReport(filters)}
+        onExportCsv={handleExportCsv}
+        isExporting={isExporting}
+        hasExecuted={hasExecuted}
       />
 
       {/* 2. Content: Empty "Ready to Calculate" State OR Live Results */}
@@ -150,26 +115,13 @@ export function DynamicReportView() {
               Ready to Run Dynamic BI Analysis
             </h3>
             <p className="text-xs text-slate-500 font-medium leading-relaxed">
-              No metrics are pre-loaded to ensure 100% data integrity with Supabase. Choose your date range, banks, branches, and filters above, then click <strong>Calculate</strong> to run.
+              No metrics are pre-loaded to ensure 100% data integrity with Supabase. Choose your date range, banks, branches, and filters above, then click <strong className="text-slate-800">Calculate</strong> to run.
             </p>
           </div>
-
-          <button
-            onClick={() => fetchReport(filters)}
-            disabled={isLoading}
-            className="flex items-center gap-2.5 px-7 py-3 rounded-2xl text-sm font-black bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-500 hover:to-teal-600 text-white shadow-md hover:shadow-lg transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
-          >
-            {isLoading ? (
-              <Loader2 className="w-4 h-4 animate-spin text-white" />
-            ) : (
-              <Sparkles className="w-4 h-4 text-amber-300" />
-            )}
-            <span>{isLoading ? 'Querying 1.4M Rows on Supabase...' : 'Run Dynamic BI Analysis (ສັ່ງຄິດໄລ່)'}</span>
-          </button>
         </div>
       ) : (
         <div className="space-y-4 animate-in fade-in duration-200">
-          {/* Live Execution Feedback Badge with PoP Toggle */}
+          {/* Live Execution Feedback Badge with PoP Toggle & Export */}
           <div className="flex items-center justify-between bg-emerald-50/80 border border-emerald-200 rounded-2xl px-4 py-2.5 text-xs text-emerald-900 font-medium flex-wrap gap-2">
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
@@ -191,14 +143,17 @@ export function DynamicReportView() {
                 <span>{isComparingPoP ? '⚡ PoP Comparison: ON' : 'Compare vs Prior Period'}</span>
               </button>
 
-              <span className="text-emerald-700 text-[11px] hidden sm:inline">Computed at {executionTimestamp}</span>
               <button
-                onClick={() => fetchReport(filters)}
-                disabled={isLoading}
-                className="text-xs font-black text-emerald-800 hover:text-emerald-950 underline flex items-center gap-1 cursor-pointer"
+                onClick={handleExportCsv}
+                disabled={isExporting}
+                className="flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-black bg-[#e5a812] hover:bg-[#d4970b] text-slate-950 shadow-xs transition-all cursor-pointer font-sans"
+                title="Export report data to CSV"
               >
-                <span>{isLoading ? 'Recalculating...' : 'Re-calculate'}</span>
+                <FileSpreadsheet className="w-3.5 h-3.5 text-slate-950" />
+                <span>{isExporting ? 'Exporting...' : 'Export CSV'}</span>
               </button>
+
+              <span className="text-emerald-700 text-[11px] hidden sm:inline">Computed at {executionTimestamp}</span>
             </div>
           </div>
 

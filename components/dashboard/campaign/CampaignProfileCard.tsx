@@ -186,7 +186,7 @@ export function CampaignProfileCard({
               ) : (
                 <Sparkles className="w-3.5 h-3.5 text-amber-300" />
               )}
-              <span>{isCalculating ? 'Calculating...' : 'Calculate (ຄຳນວນ)'}</span>
+              <span className="font-sans font-black tracking-wide">{isCalculating ? 'Calculating...' : 'Calculate'}</span>
             </button>
           </div>
         </div>

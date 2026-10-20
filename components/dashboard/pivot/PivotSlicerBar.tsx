@@ -52,7 +52,7 @@ export function PivotSlicerBar({ slicers, onChange, onReset, onExecuteQuery, isC
               ) : (
                 <Sparkles className="w-3.5 h-3.5 text-amber-300" />
               )}
-              <span>{isCalculating ? 'Calculating...' : 'Calculate Pivot (ຄຳນວນ)'}</span>
+              <span className="font-sans font-black tracking-wide">{isCalculating ? 'Calculating...' : 'Calculate'}</span>
             </button>
           )}
         </div>

@@ -708,7 +708,7 @@ export function PowerPivotStudio({ currentUser }: Props) {
                 ) : (
                   <Sparkles className="w-4 h-4 text-amber-300" />
                 )}
-                <span>{loading ? 'Calculating...' : 'Calculate (ຄຳນວນ)'}</span>
+                <span className="font-sans font-black tracking-wide">{loading ? 'Calculating...' : 'Calculate'}</span>
               </button>
             </div>
           </div>
@@ -780,9 +780,9 @@ export function PowerPivotStudio({ currentUser }: Props) {
                 <span className="inline-block px-3 py-0.5 rounded-full text-[10px] font-black uppercase bg-amber-100 text-amber-800 mb-2">
                   Waiting for query execution
                 </span>
-                <h3 className="text-base font-black text-slate-800">READY TO CALCULATE (ກຽມພ້ອມຄຳນວນ)</h3>
+                <h3 className="text-base font-black text-slate-800">READY TO CALCULATE</h3>
                 <p className="text-xs text-slate-500 max-w-lg mx-auto mt-1">
-                  No numbers are shown until you click GO!. Supabase calculates exactly the design above over the raw transactions and returns the result
+                  No numbers are shown until you click Calculate. Supabase calculates exactly the design above over the raw transactions and returns the result
                   page by page.
                 </p>
               </div>

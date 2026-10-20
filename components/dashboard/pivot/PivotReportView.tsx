@@ -295,10 +295,10 @@ export function PivotReportView({
               Waiting for Query Execution
             </span>
             <h3 className="text-base sm:text-lg font-black text-slate-900 uppercase tracking-tight">
-              Ready to Calculate (ກຽມພ້ອມຄຳນວນ)
+              Ready to Calculate
             </h3>
             <p className="text-xs text-slate-500 font-medium leading-relaxed">
-              To guarantee 100% calculation accuracy against Supabase, no numbers are displayed automatically. Configure your Row Dimension and Slicers above, then click <strong>GO!</strong> to calculate.
+              To guarantee 100% calculation accuracy against Supabase, no numbers are displayed automatically. Configure your Row Dimension and Slicers above, then click <strong className="text-slate-800">Calculate</strong> to run.
             </p>
           </div>
 
@@ -312,19 +312,6 @@ export function PivotReportView({
             <span>&bull;</span>
             <span>Status: <strong className="text-slate-800">{slicers.status}</strong></span>
           </div>
-
-          <button
-            onClick={handleExecuteQuery}
-            disabled={isExecuting}
-            className="flex items-center gap-2.5 px-7 py-3 rounded-2xl text-sm font-black bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-500 hover:to-teal-600 text-white shadow-md hover:shadow-lg transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
-          >
-            {isExecuting ? (
-              <Loader2 className="w-4 h-4 animate-spin text-white" />
-            ) : (
-              <Sparkles className="w-4 h-4 text-amber-300" />
-            )}
-            <span>{isExecuting ? 'Querying 1.4M Rows on Supabase...' : 'Run Custom Pivot Calculation (ສັ່ງຄິດໄລ່)'}</span>
-          </button>
         </div>
       ) : (
         <div className="space-y-3">

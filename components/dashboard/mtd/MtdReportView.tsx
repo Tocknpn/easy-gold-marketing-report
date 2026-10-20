@@ -351,7 +351,7 @@ export function MtdReportView({ initialData, onRefresh, loading = false, error =
             ) : (
               <Sparkles className="w-3.5 h-3.5 text-amber-300" />
             )}
-            <span>{isExecuting || loading ? 'Calculating...' : 'Calculate (ຄຳນວນ)'}</span>
+            <span className="font-sans font-black tracking-wide">{isExecuting || loading ? 'Calculating...' : 'Calculate'}</span>
           </button>
 
           {/* Export to CSV Button */}
@@ -524,22 +524,9 @@ export function MtdReportView({ initialData, onRefresh, loading = false, error =
               Ready to Calculate MTD &amp; Forecast Landing
             </h3>
             <p className="text-xs text-slate-500 font-medium leading-relaxed">
-              No numbers are pre-rendered to ensure exact alignment with Supabase. Set your cutoff date and comparison month above, then click <strong>GO!</strong> to calculate.
+              No numbers are pre-rendered to ensure exact alignment with Supabase. Set your cutoff date and comparison month above, then click <strong className="text-slate-800">Calculate</strong> to run.
             </p>
           </div>
-
-          <button
-            onClick={() => handleExecuteMtd()}
-            disabled={isExecuting || loading}
-            className="flex items-center gap-2.5 px-7 py-3 rounded-2xl text-sm font-black bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-500 hover:to-teal-600 text-white shadow-md hover:shadow-lg transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
-          >
-            {isExecuting || loading ? (
-              <Loader2 className="w-4 h-4 animate-spin text-white" />
-            ) : (
-              <Sparkles className="w-4 h-4 text-amber-300" />
-            )}
-            <span>{isExecuting || loading ? 'Querying Supabase...' : 'Run MTD & Forecast Calculation (ສັ່ງຄິດໄລ່)'}</span>
-          </button>
         </div>
       ) : (
         <div className="space-y-4 animate-in fade-in duration-200">

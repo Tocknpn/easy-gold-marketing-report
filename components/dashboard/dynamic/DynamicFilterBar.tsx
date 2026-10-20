@@ -20,7 +20,8 @@ import {
   ShieldCheck,
   Search,
   Sparkles,
-  Loader2
+  Loader2,
+  FileSpreadsheet
 } from 'lucide-react';
 import { DynamicFilterState } from '@/lib/types/dynamicReport.types';
 import { 
@@ -52,6 +53,9 @@ interface DynamicFilterBarProps {
   onReset: () => void;
   isLoading?: boolean;
   onExecuteQuery?: () => void;
+  onExportCsv?: () => void;
+  isExporting?: boolean;
+  hasExecuted?: boolean;
 }
 
 export function DynamicFilterBar({
@@ -60,6 +64,9 @@ export function DynamicFilterBar({
   onReset,
   isLoading,
   onExecuteQuery,
+  onExportCsv,
+  isExporting,
+  hasExecuted,
 }: DynamicFilterBarProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [activeDropdown, setActiveDropdown] = useState<'banks' | 'branches' | 'txTypes' | null>(null);
@@ -312,11 +319,23 @@ export function DynamicFilterBar({
             {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
           </button>
 
+          {hasExecuted && onExportCsv && (
+            <button
+              onClick={onExportCsv}
+              disabled={isExporting}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black bg-[#e5a812] hover:bg-[#d4970b] text-slate-950 shadow-xs transition-all cursor-pointer font-sans"
+              title="Export report data to CSV"
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5 text-slate-950" />
+              <span>{isExporting ? 'Exporting...' : 'Export CSV'}</span>
+            </button>
+          )}
+
           {onExecuteQuery && (
             <button
               onClick={onExecuteQuery}
               disabled={isLoading}
-              className="flex items-center gap-2 px-4 py-1.5 rounded-xl text-xs font-black bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-500 hover:to-teal-600 text-white shadow-sm hover:shadow-md ring-1 ring-emerald-400/30 active:scale-95 transition-all disabled:opacity-50 cursor-pointer"
+              className="flex items-center gap-2 px-4 py-1.5 rounded-xl text-xs font-black bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-500 hover:to-teal-600 text-white shadow-sm hover:shadow-md ring-1 ring-emerald-400/30 active:scale-95 transition-all disabled:opacity-50 cursor-pointer font-sans"
               title="Execute live calculations on Supabase"
             >
               {isLoading ? (
@@ -324,7 +343,7 @@ export function DynamicFilterBar({
               ) : (
                 <Sparkles className="w-3.5 h-3.5 text-amber-300" />
               )}
-              <span>{isLoading ? 'Calculating...' : 'Calculate (ຄຳນວນ)'}</span>
+              <span className="font-sans font-black tracking-wide">{isLoading ? 'Calculating...' : 'Calculate'}</span>
             </button>
           )}
 
