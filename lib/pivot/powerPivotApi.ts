@@ -68,10 +68,18 @@ export function buildRpcConfig(
   };
 }
 
+const PIVOT_CACHE = new Map<string, { result: PowerPivotResult; at: number }>();
+const PIVOT_CACHE_TTL = 3 * 60 * 1000; // 3 mins
+
+export function clearPivotCache() {
+  PIVOT_CACHE.clear();
+}
+
 export async function runPowerPivot(
   config: PowerPivotConfig,
   page = 1,
-  exportAll = false
+  exportAll = false,
+  skipCache = false
 ): Promise<PowerPivotResult> {
   if (!isSupabaseConnected()) {
     throw new Error(
@@ -82,9 +90,19 @@ export async function runPowerPivot(
     throw new Error('Add at least one measure to VALUES before calculating.');
   }
 
+  const rpcPayload = buildRpcConfig(config, page, exportAll);
+  const cacheKey = JSON.stringify(rpcPayload);
+
+  if (!skipCache && !exportAll) {
+    const cached = PIVOT_CACHE.get(cacheKey);
+    if (cached && Date.now() - cached.at < PIVOT_CACHE_TTL) {
+      return cached.result;
+    }
+  }
+
   const supabase = createClient();
   const { data, error } = await supabase.rpc('get_power_pivot', {
-    p_config: buildRpcConfig(config, page, exportAll),
+    p_config: rpcPayload,
   });
 
   if (error) {
@@ -93,7 +111,16 @@ export async function runPowerPivot(
       : '';
     throw new Error(error.message + hint);
   }
-  return data as PowerPivotResult;
+
+  const res = data as PowerPivotResult;
+  if (!exportAll) {
+    PIVOT_CACHE.set(cacheKey, { result: res, at: Date.now() });
+    if (PIVOT_CACHE.size > 50) {
+      const oldestKey = PIVOT_CACHE.keys().next().value;
+      if (oldestKey) PIVOT_CACHE.delete(oldestKey);
+    }
+  }
+  return res;
 }
 
 export function readCachedMeta(): PowerPivotMeta | null {

@@ -14,6 +14,7 @@ export interface DimensionDef {
 
 export const DIMENSIONS: DimensionDef[] = [
   { id: 'date', label: 'Date (Day)', group: 'Time', hint: 'YYYY-MM-DD' },
+  { id: 'day_mon', label: 'Day (18-Oct)', group: 'Time', hint: 'DD-Mon (e.g. 18-Oct)' },
   { id: 'week', label: 'Week (ISO)', group: 'Time', hint: '2026-W41' },
   { id: 'month', label: 'Month', group: 'Time', hint: '2026-10' },
   { id: 'weekday', label: 'Day of Week', group: 'Time', hint: '1-Mon .. 7-Sun' },

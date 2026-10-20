@@ -7,8 +7,36 @@ import {
 
 const LS_PROFILES = 'easy_gold_power_pivot_profiles_v2';
 const LS_ACTIVE = 'easy_gold_power_pivot_active_profile_v2';
+const LS_FAV_PRESETS = 'easy_gold_power_pivot_fav_presets_v2';
+const LS_HIDDEN_PRESETS = 'easy_gold_power_pivot_hidden_presets_v2';
 
 const nowIso = () => new Date().toISOString();
+
+function getFavPresets(): string[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    return JSON.parse(localStorage.getItem(LS_FAV_PRESETS) || '[]');
+  } catch {
+    return [];
+  }
+}
+
+function setFavPresets(ids: string[]) {
+  if (typeof window !== 'undefined') localStorage.setItem(LS_FAV_PRESETS, JSON.stringify(ids));
+}
+
+function getHiddenPresets(): string[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    return JSON.parse(localStorage.getItem(LS_HIDDEN_PRESETS) || '[]');
+  } catch {
+    return [];
+  }
+}
+
+function setHiddenPresets(ids: string[]) {
+  if (typeof window !== 'undefined') localStorage.setItem(LS_HIDDEN_PRESETS, JSON.stringify(ids));
+}
 
 function tx(op: '=' | '>=', value: string, field = 'transaction_type') {
   return { id: newFilterId(), scope: 'row' as const, field, op, value, enabled: true };
@@ -156,16 +184,35 @@ export async function loadPowerPivotProfiles(userId?: string): Promise<PowerPivo
     }
   }
 
+  const favPresets = new Set(getFavPresets());
+  const hiddenPresets = new Set(getHiddenPresets());
+
+  const activePresets = PRESET_PROFILES
+    .filter((p) => !hiddenPresets.has(p.id))
+    .map((p) => ({ ...p, isFavorite: favPresets.has(p.id) }));
+
   const saved = Array.from(byId.values()).sort(
     (a, b) => Number(b.isFavorite) - Number(a.isFavorite) || +new Date(b.updatedAt) - +new Date(a.updatedAt)
   );
-  return [...saved, ...PRESET_PROFILES];
+  return [...saved, ...activePresets];
 }
 
 export async function savePowerPivotProfile(
   profile: PowerPivotProfile,
   userId?: string
 ): Promise<PowerPivotProfile> {
+  // If it's a preset and we're just toggling favorite:
+  if (profile.isPreset) {
+    const favs = new Set(getFavPresets());
+    if (profile.isFavorite) {
+      favs.add(profile.id);
+    } else {
+      favs.delete(profile.id);
+    }
+    setFavPresets(Array.from(favs));
+    return profile;
+  }
+
   const toSave: PowerPivotProfile = { ...profile, isPreset: false, updatedAt: nowIso() };
 
   const local = readLocal().filter((p) => p.id !== toSave.id);
@@ -193,6 +240,13 @@ export async function savePowerPivotProfile(
 }
 
 export async function deletePowerPivotProfile(id: string): Promise<void> {
+  if (id.startsWith('preset-')) {
+    const hidden = new Set(getHiddenPresets());
+    hidden.add(id);
+    setHiddenPresets(Array.from(hidden));
+    return;
+  }
+
   writeLocal(readLocal().filter((p) => p.id !== id));
   if (supabaseReady()) {
     try {

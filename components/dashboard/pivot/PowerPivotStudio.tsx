@@ -23,7 +23,8 @@ import {
   ChevronRight,
   Sparkles,
   Loader2,
-  Calendar
+  Calendar,
+  ChevronDown
 } from 'lucide-react';
 import { UserProfile } from '@/lib/types/auth.types';
 import {
@@ -149,6 +150,150 @@ function Zone({
 }
 
 // ----------------------------------------------------------------------------
+// Month Multi-Select Picker (looks like Row Filter multi-select)
+// ----------------------------------------------------------------------------
+function MonthMultiPicker({
+  options,
+  selected,
+  onChange,
+}: {
+  options: string[];
+  selected: string[];
+  onChange: (months: string[]) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const pickerRef = React.useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (pickerRef.current && !pickerRef.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    }
+    if (open) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [open]);
+
+  const allSelected = selected.length === 0 || selected.length === options.length;
+  const filtered = options.filter((m) => m.toLowerCase().includes(search.toLowerCase()));
+
+  const toggleMonth = (m: string) => {
+    let next: string[];
+    if (allSelected) {
+      next = options.filter((x) => x !== m);
+    } else if (selected.includes(m)) {
+      next = selected.filter((x) => x !== m);
+    } else {
+      next = [...selected, m];
+    }
+    onChange(next);
+  };
+
+  const handleSelectAll = () => {
+    onChange([]);
+  };
+
+  const displayText = allSelected
+    ? 'All Months (Full Data)'
+    : selected.length === 1
+    ? selected[0]
+    : selected.length <= 2
+    ? selected.join(', ')
+    : `${selected.length} Months`;
+
+  return (
+    <div className="relative" ref={pickerRef}>
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="flex items-center gap-1.5 bg-white border border-blue-300 text-blue-900 rounded-lg px-2.5 py-1 text-xs font-bold hover:bg-blue-50/80 transition-colors shadow-2xs cursor-pointer"
+        title="Filter by one or multiple months"
+      >
+        <Calendar className="w-3.5 h-3.5 text-[#0c4ca3]" />
+        <span className="font-bold text-[11px] text-slate-700">Month:</span>
+        <span className="font-extrabold text-[#0c4ca3] max-w-[170px] truncate">{displayText}</span>
+        <ChevronDown className="w-3 h-3 text-slate-400 shrink-0" />
+      </button>
+
+      {open && (
+        <div className="absolute right-0 z-40 mt-1.5 w-64 bg-white border border-slate-300 rounded-xl shadow-xl p-2.5 text-slate-800">
+          <div className="flex items-center justify-between pb-1.5 mb-1.5 border-b border-slate-100">
+            <span className="text-[11px] font-black uppercase text-slate-600">Filter Months</span>
+            <span className="text-[10px] text-slate-400 font-bold">{allSelected ? 'All' : `${selected.length} of ${options.length}`}</span>
+          </div>
+
+          <div className="relative mb-2">
+            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2 top-2" />
+            <input
+              autoFocus
+              className="w-full pl-7 pr-2 py-1 text-xs border border-slate-200 rounded-lg focus:ring-1 focus:ring-[#0c4ca3] focus:outline-hidden"
+              placeholder="Search month (e.g. 2026-10)..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+
+          <div className="max-h-52 overflow-y-auto space-y-0.5 pr-1">
+            <label className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-blue-50 text-xs font-bold text-slate-700 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={allSelected}
+                onChange={handleSelectAll}
+                className="rounded text-[#0c4ca3] focus:ring-[#0c4ca3]"
+              />
+              <span>All Months (Full Data)</span>
+            </label>
+
+            <div className="border-t border-slate-100 my-1" />
+
+            {filtered.map((m) => {
+              const isChecked = !allSelected && selected.includes(m);
+              return (
+                <label
+                  key={m}
+                  className={`flex items-center gap-2 px-2 py-1 rounded-md text-xs cursor-pointer transition-colors ${
+                    isChecked ? 'bg-blue-50 font-bold text-blue-900' : 'hover:bg-slate-50 text-slate-700'
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={isChecked}
+                    onChange={() => toggleMonth(m)}
+                    className="rounded text-[#0c4ca3] focus:ring-[#0c4ca3]"
+                  />
+                  <span className="font-mono">{m}</span>
+                </label>
+              );
+            })}
+            {!filtered.length && <div className="text-[11px] text-slate-400 px-2 py-1 text-center">No month matched</div>}
+          </div>
+
+          <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100">
+            <button
+              type="button"
+              className="text-[11px] font-bold text-slate-500 hover:text-slate-800 cursor-pointer"
+              onClick={handleSelectAll}
+            >
+              Reset to All
+            </button>
+            <button
+              type="button"
+              className="px-3 py-1 rounded-lg text-xs font-black bg-[#0c4ca3] text-white hover:bg-[#093d84] cursor-pointer"
+              onClick={() => setOpen(false)}
+            >
+              Done
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ----------------------------------------------------------------------------
 // Main studio
 // ----------------------------------------------------------------------------
 export function PowerPivotStudio({ currentUser }: Props) {
@@ -257,19 +402,39 @@ export function PowerPivotStudio({ currentUser }: Props) {
     flash(`Saved reporting profile "${saved.name}"`);
   };
 
+  const handleSaveProfile = () => {
+    if (activeProfile && !activeProfile.isPreset && activeId !== '__new__') {
+      const updated: PowerPivotProfile = {
+        ...activeProfile,
+        config: clone(config),
+        updatedAt: new Date().toISOString(),
+      };
+      savePowerPivotProfile(updated, currentUser?.id).then(() => {
+        reloadProfiles();
+        flash(`Saved reporting profile "${updated.name}"`);
+      });
+    } else {
+      openSave('save');
+    }
+  };
+
   const toggleFavorite = async () => {
-    if (!activeProfile || activeProfile.isPreset) return;
-    await savePowerPivotProfile({ ...activeProfile, isFavorite: !activeProfile.isFavorite }, currentUser?.id);
+    if (!activeProfile) return;
+    const nextFav = !activeProfile.isFavorite;
+    await savePowerPivotProfile({ ...activeProfile, isFavorite: nextFav }, currentUser?.id);
     await reloadProfiles();
+    flash(nextFav ? `Pinned "${activeProfile.name}" as favorite ★` : `Unpinned "${activeProfile.name}"`);
   };
 
   const removeProfile = async () => {
-    if (!activeProfile || activeProfile.isPreset) return;
+    if (!activeProfile) return;
     if (!confirm(`Delete reporting profile "${activeProfile.name}"?`)) return;
+    const name = activeProfile.name;
     await deletePowerPivotProfile(activeProfile.id);
     const list = await loadPowerPivotProfiles(currentUser?.id);
     setProfiles(list);
     selectProfile(list[0]?.id || 'preset-daily-buy');
+    flash(`Profile "${name}" deleted`);
   };
 
   const newBlank = () => {
@@ -277,6 +442,7 @@ export function PowerPivotStudio({ currentUser }: Props) {
     setConfig({ ...createEmptyConfig(), filters: [], values: ['total_transaction'], rows: [], sortBy: 'total_transaction' });
     setResult(null);
     setRanConfig(null);
+    flash('New blank report profile');
   };
 
   // ---- configuration mutations ----
@@ -393,26 +559,39 @@ export function PowerPivotStudio({ currentUser }: Props) {
 
   const activeFilters = config.filters.filter((f) => f.enabled);
 
-  // Month slicer helper
-  const monthFilter = config.filters.find((f) => f.field === 'month');
-  const selectedMonth = monthFilter?.enabled ? String(monthFilter.value || '') : 'ALL';
+  // Month slicer helper with multi-select support
+  const availableMonths = useMemo(() => {
+    return meta?.months && meta.months.length
+      ? meta.months
+      : ['2026-10', '2026-09', '2026-08', '2026-07', '2026-06', '2026-05', '2026-04', '2026-03', '2026-02', '2026-01'];
+  }, [meta?.months]);
 
-  const handleMonthChange = (val: string) => {
-    if (val === 'ALL') {
+  const selectedMonths = useMemo(() => {
+    const mf = config.filters.find((f) => f.field === 'month' && f.enabled);
+    if (!mf) return [];
+    if (mf.op === 'in') return mf.values || [];
+    if (mf.value) return [mf.value];
+    return [];
+  }, [config.filters]);
+
+  const handleMonthsChange = (months: string[]) => {
+    if (months.length === 0 || months.length === availableMonths.length) {
       patch({ filters: config.filters.filter((f) => f.field !== 'month') });
     } else {
       const existing = config.filters.find((f) => f.field === 'month');
       if (existing) {
         patch({
           filters: config.filters.map((f) =>
-            f.field === 'month' ? { ...f, op: '=', value: val, enabled: true, scope: 'row' } : f
+            f.field === 'month'
+              ? { ...f, op: 'in', values: months, value: months[0], enabled: true, scope: 'row' }
+              : f
           ),
         });
       } else {
         patch({
           filters: [
             ...config.filters,
-            { id: newFilterId(), scope: 'row', field: 'month', op: '=', value: val, enabled: true },
+            { id: newFilterId(), scope: 'row', field: 'month', op: 'in', values: months, value: months[0], enabled: true },
           ],
         });
       }
@@ -421,27 +600,26 @@ export function PowerPivotStudio({ currentUser }: Props) {
 
   return (
     <div className="space-y-4">
-      {/* HEADER + PROFILE BAR */}
-      <div className="bg-gradient-to-r from-[#0c4ca3] via-[#093d84] to-[#062c60] rounded-2xl p-4 text-white shadow-md">
-        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3">
-          <div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <Table className="w-5 h-5 text-[#e5a812]" />
-              <h2 className="text-base sm:text-lg font-black uppercase tracking-tight">Power Pivot Studio</h2>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-[#e5a812] text-slate-950">
-                Design your own report
+      {/* PROFILE TOOLBAR (Left banner removed per user request) */}
+      <div className="bg-gradient-to-r from-[#0c4ca3] via-[#093d84] to-[#062c60] rounded-2xl p-2.5 sm:p-3 text-white shadow-md">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-blue-200">Active Profile:</span>
+            <span className="text-xs font-black text-white truncate max-w-[200px] sm:max-w-none">
+              {activeProfile?.name || 'Custom Pivot'}
+            </span>
+            {isDirty && (
+              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-400/20 text-amber-300 border border-amber-400/30">
+                Unsaved
               </span>
-            </div>
-            <p className="text-xs text-white/80 mt-1">
-              Choose Rows, Columns, Values &amp; Filters from live Supabase data - then GO! Save the design as a reporting profile for daily use.
-            </p>
+            )}
           </div>
 
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-2 flex-wrap ml-auto">
             <select
               value={activeId}
               onChange={(e) => selectProfile(e.target.value)}
-              className="bg-white/10 hover:bg-white/20 text-white border border-white/25 text-xs font-bold rounded-xl px-3 py-2 focus:ring-2 focus:ring-[#e5a812] focus:outline-hidden max-w-[280px]"
+              className="bg-white/10 hover:bg-white/20 text-white border border-white/25 text-xs font-bold rounded-xl px-3 py-2 focus:ring-2 focus:ring-[#e5a812] focus:outline-hidden max-w-[280px] cursor-pointer"
             >
               {activeId === '__new__' && <option value="__new__" className="text-slate-900">New unsaved report</option>}
               <optgroup label="My reporting profiles" className="text-slate-900">
@@ -455,6 +633,7 @@ export function PowerPivotStudio({ currentUser }: Props) {
               <optgroup label="Templates" className="text-slate-900">
                 {profiles.filter((p) => p.isPreset).map((p) => (
                   <option key={p.id} value={p.id} className="text-slate-900">
+                    {p.isFavorite ? '★ ' : ''}
                     {p.name}
                   </option>
                 ))}
@@ -463,16 +642,22 @@ export function PowerPivotStudio({ currentUser }: Props) {
 
             <button
               onClick={toggleFavorite}
-              disabled={!activeProfile || activeProfile.isPreset}
-              title="Pin as favorite (opens first next time)"
-              className="p-2 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 disabled:opacity-30"
+              disabled={!activeProfile}
+              title={activeProfile?.isFavorite ? 'Unpin favorite' : 'Pin as favorite'}
+              className="p-2 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 disabled:opacity-30 transition-colors cursor-pointer"
             >
               <Star className={`w-4 h-4 ${activeProfile?.isFavorite ? 'fill-[#e5a812] text-[#e5a812]' : 'text-white'}`} />
             </button>
-            <button onClick={newBlank} className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-white/10 hover:bg-white/20 border border-white/20">
+            <button
+              onClick={newBlank}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-white/10 hover:bg-white/20 border border-white/20 transition-colors cursor-pointer"
+            >
               <Plus className="w-3.5 h-3.5" /> New
             </button>
-            <button onClick={() => openSave('saveas')} className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-white/10 hover:bg-white/20 border border-white/20">
+            <button
+              onClick={() => openSave('saveas')}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-white/10 hover:bg-white/20 border border-white/20 transition-colors cursor-pointer"
+            >
               <Copy className="w-3.5 h-3.5" /> Save as
             </button>
             <button
@@ -484,31 +669,30 @@ export function PowerPivotStudio({ currentUser }: Props) {
                     url.searchParams.set('profile', activeProfile.id);
                   }
                   navigator.clipboard.writeText(url.toString());
-                  alert('Report profile link copied to clipboard!');
+                  flash('Report profile link copied to clipboard!');
                 }
               }}
               title="Share report layout link"
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-white/10 hover:bg-white/20 border border-white/20 text-white"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-white/10 hover:bg-white/20 border border-white/20 text-white transition-colors cursor-pointer"
             >
               <Copy className="w-3.5 h-3.5" /> Share
             </button>
             <button
-              onClick={() => openSave('save')}
-              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-black bg-[#e5a812] hover:bg-[#d4970b] text-slate-950 ${isDirty ? 'ring-2 ring-white/70' : ''}`}
+              onClick={handleSaveProfile}
+              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-black bg-[#e5a812] hover:bg-[#d4970b] text-slate-950 transition-colors cursor-pointer ${isDirty ? 'ring-2 ring-white/70' : ''}`}
             >
               <Save className="w-4 h-4" /> Save Profile{isDirty ? ' *' : ''}
             </button>
             <button
               onClick={removeProfile}
-              disabled={!activeProfile || activeProfile.isPreset}
-              className="p-2 rounded-xl bg-white/10 hover:bg-rose-500/40 border border-white/20 disabled:opacity-30"
+              disabled={!activeProfile}
+              className="p-2 rounded-xl bg-white/10 hover:bg-rose-500/40 border border-white/20 disabled:opacity-30 transition-colors cursor-pointer"
               title="Delete profile"
             >
               <Trash2 className="w-4 h-4" />
             </button>
           </div>
         </div>
-        {activeProfile?.description && <p className="text-[11px] text-blue-100/70 mt-2">{activeProfile.description}</p>}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-[19rem_1fr] gap-4 items-start">
@@ -653,22 +837,11 @@ export function PowerPivotStudio({ currentUser }: Props) {
                   </span>
                 </h4>
                 <div className="flex items-center gap-2 text-[10px] text-slate-500">
-                  <div className="flex items-center gap-1.5 bg-blue-50 border border-blue-200 text-blue-900 rounded-lg px-2 py-1">
-                    <Calendar className="w-3.5 h-3.5 text-[#0c4ca3]" />
-                    <span className="font-bold text-[11px]">Month:</span>
-                    <select
-                      value={selectedMonth}
-                      onChange={(e) => handleMonthChange(e.target.value)}
-                      className="bg-white text-slate-800 text-xs font-bold rounded-md px-1.5 py-0.5 border border-blue-300 focus:outline-hidden focus:ring-1 focus:ring-[#0c4ca3]"
-                    >
-                      <option value="ALL">All Months (Full Data)</option>
-                      {(meta?.months || ['2026-10', '2026-09', '2026-08', '2026-07', '2026-06', '2026-05', '2026-04', '2026-03', '2026-02', '2026-01']).map((m) => (
-                        <option key={m} value={m}>
-                          {m}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                  <MonthMultiPicker
+                    options={availableMonths}
+                    selected={selectedMonths}
+                    onChange={handleMonthsChange}
+                  />
                   <Database className="w-3.5 h-3.5 text-slate-400" />
                   {meta ? (
                     <span className="font-mono">
