@@ -268,6 +268,12 @@ SELECT public.sync_active_week_summary();
 SELECT public.refresh_summary_daily(DATE '2026-10-15', DATE '2026-10-20');
 
 -- Record update timestamp
+CREATE TABLE IF NOT EXISTS public.refresh_log (
+    id SERIAL PRIMARY KEY,
+    refreshed_at TIMESTAMPTZ DEFAULT now(),
+    status TEXT,
+    details TEXT
+);
+
 INSERT INTO public.refresh_log (refreshed_at, status, details)
-VALUES (now(), 'COMPLETED', 'Auto-sync active week & daily metrics updated to Oct 19')
-ON CONFLICT DO NOTHING;
+VALUES (now(), 'COMPLETED', 'Auto-sync active week & daily metrics updated to Oct 19');
