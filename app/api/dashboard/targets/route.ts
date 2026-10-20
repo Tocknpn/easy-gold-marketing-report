@@ -20,18 +20,46 @@ export async function GET(request: NextRequest) {
     if (supabaseUrl && !supabaseUrl.includes('placeholder')) {
       try {
         const supabase = createServerSupabaseClient();
-        const { data: dbTargets, error } = await supabase
+        const { data: dbTargets, error: targetError } = await supabase
           .from('monthly_marketing_targets')
           .select('*')
           .eq('year', currYear)
           .order('month', { ascending: true });
 
-        if (!error && dbTargets && dbTargets.length > 0) {
+        if (!targetError && dbTargets && dbTargets.length > 0) {
           activeTargets = dbTargets.map((t: any) => ({
             ...t,
             month_label: DEFAULT_2026_TARGETS[t.month - 1]?.month_label || `M${t.month}`,
           }));
         }
+
+        const { data: dailyRows } = await supabase
+          .from('summary_daily_metrics')
+          .select('*')
+          .order('date_id', { ascending: true });
+
+        const payload = calculateRunRateComparison(
+          currYear,
+          currMonth,
+          compYear,
+          compMonth,
+          asOfDay,
+          activeTargets,
+          dailyRows || undefined
+        );
+
+        return NextResponse.json(
+          {
+            targets: activeTargets,
+            report: payload,
+          },
+          {
+            status: 200,
+            headers: {
+              'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300',
+            },
+          }
+        );
       } catch (e) {
         console.warn('Supabase target fetch error, using built-in verified targets:', e);
       }

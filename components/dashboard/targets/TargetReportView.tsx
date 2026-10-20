@@ -10,12 +10,13 @@ import {
   MONTH_NAMES, 
   LATEST_DATA_DATE,
   calculateRunRateComparison, 
-  getDaysInMonth 
+  getDaysInMonth,
+  DailyMetricRow
 } from '@/lib/constants/targetData';
 import { createClient } from '@/lib/supabase/client';
 import { ClassicRunRateTables } from './ClassicRunRateTables';
 import { VisualTargetTrackingCockpit } from './VisualTargetTrackingCockpit';
-import { Table2, Download, Target as TargetIcon, TrendingUp } from 'lucide-react';
+import { Table2, Download, Target as TargetIcon, TrendingUp, CheckCircle2, RefreshCw } from 'lucide-react';
 
 const CURRENT_YEAR = LATEST_DATA_DATE.year;
 const CURRENT_MONTH = LATEST_DATA_DATE.month;
@@ -27,7 +28,7 @@ const SELECTABLE_MONTHS = MONTH_NAMES.map((name, idx) => ({ name, value: idx + 1
 
 // Highest day that can be selected for a month.
 // Current month: capped at the latest data date. Past months: whole month.
-const getDayCap = (month: number, latestCapDay: number = 18) =>
+const getDayCap = (month: number, latestCapDay: number = 19) =>
   month === CURRENT_MONTH ? latestCapDay : getDaysInMonth(CURRENT_YEAR, month);
 
 const selectClass =
@@ -46,7 +47,7 @@ function CutoffSlider({ month, day, onChange, timeGonePct, latestCapDay }: Cutof
   const cap = getDayCap(month, latestCapDay);
   const total = getDaysInMonth(CURRENT_YEAR, month);
   const isCurrent = month === CURRENT_MONTH;
-  const quick = [11, 15, 20].filter((d) => d < cap);
+  const quick = [11, 15, 19].filter((d) => d < cap);
 
   return (
     <div className="flex flex-col gap-1 sm:col-span-2">
@@ -105,6 +106,11 @@ export function TargetReportView() {
     return DEFAULT_2026_TARGETS;
   });
 
+  // ---- Live Supabase Data State ----
+  const [dailyRows, setDailyRows] = useState<DailyMetricRow[] | undefined>(undefined);
+  const [isLiveConnected, setIsLiveConnected] = useState<boolean>(false);
+  const [isLoadingLive, setIsLoadingLive] = useState<boolean>(true);
+
   // ---- Section 1: Target Tracking filters (default = current month, latest day) ----
   const [latestDay, setLatestDay] = useState<number>(LATEST_DATA_DATE.day);
   const [tgtMonth, setTgtMonth] = useState<number>(CURRENT_MONTH);
@@ -115,49 +121,49 @@ export function TargetReportView() {
   const [rrCompMonth, setRrCompMonth] = useState<number>(CURRENT_MONTH - 1);
   const [rrDay, setRrDay] = useState<number>(getDayCap(CURRENT_MONTH, LATEST_DATA_DATE.day));
 
-  // Dynamically sync true latest day from Supabase
-  useEffect(() => {
-    async function fetchLatestDate() {
-      try {
-        const supabase = createClient();
-        const { data: maxDate } = await supabase.rpc('get_max_monthly_data_date');
-        if (maxDate) {
-          const d = parseInt(String(maxDate).split('-')[2], 10);
-          if (!isNaN(d) && d > 0) {
-            setLatestDay(d);
-            setTgtDay((prev) => (tgtMonth === CURRENT_MONTH ? d : prev));
-            setRrDay((prev) => (rrMonth === CURRENT_MONTH ? d : prev));
-            return;
-          }
-        }
-        const { data: dailyRows } = await supabase
-          .from('summary_daily_metrics')
-          .select('date_id')
-          .order('date_id', { ascending: false })
-          .limit(1);
-        if (dailyRows && dailyRows.length > 0 && dailyRows[0].date_id) {
-          const d = parseInt(String(dailyRows[0].date_id).split('-')[2], 10);
+  // Dynamically sync true daily summary rows from Supabase
+  const fetchLiveData = async () => {
+    setIsLoadingLive(true);
+    try {
+      const supabase = createClient();
+      const { data: rows, error } = await supabase
+        .from('summary_daily_metrics')
+        .select('*')
+        .order('date_id', { ascending: true });
+
+      if (!error && rows && rows.length > 0) {
+        setDailyRows(rows as DailyMetricRow[]);
+        setIsLiveConnected(true);
+
+        const lastRow = rows[rows.length - 1];
+        if (lastRow?.date_id) {
+          const d = parseInt(String(lastRow.date_id).split('-')[2], 10);
           if (!isNaN(d) && d > 0) {
             setLatestDay(d);
             setTgtDay((prev) => (tgtMonth === CURRENT_MONTH ? d : prev));
             setRrDay((prev) => (rrMonth === CURRENT_MONTH ? d : prev));
           }
         }
-      } catch (e) {
-        console.warn('Could not fetch latest target date:', e);
       }
+    } catch (e) {
+      console.warn('Could not fetch live Supabase summary_daily_metrics:', e);
+    } finally {
+      setIsLoadingLive(false);
     }
-    fetchLatestDate();
-  }, [tgtMonth, rrMonth]);
+  };
+
+  useEffect(() => {
+    fetchLiveData();
+  }, []);
 
   const tgtData: RunRateComparisonPayload = useMemo(
-    () => calculateRunRateComparison(CURRENT_YEAR, tgtMonth, CURRENT_YEAR, Math.max(1, tgtMonth - 1), tgtDay, targets),
-    [tgtMonth, tgtDay, targets]
+    () => calculateRunRateComparison(CURRENT_YEAR, tgtMonth, CURRENT_YEAR, Math.max(1, tgtMonth - 1), tgtDay, targets, dailyRows),
+    [tgtMonth, tgtDay, targets, dailyRows]
   );
 
   const rrData: RunRateComparisonPayload = useMemo(
-    () => calculateRunRateComparison(CURRENT_YEAR, rrMonth, CURRENT_YEAR, rrCompMonth, rrDay, targets),
-    [rrMonth, rrCompMonth, rrDay, targets]
+    () => calculateRunRateComparison(CURRENT_YEAR, rrMonth, CURRENT_YEAR, rrCompMonth, rrDay, targets, dailyRows),
+    [rrMonth, rrCompMonth, rrDay, targets, dailyRows]
   );
 
   // Past month at full cutoff = final achievement, so no estimate is shown.
@@ -213,9 +219,22 @@ export function TargetReportView() {
           <Table2 className="w-5 h-5" />
         </div>
         <div>
-          <h1 className="text-sm sm:text-base font-black text-slate-900 tracking-tight">
-            Business Target
-          </h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-sm sm:text-base font-black text-slate-900 tracking-tight">
+              Business Target
+            </h1>
+            {isLiveConnected ? (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-50 text-emerald-700 border border-emerald-200">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                Live Supabase Connected ({dailyRows?.length || 0} days)
+              </span>
+            ) : isLoadingLive ? (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                <RefreshCw className="w-2.5 h-2.5 animate-spin" />
+                Connecting to Supabase...
+              </span>
+            ) : null}
+          </div>
           <p className="text-[11px] text-slate-500 font-medium">
             Target tracking vs official 2026 targets, and monthly run-rate comparison.
           </p>
