@@ -36,7 +36,7 @@ export const ALL_AVAILABLE_BRANCHES = [
 
 export const DEFAULT_FILTER_STATE: DynamicFilterState = {
   startDate: '2026-10-01',
-  endDate: '2026-10-12',
+  endDate: typeof window !== 'undefined' ? new Date().toISOString().split('T')[0] : '2026-10-18',
   quickPreset: 'this_month',
   selectedBanks: [],
   selectedBranches: [],

@@ -27,7 +27,7 @@ const SELECTABLE_MONTHS = MONTH_NAMES.map((name, idx) => ({ name, value: idx + 1
 
 // Highest day that can be selected for a month.
 // Current month: capped at the latest data date. Past months: whole month.
-const getDayCap = (month: number, latestCapDay: number = 19) =>
+const getDayCap = (month: number, latestCapDay: number = 18) =>
   month === CURRENT_MONTH ? latestCapDay : getDaysInMonth(CURRENT_YEAR, month);
 
 const selectClass =

@@ -87,11 +87,11 @@ export default function DashboardPage() {
   // Last filters used by the MTD report, so page-level refreshes keep the user's selection
   const mtdQueryRef = useRef<MtdQuery>({});
 
-  // Fetch weekly summary
+  // Fetch weekly summary with cache-busting
   const fetchWeeklySummary = async () => {
     setWeeklyLoading(true);
     try {
-      const res = await fetch('/api/dashboard/summary');
+      const res = await fetch(`/api/dashboard/summary?refresh=true&t=${Date.now()}`, { cache: 'no-store' });
       if (res.ok) {
         const json: ExecutiveDashboardData = await res.json();
         setWeeklyData(json);
@@ -106,7 +106,7 @@ export default function DashboardPage() {
     }
   };
 
-  // Fetch MTD & Forecast report
+  // Fetch MTD & Forecast report with cache-busting
   const fetchMtdData = async (query?: MtdQuery) => {
     if (query) mtdQueryRef.current = query;
     const q = mtdQueryRef.current;
@@ -117,6 +117,8 @@ export default function DashboardPage() {
       params.set('comp_month', String(q.compMonth));
     }
     if (q.mode) params.set('mode', q.mode);
+    params.set('refresh', 'true');
+    params.set('t', String(Date.now()));
 
     setMtdLoading(true);
     try {
@@ -212,9 +214,9 @@ export default function DashboardPage() {
 
     // Detect if current selected week is partial in-progress week (W43)
     const isPartial = rawWeek.week_label === 'W43';
-    const latestDbDateStr = mtdData?.as_of_date || mtdData?.latest_data_date || '2026-10-19';
+    const latestDbDateStr = mtdData?.as_of_date || mtdData?.latest_data_date || rawWeek?.end_date || new Date().toISOString().split('T')[0];
 
-    // Calculate dynamic elapsed days for partial week (e.g., Oct 18 to Oct 19 = 2 days)
+    // Calculate dynamic elapsed days for partial week (e.g., Oct 18 to latest date)
     const elapsedDays = isPartial
       ? Math.max(1, Math.min(7, Math.round((new Date(latestDbDateStr).getTime() - new Date(rawWeek.start_date).getTime()) / (1000 * 60 * 60 * 24)) + 1))
       : 7;
@@ -587,7 +589,7 @@ export default function DashboardPage() {
                 </h1>
                 <div className="mt-1 flex items-center gap-2 sm:gap-3 flex-wrap">
                   <span className="text-xs sm:text-sm font-bold text-[#1d63b8] underline underline-offset-2">
-                    Data up to date {formatDisplayDate(activeWeeklyMetrics?.isPartial ? (mtdData?.as_of_date || mtdData?.latest_data_date || '2026-10-19') : activeWeeklyMetrics?.currentWeek.end_date)}
+                    Data up to date {formatDisplayDate(activeWeeklyMetrics?.isPartial ? (mtdData?.as_of_date || mtdData?.latest_data_date || activeWeeklyMetrics?.currentWeek.start_date) : activeWeeklyMetrics?.currentWeek.end_date)}
                   </span>
                   <span className="text-slate-300">•</span>
                   <span className="text-xs text-slate-500 font-medium">

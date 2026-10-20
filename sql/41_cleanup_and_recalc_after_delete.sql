@@ -7,28 +7,21 @@
 --   2. You want to make sure MTD and Weekly Reports match your current raw data 100%.
 -- ==============================================================================
 
--- 1. Remove orphaned dates from summary_daily_metrics if all raw rows were deleted
+-- 1. Fast cleanup of any orphaned dates above the actual latest transaction date
 DELETE FROM public.summary_daily_metrics
-WHERE date_id >= '2026-04-01'
-  AND source = 'monthly_data'
-  AND date_id NOT IN (
-      SELECT DISTINCT substring(created_at from 1 for 10)::date 
-      FROM public.monthly_data 
-      WHERE created_at ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}'
-  );
+WHERE date_id > public.get_max_monthly_data_date();
 
--- 2. Recalculate daily summary for MTD (adjust date range as needed)
--- This recalculates the daily totals using only the surviving rows in monthly_data
-SELECT public.refresh_summary_daily(DATE '2026-04-01', CURRENT_DATE);
+-- 2. Recalculate daily summary for MTD for the active month using surviving transactions
+SELECT public.refresh_summary_daily(DATE '2026-10-01', public.get_max_monthly_data_date());
 
 -- 3. Recalculate current in-progress week (W43 / active week)
-SELECT public.sync_active_week_summary();
+SELECT public.sync_active_week_summary(public.get_max_monthly_data_date());
 
 -- 4. Recalculate all historical weekly summaries
 SELECT public.sync_all_weekly_summaries();
 
--- 5. Verification check: view latest 10 days of synchronized MTD summary
+-- 5. Verification check: view latest 5 days of synchronized MTD summary
 SELECT date_id, buy_weight_15g, buy_transactions, sell_weight_15g, sell_transactions, new_customers, total_transactions, updated_at
 FROM public.summary_daily_metrics
 ORDER BY date_id DESC
-LIMIT 10;
+LIMIT 5;

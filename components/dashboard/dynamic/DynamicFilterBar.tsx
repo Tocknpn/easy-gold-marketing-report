@@ -204,24 +204,44 @@ export function DynamicFilterBar({
 
   // Quick preset handlers
   const handlePresetSelect = (preset: string) => {
-    let start = '2026-10-01';
-    let end = '2026-10-12';
+    const today = new Date();
+    const todayStr = today.toISOString().split('T')[0];
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    
+    // Yesterday
+    const yest = new Date(today);
+    yest.setDate(yest.getDate() - 1);
+    const yestStr = yest.toISOString().split('T')[0];
+
+    // 7 days ago
+    const d7 = new Date(today);
+    d7.setDate(d7.getDate() - 6);
+    const d7Str = d7.toISOString().split('T')[0];
+
+    // 30 days ago
+    const d30 = new Date(today);
+    d30.setDate(d30.getDate() - 29);
+    const d30Str = d30.toISOString().split('T')[0];
+
+    let start = `${yyyy}-${mm}-01`;
+    let end = todayStr;
 
     if (preset === 'today') {
-      start = '2026-10-12';
-      end = '2026-10-12';
+      start = todayStr;
+      end = todayStr;
     } else if (preset === 'yesterday') {
-      start = '2026-10-11';
-      end = '2026-10-11';
+      start = yestStr;
+      end = yestStr;
     } else if (preset === 'last7d') {
-      start = '2026-10-06';
-      end = '2026-10-12';
+      start = d7Str;
+      end = todayStr;
     } else if (preset === 'last30d') {
-      start = '2026-09-13';
-      end = '2026-10-12';
+      start = d30Str;
+      end = todayStr;
     } else if (preset === 'this_month') {
-      start = '2026-10-01';
-      end = '2026-10-12';
+      start = `${yyyy}-${mm}-01`;
+      end = todayStr;
     } else if (preset === 'last_month') {
       start = '2026-09-01';
       end = '2026-09-30';

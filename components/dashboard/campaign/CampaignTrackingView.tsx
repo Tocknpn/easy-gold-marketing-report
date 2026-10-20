@@ -104,7 +104,7 @@ export function CampaignTrackingView({
   const [liveDataMap, setLiveDataMap] = useState<Record<string, any>>({});
   const [isExporting, setIsExporting] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [dbLatestDate, setDbLatestDate] = useState<string>('2026-10-19');
+  const [dbLatestDate, setDbLatestDate] = useState<string>('');
   const [copiedSql, setCopiedSql] = useState<boolean>(false);
   const [showSqlScript, setShowSqlScript] = useState<boolean>(true);
 

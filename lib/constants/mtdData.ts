@@ -1,15 +1,15 @@
 import { MtdReportPayload } from '@/lib/types/mtd.types';
 
 export const DEFAULT_MTD_PAYLOAD: MtdReportPayload = {
-  as_of_date: '2026-10-19',
-  display_as_of_date: '19/10/2026',
+  as_of_date: '2026-10-18',
+  display_as_of_date: '18/10/2026',
   current_month_label: "Oct'26",
   current_month_year: 2026,
   current_month_num: 10,
   comparison_month_label: "Sep'26",
   comparison_month_year: 2026,
   comparison_month_num: 9,
-  elapsed_days: 19,
+  elapsed_days: 18,
   total_days_current_month: 31,
   elapsed_working_days: 16,
   total_working_days_current_month: 27,
