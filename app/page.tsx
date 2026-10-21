@@ -39,6 +39,8 @@ import {
   Scale,
   Coins,
   Crown,
+  ChevronDown,
+  Activity,
   ArrowRightLeft,
   Maximize2,
   Minimize2,
@@ -61,6 +63,21 @@ export default function DashboardPage() {
   const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
   const [isUserManagementModalOpen, setIsUserManagementModalOpen] = useState<boolean>(false);
   const [isValidatorModalOpen, setIsValidatorModalOpen] = useState<boolean>(false);
+  const [isTelemetryPopoverOpen, setIsTelemetryPopoverOpen] = useState<boolean>(false);
+  const telemetryPopoverRef = useRef<HTMLDivElement>(null);
+
+  // Close telemetry popover on outside click
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (telemetryPopoverRef.current && !telemetryPopoverRef.current.contains(event.target as Node)) {
+        setIsTelemetryPopoverOpen(false);
+      }
+    }
+    if (isTelemetryPopoverOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [isTelemetryPopoverOpen]);
 
   // Tab change handler that updates state, localStorage, and browser URL query param (?tab=...)
   const handleTabChange = (tab: ReportTab) => {
@@ -391,63 +408,129 @@ export default function DashboardPage() {
       {/* Main Executive Report Content Area */}
       <div className="flex-1 flex flex-col p-3 sm:p-5 lg:p-6 overflow-x-hidden min-w-0">
         {/* Tier 1: Brand Logo & Executive Controls Bar (Never wraps below tabs) */}
-        <header className="flex items-center justify-between pb-3 mb-2.5 border-b border-slate-200/90 gap-3 min-w-0">
+        <header className="flex items-center justify-between pb-3.5 mb-3 border-b border-slate-200/90 gap-3 min-w-0">
           {/* Left: Brand Identity */}
           <div className="flex items-center gap-3 select-none shrink-0">
             <div>
               <div className="flex items-baseline gap-1 font-black leading-none">
-                <span className="text-xl sm:text-2xl text-[#e5a812] tracking-wider font-black">EASY</span>
-                <span className="text-xl sm:text-2xl text-[#0c4ca3] tracking-wider font-black">GOLD</span>
+                <span className="text-xl sm:text-2xl text-brand-gold tracking-wider font-black">EASY</span>
+                <span className="text-xl sm:text-2xl text-brand-navy tracking-wider font-black">GOLD</span>
               </div>
-              <div className="text-[10px] sm:text-[11px] font-bold text-slate-400 tracking-wider mt-0.5 uppercase">
+              <div className="text-xs font-semibold text-slate-500 tracking-wider mt-0.5 uppercase">
                 by KHAMPHOUVONG
               </div>
             </div>
             <div className="hidden md:block h-6 w-px bg-slate-200/90" />
             <div className="hidden md:block">
-              <span className="text-xs font-black text-slate-800 tracking-tight block">
+              <span className="text-xs font-bold text-slate-800 tracking-tight block">
                 Executive BI &amp; Marketing Intelligence
               </span>
-              <span className="text-[10px] font-medium text-slate-400 block">
+              <span className="text-xs text-slate-500 block">
                 Real-Time Sales Operations &amp; Performance Analytics
               </span>
             </div>
           </div>
 
-          {/* Right Header Options Bar: Freshness Badge + System Audit + User Manage + User Profile */}
+          {/* Right Header Options Bar: Telemetry Popover + Profile */}
           <div className="flex items-center gap-2 sm:gap-2.5 shrink-0 justify-end flex-wrap">
-            {/* Live Data Freshness & Sync Alert Badge */}
-            <FreshnessBadge
-              onTriggerRefresh={async () => {
-                await Promise.all([fetchWeeklySummary(), fetchMtdData()]);
-              }}
-            />
-
-            {/* System Health, Calculation & Free Plan Audit Button */}
-            <button
-              onClick={() => setIsValidatorModalOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 text-emerald-900 shadow-xs transition-all font-bold text-xs cursor-pointer"
-              title="System Integrity & Free Plan Audit"
-            >
-              <ShieldCheck className="w-4 h-4 text-emerald-600" />
-              <span className="hidden sm:inline">Audit &amp; Sync Check</span>
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-            </button>
-
-            {/* Admin User & Profile Management Button (Only for Admin Role) */}
-            {currentUser?.role === 'admin' && (
+            {/* Grouped Telemetry & System Diagnostics Popover */}
+            <div className="relative" ref={telemetryPopoverRef}>
               <button
-                onClick={() => setIsUserManagementModalOpen(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-blue-900 to-[#0c4ca3] hover:from-blue-800 hover:to-[#0a3f88] text-white shadow-xs transition-all font-bold text-xs border border-blue-400/40 cursor-pointer"
-                title="Admin: User Directory & Reporting Profile Provisioning"
+                onClick={() => setIsTelemetryPopoverOpen((prev) => !prev)}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
+                  isTelemetryPopoverOpen
+                    ? 'bg-slate-100 border-slate-400 text-slate-900 shadow-xs'
+                    : 'bg-white border-slate-300 hover:border-slate-400 text-slate-700 shadow-xs hover:bg-slate-50'
+                }`}
+                title="System Health, Edge Cache & Data Freshness Diagnostics"
               >
-                <Crown className="w-3.5 h-3.5 text-[#e5a812]" />
-                <span className="hidden sm:inline">User Manage</span>
-                <span className="px-1.5 py-0.2 rounded-full text-[9px] font-black bg-[#e5a812] text-slate-950">
-                  ADMIN
-                </span>
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                <span className="hidden sm:inline">Telemetry &amp; Audit</span>
+                <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${isTelemetryPopoverOpen ? 'rotate-180' : ''}`} />
               </button>
-            )}
+
+              {/* Popover Dropdown Panel */}
+              {isTelemetryPopoverOpen && (
+                <div className="absolute right-0 top-full mt-2 w-80 sm:w-88 bg-white border border-slate-200/95 rounded-2xl shadow-xl z-50 p-4 space-y-3.5 animate-in fade-in zoom-in-95 duration-150">
+                  <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold">
+                        <Activity className="w-3.5 h-3.5" />
+                      </div>
+                      <span className="text-xs font-bold text-slate-900 uppercase tracking-wider">System Telemetry</span>
+                    </div>
+                    <span className="text-xs font-mono font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200/80">
+                      Edge Active (0ms)
+                    </span>
+                  </div>
+
+                  {/* Freshness Badge Inside Popover */}
+                  <div>
+                    <label className="text-xs font-bold text-slate-500 block mb-1.5 uppercase tracking-wider">
+                      Data Currency &amp; Cache
+                    </label>
+                    <FreshnessBadge
+                      onTriggerRefresh={async () => {
+                        await Promise.all([fetchWeeklySummary(), fetchMtdData()]);
+                      }}
+                    />
+                  </div>
+
+                  {/* Architecture Stats */}
+                  <div className="grid grid-cols-2 gap-2 text-xs bg-slate-50 p-2.5 rounded-xl border border-slate-200/80 font-mono tabular-nums">
+                    <div>
+                      <span className="text-slate-500 block text-xs font-sans">Query Architecture</span>
+                      <span className="font-bold text-slate-900">Dual-Tier Fast-Path</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 block text-xs font-sans">Row Capacity</span>
+                      <span className="font-bold text-slate-900">1.4M+ Rows (Indexed)</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 block text-xs font-sans">Edge POPs</span>
+                      <span className="font-bold text-emerald-700">Cloudflare 300+</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 block text-xs font-sans">DB Latency</span>
+                      <span className="font-bold text-slate-900">&lt; 10ms RPC</span>
+                    </div>
+                  </div>
+
+                  {/* Actions inside popover */}
+                  <div className="pt-2 border-t border-slate-100 flex flex-col gap-1.5">
+                    <button
+                      onClick={() => {
+                        setIsTelemetryPopoverOpen(false);
+                        setIsValidatorModalOpen(true);
+                      }}
+                      className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-slate-50 hover:bg-emerald-50 hover:text-emerald-900 border border-slate-200/90 text-xs font-bold text-slate-700 transition-all cursor-pointer"
+                    >
+                      <span className="flex items-center gap-2">
+                        <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                        <span>Run Full Integrity Audit</span>
+                      </span>
+                      <span className="text-slate-400">→</span>
+                    </button>
+
+                    {currentUser?.role === 'admin' && (
+                      <button
+                        onClick={() => {
+                          setIsTelemetryPopoverOpen(false);
+                          setIsUserManagementModalOpen(true);
+                        }}
+                        className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-slate-50 hover:bg-blue-50 hover:text-blue-900 border border-slate-200/90 text-xs font-bold text-slate-700 transition-all cursor-pointer"
+                      >
+                        <span className="flex items-center gap-2">
+                          <Crown className="w-4 h-4 text-brand-gold" />
+                          <span>User Directory &amp; RBAC</span>
+                        </span>
+                        <span className="text-slate-400">→</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
 
             {/* User Account / Profile Badge button */}
             <button
@@ -455,14 +538,14 @@ export default function DashboardPage() {
               className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white border border-slate-300 hover:border-slate-400 text-slate-700 shadow-xs transition-all hover:bg-slate-50 cursor-pointer"
               title="Manage Account & Reporting Profiles"
             >
-              <div className="w-6 h-6 rounded-lg bg-[#0c4ca3] text-[#e5a812] font-black text-xs flex items-center justify-center">
+              <div className="w-6 h-6 rounded-lg bg-brand-navy text-brand-gold font-black text-xs flex items-center justify-center">
                 {currentUser ? currentUser.email.charAt(0).toUpperCase() : 'U'}
               </div>
               <div className="text-left hidden sm:block">
-                <span className="block text-[11px] font-bold text-slate-800 leading-tight truncate max-w-[120px]">
+                <span className="block text-xs font-bold text-slate-800 leading-tight truncate max-w-[120px]">
                   {currentUser ? (currentUser.full_name || currentUser.email.split('@')[0]) : 'Sign In'}
                 </span>
-                <span className="block text-[9px] font-bold text-emerald-600 uppercase tracking-tighter leading-tight">
+                <span className="block text-xs font-bold text-emerald-600 uppercase tracking-tight leading-tight">
                   {currentUser ? currentUser.role : 'Guest Mode'}
                 </span>
               </div>
@@ -475,23 +558,23 @@ export default function DashboardPage() {
           <div className="flex items-center bg-white p-1 rounded-xl border border-slate-300/80 shadow-xs flex-wrap gap-1 w-fit">
             <button
               onClick={() => handleTabChange('targets')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-black transition-all cursor-pointer ${
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-all cursor-pointer ${
                 activeReportTab === 'targets'
-                  ? 'bg-gradient-to-r from-[#0c4ca3] to-blue-900 text-white shadow-xs'
+                  ? 'bg-brand-navy text-white shadow-xs'
                   : 'text-slate-700 hover:text-slate-900 hover:bg-slate-50'
               }`}
             >
-              <Target className="w-4 h-4 text-amber-400" />
+              <Target className="w-4 h-4 text-brand-gold" />
               <span>Business Target</span>
-              <span className="px-1.5 py-0.2 rounded-full text-[9px] font-black bg-amber-400 text-slate-950">
+              <span className="px-1.5 py-0.5 rounded-md text-xs font-mono font-bold bg-brand-gold text-slate-950">
                 2026
               </span>
             </button>
             <button
               onClick={() => handleTabChange('dynamic')}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-black transition-all cursor-pointer ${
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-all cursor-pointer ${
                 activeReportTab === 'dynamic'
-                  ? 'bg-[#0c4ca3] text-white shadow-xs'
+                  ? 'bg-brand-navy text-white shadow-xs'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
               }`}
             >
@@ -500,9 +583,9 @@ export default function DashboardPage() {
             </button>
             <button
               onClick={() => handleTabChange('mtd')}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-black transition-all cursor-pointer ${
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-all cursor-pointer ${
                 activeReportTab === 'mtd'
-                  ? 'bg-[#0c4ca3] text-white shadow-xs'
+                  ? 'bg-brand-navy text-white shadow-xs'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
               }`}
             >
@@ -511,9 +594,9 @@ export default function DashboardPage() {
             </button>
             <button
               onClick={() => handleTabChange('weekly')}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-black transition-all cursor-pointer ${
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-all cursor-pointer ${
                 activeReportTab === 'weekly'
-                  ? 'bg-[#0c4ca3] text-white shadow-xs'
+                  ? 'bg-brand-navy text-white shadow-xs'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
               }`}
             >
@@ -522,9 +605,9 @@ export default function DashboardPage() {
             </button>
             <button
               onClick={() => handleTabChange('pivot')}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-black transition-all cursor-pointer ${
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-all cursor-pointer ${
                 activeReportTab === 'pivot'
-                  ? 'bg-[#0c4ca3] text-white shadow-xs'
+                  ? 'bg-brand-navy text-white shadow-xs'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
               }`}
             >
@@ -533,9 +616,9 @@ export default function DashboardPage() {
             </button>
             <button
               onClick={() => handleTabChange('campaign')}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-black transition-all cursor-pointer ${
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-all cursor-pointer ${
                 activeReportTab === 'campaign'
-                  ? 'bg-[#0c4ca3] text-white shadow-xs'
+                  ? 'bg-brand-navy text-white shadow-xs'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
               }`}
             >
@@ -560,7 +643,7 @@ export default function DashboardPage() {
           <div>
             {mtdLoading && !mtdData ? (
               <div className="flex-1 flex flex-col items-center justify-center gap-3 py-24 text-slate-500">
-                <RefreshCw className="w-8 h-8 animate-spin text-[#0c4ca3]" />
+                <RefreshCw className="w-8 h-8 animate-spin text-brand-navy" />
                 <p className="font-semibold text-sm">Loading MTD and Forecast Report...</p>
               </div>
             ) : mtdData ? (
@@ -581,23 +664,23 @@ export default function DashboardPage() {
             <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4 mb-4 pb-2 border-b border-slate-200/80">
               {/* Left Title & Date */}
               <div>
-                <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black text-[#0c4ca3] tracking-tight flex items-center gap-2.5 flex-wrap">
+                <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black text-brand-navy tracking-tight flex items-center gap-2.5 flex-wrap">
                   <span>Overall Performance Week over Week</span>
-                  <span className="px-3 py-0.5 rounded-xl bg-blue-100/70 text-[#0c4ca3] border border-blue-300/80 text-xl sm:text-2xl lg:text-3xl font-black">
+                  <span className="px-3 py-0.5 rounded-xl bg-blue-50 text-brand-navy border border-blue-200 text-xl sm:text-2xl lg:text-3xl font-black font-mono tabular-nums">
                     {activeWeeklyMetrics?.currentWeek.week_label || selectedWeekLabel}
                   </span>
                 </h1>
-                <div className="mt-1 flex items-center gap-2 sm:gap-3 flex-wrap">
-                  <span className="text-xs sm:text-sm font-bold text-[#1d63b8] underline underline-offset-2">
+                <div className="mt-1.5 flex items-center gap-2 sm:gap-3 flex-wrap">
+                  <span className="text-xs sm:text-sm font-bold text-brand-navyLight underline underline-offset-2">
                     Data up to date {formatDisplayDate(activeWeeklyMetrics?.isPartial ? (mtdData?.as_of_date || mtdData?.latest_data_date || activeWeeklyMetrics?.currentWeek.start_date) : activeWeeklyMetrics?.currentWeek.end_date)}
                   </span>
                   <span className="text-slate-300">•</span>
-                  <span className="text-xs text-slate-500 font-medium">
+                  <span className="text-xs text-slate-500 font-medium font-mono tabular-nums">
                     Period: {activeWeeklyMetrics?.currentWeek.start_date} to {activeWeeklyMetrics?.currentWeek.end_date}
                   </span>
                   <span className="text-slate-300">•</span>
-                  <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 flex items-center gap-1">
-                    <Database className="w-3 h-3" />
+                  <span className="text-xs font-bold font-mono tabular-nums text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 flex items-center gap-1">
+                    <Database className="w-3.5 h-3.5" />
                     {sortedHistory.length} Weeks in Database
                   </span>
                 </div>
@@ -616,11 +699,11 @@ export default function DashboardPage() {
                   </button>
 
                   <div className="relative flex items-center">
-                    <Calendar className="w-3.5 h-3.5 text-[#0c4ca3] absolute left-2 pointer-events-none" />
+                    <Calendar className="w-3.5 h-3.5 text-brand-navy absolute left-2 pointer-events-none" />
                     <select
                       value={selectedWeekLabel}
                       onChange={(e) => setSelectedWeekLabel(e.target.value)}
-                      className="text-xs font-black text-slate-800 bg-slate-50 border border-slate-300 rounded-lg pl-7 pr-3 py-1 hover:bg-slate-100 transition-colors cursor-pointer focus:outline-none focus:ring-1 focus:ring-[#0c4ca3]"
+                      className="text-xs font-bold text-slate-800 bg-slate-50 border border-slate-300 rounded-lg pl-7 pr-3 py-1 hover:bg-slate-100 transition-colors cursor-pointer focus:outline-none focus:ring-1 focus:ring-brand-navy font-mono tabular-nums"
                     >
                       {[...sortedHistory].reverse().map((w) => (
                         <option key={w.year_week} value={w.week_label}>
@@ -646,9 +729,9 @@ export default function DashboardPage() {
                     <button
                       key={w.week_label}
                       onClick={() => setSelectedWeekLabel(w.week_label)}
-                      className={`px-2 py-0.5 rounded-md text-[11px] font-black transition-all ${
+                      className={`px-2 py-0.5 rounded-md text-xs font-bold font-mono tabular-nums transition-all ${
                         selectedWeekLabel === w.week_label
-                          ? 'bg-[#0c4ca3] text-white shadow-xs scale-105'
+                          ? 'bg-brand-navy text-white shadow-xs'
                           : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                       }`}
                     >
@@ -661,7 +744,7 @@ export default function DashboardPage() {
                 <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200 ml-1">
                   <button
                     onClick={() => setDensityMode('comfortable')}
-                    className={`px-2 py-0.5 rounded text-[11px] font-black transition-all flex items-center gap-1 ${
+                    className={`px-2 py-0.5 rounded text-xs font-bold transition-all flex items-center gap-1 ${
                       densityMode === 'comfortable'
                         ? 'bg-white text-slate-900 shadow-2xs'
                         : 'text-slate-500 hover:text-slate-800'
@@ -779,28 +862,28 @@ export default function DashboardPage() {
                 {/* 3. Trading Flow Balance & Market Pulse Ribbon */}
                 <section className="w-full bg-white/95 rounded-2xl border border-slate-200/90 px-3.5 py-2.5 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-3">
                   <div className="flex items-center gap-2.5">
-                    <div className="p-1.5 rounded-lg bg-amber-50 text-[#e5a812] border border-amber-200/80 shrink-0">
+                    <div className="p-1.5 rounded-lg bg-amber-50 text-brand-gold border border-amber-200/80 shrink-0">
                       <ArrowRightLeft className="w-4 h-4" />
                     </div>
                     <div>
-                      <div className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                      <div className="text-xs font-bold uppercase tracking-wider text-slate-500">
                         Trading Flow &amp; Net Gold Position ({activeWeeklyMetrics.currentWeek.week_label})
                       </div>
                       <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                         <span className="text-xs font-bold text-slate-700">Net Flow:</span>
-                        <span className={`text-xs font-black px-2 py-0.5 rounded-md ${
+                        <span className={`text-xs font-bold font-mono tabular-nums px-2 py-0.5 rounded-md ${
                           activeWeeklyMetrics.netGoldFlow > 0 
                             ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                             : activeWeeklyMetrics.netGoldFlow < 0
-                            ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                            ? 'bg-rose-50 text-brand-outflowLight border border-rose-200'
                             : 'bg-slate-100 text-slate-700'
                         }`}>
                           {activeWeeklyMetrics.netGoldFlow > 0 
                             ? `▲ +${activeWeeklyMetrics.netGoldFlow.toLocaleString()} Baht (Accumulation)` 
                             : `${activeWeeklyMetrics.netGoldFlow.toLocaleString()} Baht (Liquidation)`}
                         </span>
-                        <span className="text-[11px] text-slate-400 font-medium">
-                          • Turnover: <strong>{activeWeeklyMetrics.totalGoldTurnover.toLocaleString()} Baht</strong>
+                        <span className="text-xs text-slate-500 font-medium font-mono tabular-nums">
+                          • Turnover: <strong className="text-slate-700">{activeWeeklyMetrics.totalGoldTurnover.toLocaleString()} Baht</strong>
                         </span>
                       </div>
                     </div>

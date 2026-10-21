@@ -54,7 +54,7 @@ export function CampaignDetailModal({
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="bg-gradient-to-r from-[#0c4ca3] via-[#093d84] to-[#062c60] text-white p-6 relative shrink-0">
+        <div className="bg-brand-navy text-white p-6 relative shrink-0">
           <button
             onClick={onClose}
             className="absolute top-5 right-5 p-2 rounded-full bg-white/10 hover:bg-white/20 transition-colors text-white"
@@ -68,7 +68,7 @@ export function CampaignDetailModal({
               {campaign.image_url ? (
                 <img src={campaign.image_url} alt={campaign.campaign_name} className="w-full h-full object-cover" />
               ) : (
-                <div className="w-full h-full bg-[#e5a812] text-slate-950 font-black text-xl flex items-center justify-center">
+                <div className="w-full h-full bg-brand-gold text-slate-950 font-black text-xl flex items-center justify-center">
                   {campaign.campaign_name.slice(0, 2).toUpperCase()}
                 </div>
               )}
@@ -76,10 +76,10 @@ export function CampaignDetailModal({
 
             <div className="space-y-1">
               <div className="flex items-center gap-2">
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-[#e5a812] text-slate-950">
+                <span className="px-2.5 py-0.5 rounded-full text-xs font-bold uppercase bg-brand-gold text-slate-950">
                   {campaign.category_tag || 'Marketing Campaign'}
                 </span>
-                <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${
+                <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold uppercase ${
                   isEnded ? 'bg-slate-800 text-slate-200' : isUpcoming ? 'bg-amber-500/20 text-amber-200' : 'bg-emerald-500/30 text-emerald-200'
                 }`}>
                   {isEnded ? '🏁 Completed' : isUpcoming ? '⏳ Upcoming' : '🟢 Active In Progress'}
@@ -203,27 +203,27 @@ export function CampaignDetailModal({
 
                   {/* NC Target */}
                   <tr className="hover:bg-slate-50">
-                    <td className="py-3 px-4 font-sans font-bold text-purple-900">
+                    <td className="py-3 px-4 font-sans font-bold text-brand-navy">
                       NC: New Customers (First-ever buyers)
                     </td>
-                    <td className="py-3 px-3 text-right font-bold text-slate-700">
+                    <td className="py-3 px-3 text-right font-bold text-slate-700 font-mono tabular-nums">
                       {t1.nc_target.toLocaleString()}
                     </td>
-                    <td className="py-3 px-3 text-right font-bold text-purple-700">
+                    <td className="py-3 px-3 text-right font-bold text-brand-navy font-mono tabular-nums">
                       {t1.nc_actual_mtd.toLocaleString()}
                     </td>
                     <td className="py-3 px-3 text-right">
-                      <span className={`px-2 py-0.5 rounded-md font-bold ${
-                        t1.nc_pct_hit_mtd >= 100 ? 'bg-emerald-100 text-emerald-800' : 'bg-purple-50 text-purple-800'
+                      <span className={`px-2 py-0.5 rounded-md font-bold font-mono tabular-nums ${
+                        t1.nc_pct_hit_mtd >= 100 ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-50 text-brand-navy'
                       }`}>
                         {t1.nc_pct_hit_mtd}%
                       </span>
                     </td>
-                    <td className="py-3 px-3 text-right font-bold text-slate-900">
+                    <td className="py-3 px-3 text-right font-bold text-slate-900 font-mono tabular-nums">
                       {t1.nc_rr_projected.toLocaleString()}
                     </td>
                     <td className="py-3 px-3 text-right">
-                      <span className={`px-2 py-0.5 rounded-md font-bold ${
+                      <span className={`px-2 py-0.5 rounded-md font-bold font-mono tabular-nums ${
                         t1.nc_pct_hit_rr >= 100 ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
                       }`}>
                         {t1.nc_pct_hit_rr}%
@@ -323,14 +323,14 @@ export function CampaignDetailModal({
                 </div>
               </div>
 
-              <div className="bg-purple-50/60 border border-purple-200 rounded-2xl p-4">
-                <span className="text-[10px] font-bold text-purple-800 uppercase">Ticket Size (g/tx)</span>
+              <div className="bg-blue-50/70 border border-blue-200 rounded-2xl p-4">
+                <span className="text-xs font-bold text-brand-navy uppercase">Ticket Size (g/tx)</span>
                 <div className="flex items-baseline gap-2 mt-1">
-                  <span className="text-2xl font-black text-purple-950 font-mono">
+                  <span className="text-2xl font-black text-slate-900 font-mono tabular-nums">
                     {t2.ticket_size_pct_compare > 0 ? `+${t2.ticket_size_pct_compare}%` : `${t2.ticket_size_pct_compare}%`}
                   </span>
                 </div>
-                <div className="text-[11px] text-purple-900/80 font-mono mt-1">
+                <div className="text-xs text-slate-600 font-mono tabular-nums mt-1">
                   {t2.ticket_size_g_mtd}g vs {t2.ticket_size_g_backward}g
                 </div>
               </div>
@@ -339,7 +339,7 @@ export function CampaignDetailModal({
 
           {/* Section 4: Required Run-Rate Pacing Advice */}
           {!isEnded && t1.remaining_days > 0 && (
-            <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-2xl p-4">
+            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4">
               <h4 className="text-xs font-black uppercase text-amber-900 flex items-center gap-1.5 mb-1">
                 <span>Executive Pacing Recommendation</span>
               </h4>

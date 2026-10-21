@@ -9,8 +9,19 @@ module.exports = {
     extend: {
       colors: {
         brand: {
-          blue: "#1d4ed8",
-          blueDark: "#1e40af",
+          navy: "#0c4ca3",
+          navyDark: "#083778",
+          navyLight: "#1d63b8",
+          gold: "#e5a812",
+          goldDark: "#b88308",
+          goldLight: "#fbbf24",
+          inflow: "#1e3e23",
+          inflowLight: "#285430",
+          outflow: "#6b102b",
+          outflowLight: "#881337",
+          // Backwards compatibility
+          blue: "#0c4ca3",
+          blueDark: "#083778",
           green: "#285430",
           greenDark: "#1e3e23",
           red: "#881337",

@@ -815,16 +815,16 @@ WHERE created_at >= '${camp.campaign_date_start}'
                       key={camp.id}
                       onClick={() => handleSelectCampaign(camp)}
                       className={`hover:bg-blue-50/50 transition-colors cursor-pointer ${
-                        isSelected ? 'bg-blue-50/80 font-bold border-l-4 border-l-[#0c4ca3]' : ''
+                        isSelected ? 'bg-blue-50/80 font-bold ring-1 ring-inset ring-brand-navy/30' : ''
                       }`}
                     >
                       {/* Status */}
                       <td className="py-2 px-3 whitespace-nowrap">
-                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold ${
-                          isCompleted ? 'bg-emerald-100 text-emerald-800' : isUpcoming ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-[#0c4ca3]'
+                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-semibold ${
+                          isCompleted ? 'bg-emerald-100 text-emerald-800' : isUpcoming ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-brand-navy'
                         }`}>
                           <span className={`w-1.5 h-1.5 rounded-full ${
-                            isCompleted ? 'bg-emerald-500' : isUpcoming ? 'bg-amber-500' : 'bg-sky-500 animate-pulse'
+                            isCompleted ? 'bg-emerald-500' : isUpcoming ? 'bg-amber-500' : 'bg-brand-navy animate-pulse'
                           }`} />
                           <span>{statusLabel}</span>
                         </span>
@@ -1000,18 +1000,18 @@ WHERE created_at >= '${camp.campaign_date_start}'
             </div>
 
             {/* Prominent Latest Data Cutoff Date Badge */}
-            <div className="flex items-center gap-2.5 bg-gradient-to-r from-blue-50 via-indigo-50/60 to-blue-50 border border-blue-200/90 px-3 py-1.5 rounded-xl shadow-2xs">
-              <Clock className="w-4 h-4 text-[#0c4ca3] shrink-0" />
+            <div className="flex items-center gap-2.5 bg-blue-50/80 border border-blue-200 px-3 py-2 rounded-xl shadow-2xs">
+              <Clock className="w-4 h-4 text-brand-navy shrink-0" />
               <div>
                 <div className="flex items-center gap-1.5">
-                  <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
                     Report Data Up To:
                   </span>
-                  <span className="text-xs font-black text-[#0c4ca3] font-mono">
+                  <span className="text-xs font-bold text-brand-navy font-mono tabular-nums">
                     {formatDisplayDate(latestDataDate)}
                   </span>
                 </div>
-                <span className="text-[10px] font-semibold text-blue-700 block">
+                <span className="text-xs font-medium text-brand-navyLight block font-mono tabular-nums">
                   Day {analytics.targetAchievement.elapsed_days} of {analytics.targetAchievement.total_days} ({analytics.targetAchievement.pct_time_gone}% Elapsed)
                 </span>
               </div>
@@ -1077,7 +1077,7 @@ WHERE created_at >= '${camp.campaign_date_start}'
                 <button
                   onClick={() => handleExecuteCalculate(currentTargetCampaign)}
                   disabled={recordingId === currentTargetCampaign.id}
-                  className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-black shadow-md shadow-emerald-900/30 transition-all disabled:opacity-50 cursor-pointer"
+                  className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-xs transition-all disabled:opacity-50 cursor-pointer"
                   title="Send generated SQL to Supabase and update campaign info live"
                 >
                   <RefreshCw className={`w-3.5 h-3.5 ${recordingId === currentTargetCampaign.id ? 'animate-spin' : ''}`} />

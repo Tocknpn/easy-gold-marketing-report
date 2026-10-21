@@ -67,7 +67,7 @@ export function MetricKpiCard({
             </h4>
           </div>
           {subtitle && (
-            <span className="text-[10px] text-slate-400 font-medium shrink-0">
+            <span className="text-xs text-slate-500 font-medium shrink-0">
               {subtitle}
             </span>
           )}
@@ -76,24 +76,24 @@ export function MetricKpiCard({
         {/* Hero KPI Metric + Variance Badge Row */}
         <div className="flex items-baseline justify-between gap-2 my-1">
           {/* Main Number */}
-          <div className="text-2xl sm:text-[26px] lg:text-[28px] font-black text-slate-900 tracking-tight font-sans tabular-nums leading-none">
+          <div className="text-2xl sm:text-[26px] lg:text-[28px] font-black text-slate-900 tracking-tight font-mono tabular-nums leading-none">
             {formattedValue}
           </div>
 
           {/* Variance Badge */}
           <div className="shrink-0">
             {isNeutral && (
-              <span className="px-2 py-0.5 rounded-md text-[11px] font-black bg-slate-100 text-slate-600 border border-slate-200">
+              <span className="px-2 py-0.5 rounded-md text-xs font-bold font-mono tabular-nums bg-slate-100 text-slate-600 border border-slate-200">
                 0%
               </span>
             )}
             {isPositive && (
-              <span className="px-2 py-0.5 rounded-md text-[11px] font-black bg-emerald-50 text-emerald-700 border border-emerald-200/80 flex items-center gap-0.5 shadow-2xs">
+              <span className="px-2 py-0.5 rounded-md text-xs font-bold font-mono tabular-nums bg-emerald-50 text-emerald-700 border border-emerald-200/80 flex items-center gap-0.5 shadow-2xs">
                 ▲ {variancePercent}%
               </span>
             )}
             {isNegative && (
-              <span className="px-2 py-0.5 rounded-md text-[11px] font-black bg-rose-50 text-[#c5221f] border border-rose-200/80 flex items-center gap-0.5 shadow-2xs">
+              <span className="px-2 py-0.5 rounded-md text-xs font-bold font-mono tabular-nums bg-rose-50 text-brand-outflowLight border border-rose-200/80 flex items-center gap-0.5 shadow-2xs">
                 ▼ {Math.abs(variancePercent)}%
               </span>
             )}
@@ -102,9 +102,9 @@ export function MetricKpiCard({
 
         {/* Partial Week Prorated Context Badge (if applicable) */}
         {isPartialWeek && proratedEstimate && (
-          <div className="flex items-center gap-1 text-[10px] text-amber-700 font-semibold bg-amber-50/80 border border-amber-200/60 rounded px-1.5 py-0.5 mt-1">
+          <div className="flex items-center gap-1.5 text-xs text-amber-800 font-medium bg-amber-50/80 border border-amber-200/60 rounded-md px-2 py-0.5 mt-1">
             <span>⚡ 7D Est:</span>
-            <span className="font-black text-slate-800">
+            <span className="font-bold font-mono tabular-nums text-slate-900">
               {typeof proratedEstimate === 'number' ? proratedEstimate.toLocaleString() : proratedEstimate}
             </span>
           </div>
