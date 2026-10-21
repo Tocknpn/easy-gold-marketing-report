@@ -131,9 +131,9 @@ export function WeeklyHistoricalMatrix({
             <thead>
               <tr className="bg-slate-100/70 border-b border-slate-200 text-[11px] font-black text-slate-600 uppercase tracking-tight">
                 <th className="py-2.5 px-4 sticky left-0 bg-slate-100 z-10">Metric / Dimension</th>
-                {recentWeeks.map((w) => {
+                {recentWeeks.map((w, idx) => {
                   const isCurrent = w.week_label === selectedWeek;
-                  const isPartial = w.week_label === 'W43';
+                  const isPartial = idx === recentWeeks.length - 1 && new Date(w.end_date) >= new Date();
                   return (
                     <th 
                       key={w.week_label} 

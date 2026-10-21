@@ -26,8 +26,8 @@ export function PlatformOverviewSection({
   const newRegData = history.map((w) => ({ week: w.week_label, value: w.new_registers }));
   const withdrawData = history.map((w) => ({ week: w.week_label, value: Number(w.withdraw_gold_grams) }));
 
-  // Prorated estimates for W43 (1 day elapsed, multiplied by 7 for standard week)
-  const isPartial = isPartialWeek || currentWeek.week_label === 'W43';
+  // Prorated estimates for partial week
+  const isPartial = Boolean(isPartialWeek);
   const proratedAllTx = isPartial ? Math.round(currentWeek.all_transactions * 7) : undefined;
   const proratedUsers = isPartial ? Math.round(currentWeek.active_users * 3.5) : undefined;
   const proratedNewReg = isPartial ? Math.round(currentWeek.new_registers * 7) : undefined;

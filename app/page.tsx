@@ -93,7 +93,7 @@ export default function DashboardPage() {
   // Weekly data state initialized with default data
   const [weeklyData, setWeeklyData] = useState<ExecutiveDashboardData>(DEFAULT_WEEKLY_FALLBACK_DATA);
   const [weeklyLoading, setWeeklyLoading] = useState(false);
-  const [selectedWeekLabel, setSelectedWeekLabel] = useState<string>('W43');
+  const [selectedWeekLabel, setSelectedWeekLabel] = useState<string>(DEFAULT_WEEKLY_FALLBACK_DATA.current_week.week_label || 'W43');
   const [isProratedWoW, setIsProratedWoW] = useState<boolean>(false);
   const [densityMode, setDensityMode] = useState<'comfortable' | 'compact'>('comfortable');
 
@@ -229,8 +229,9 @@ export default function DashboardPage() {
     const previousWeek: WeeklyMetricRow | undefined =
       activeIndex > 0 ? history[activeIndex - 1] : undefined;
 
-    // Detect if current selected week is partial in-progress week (W43)
-    const isPartial = rawWeek.week_label === 'W43';
+    // Detect if current selected week is partial in-progress week (latest week in database and end_date >= today)
+    const isLatestWeek = activeIndex >= 0 ? activeIndex === history.length - 1 : true;
+    const isPartial = isLatestWeek && new Date(rawWeek.end_date) >= new Date();
     const latestDbDateStr = mtdData?.as_of_date || mtdData?.latest_data_date || rawWeek?.end_date || new Date().toISOString().split('T')[0];
 
     // Calculate dynamic elapsed days for partial week (e.g., Oct 18 to latest date)
