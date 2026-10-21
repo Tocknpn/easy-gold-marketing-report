@@ -252,8 +252,10 @@ export function CampaignTrackingView({
         });
 
         if (res.ok) {
-          const data = await res.json();
-          if (data && data.targetAchievement && data.targetAchievement.ec_actual_mtd > 0) {
+          const contentType = res.headers.get('content-type') || '';
+          if (contentType.includes('application/json')) {
+            const data = await res.json();
+            if (data && data.targetAchievement && data.targetAchievement.ec_actual_mtd > 0) {
             payload = {
               ec_actual_mtd: data.targetAchievement.ec_actual_mtd,
               nc_actual_mtd: data.targetAchievement.nc_actual_mtd,
@@ -269,7 +271,8 @@ export function CampaignTrackingView({
             };
           }
         }
-      } catch (err) {
+      }
+    } catch (err) {
         console.warn('API route campaign calculate error, falling back to direct Supabase:', err);
       }
 

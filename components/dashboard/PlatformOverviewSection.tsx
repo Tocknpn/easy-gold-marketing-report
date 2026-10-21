@@ -3,6 +3,7 @@
 import React from 'react';
 import { MetricKpiCard } from './MetricKpiCard';
 import { WeeklyMetricRow, MetricVariances } from '@/lib/types/dashboard.types';
+import { prorateLinear, prorateActiveUsers } from '@/lib/utils/runRate';
 import { Activity } from 'lucide-react';
 
 interface PlatformOverviewSectionProps {
@@ -11,6 +12,8 @@ interface PlatformOverviewSectionProps {
   variances: MetricVariances;
   selectedWeek?: string;
   isPartialWeek?: boolean;
+  elapsedDays?: number;
+  isProratedWoW?: boolean;
 }
 
 export function PlatformOverviewSection({
@@ -19,6 +22,8 @@ export function PlatformOverviewSection({
   variances,
   selectedWeek,
   isPartialWeek = false,
+  elapsedDays = 7,
+  isProratedWoW = false,
 }: PlatformOverviewSectionProps) {
   // Extract historical trend series
   const allTxData = history.map((w) => ({ week: w.week_label, value: w.all_transactions }));
@@ -26,17 +31,17 @@ export function PlatformOverviewSection({
   const newRegData = history.map((w) => ({ week: w.week_label, value: w.new_registers }));
   const withdrawData = history.map((w) => ({ week: w.week_label, value: Number(w.withdraw_gold_grams) }));
 
-  // Prorated estimates for partial week
-  const isPartial = Boolean(isPartialWeek);
-  const proratedAllTx = isPartial ? Math.round(currentWeek.all_transactions * 7) : undefined;
-  const proratedUsers = isPartial ? Math.round(currentWeek.active_users * 3.5) : undefined;
-  const proratedNewReg = isPartial ? Math.round(currentWeek.new_registers * 7) : undefined;
-  const proratedWithdraw = isPartial ? Number((Number(currentWeek.withdraw_gold_grams) * 7).toFixed(1)) : undefined;
+  // Prorated estimates for partial week only when prorate toggle is OFF
+  const showProratedEstimate = Boolean(isPartialWeek) && !isProratedWoW && elapsedDays < 7;
+  const proratedAllTx = showProratedEstimate ? prorateLinear(currentWeek.all_transactions, elapsedDays, 7) : undefined;
+  const proratedUsers = showProratedEstimate ? prorateActiveUsers(currentWeek.active_users, elapsedDays, 7) : undefined;
+  const proratedNewReg = showProratedEstimate ? prorateLinear(currentWeek.new_registers, elapsedDays, 7) : undefined;
+  const proratedWithdraw = showProratedEstimate ? Number(((Number(currentWeek.withdraw_gold_grams) / elapsedDays) * 7).toFixed(1)) : undefined;
 
   return (
     <div className="border border-slate-200/90 rounded-2xl p-3 sm:p-3.5 bg-white shadow-xs h-full flex flex-col justify-between">
       {/* Executive Navy Header Banner */}
-      <div className="bg-brand-navy text-white font-bold text-xs sm:text-sm tracking-wider px-3.5 py-2.5 rounded-xl mb-3 shadow-xs flex items-center justify-between shrink-0">
+      <div className="bg-[#0b192c] text-white font-bold text-xs sm:text-sm tracking-wider px-3.5 py-2.5 rounded-xl mb-3 shadow-xs flex items-center justify-between shrink-0">
         <div className="flex items-center gap-2">
           <div className="p-1 rounded-md bg-white/15">
             <Activity className="w-3.5 h-3.5 text-white" />
@@ -44,13 +49,13 @@ export function PlatformOverviewSection({
           <span className="uppercase tracking-wide font-black">Platform Overview</span>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-xs font-bold font-mono tabular-nums text-blue-100 bg-white/10 px-2 py-0.5 rounded-md">
-            Active: {currentWeek.week_label}
+          <span className="text-xs font-bold font-mono tabular-nums text-blue-100 bg-white/15 px-2 py-0.5 rounded-md">
+            {currentWeek.week_label}
           </span>
         </div>
       </div>
 
-      {/* 4 Cards in 2x2 Grid for Equal 3-Pillar Row Alignment */}
+      {/* 4 Cards in 2x2 Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3 flex-1">
         {/* Card 1: All Transaction */}
         <MetricKpiCard
@@ -62,7 +67,7 @@ export function PlatformOverviewSection({
           selectedWeek={selectedWeek || currentWeek.week_label}
           subtitle="Orders"
           proratedEstimate={proratedAllTx}
-          isPartialWeek={isPartial}
+          isPartialWeek={showProratedEstimate}
         />
 
         {/* Card 2: User Participate */}
@@ -75,7 +80,7 @@ export function PlatformOverviewSection({
           selectedWeek={selectedWeek || currentWeek.week_label}
           subtitle="Active"
           proratedEstimate={proratedUsers}
-          isPartialWeek={isPartial}
+          isPartialWeek={showProratedEstimate}
         />
 
         {/* Card 3: New Register */}
@@ -88,7 +93,7 @@ export function PlatformOverviewSection({
           selectedWeek={selectedWeek || currentWeek.week_label}
           subtitle="Signups"
           proratedEstimate={proratedNewReg}
-          isPartialWeek={isPartial}
+          isPartialWeek={showProratedEstimate}
         />
 
         {/* Card 4: Gold Withdraw (g) */}
@@ -101,7 +106,7 @@ export function PlatformOverviewSection({
           selectedWeek={selectedWeek || currentWeek.week_label}
           subtitle="Physical"
           proratedEstimate={proratedWithdraw}
-          isPartialWeek={isPartial}
+          isPartialWeek={showProratedEstimate}
         />
       </div>
     </div>

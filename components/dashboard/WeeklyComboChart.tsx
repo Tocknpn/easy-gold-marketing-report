@@ -76,6 +76,26 @@ export function WeeklyComboChart({
       inactiveBar: '#e2e8f0',
       inactiveHover: '#cbd5e1',
     },
+    indigo: {
+      activeGradientStart: '#6366f1',
+      activeGradientEnd: '#4338ca',
+      line: '#4f46e5',
+      dot: '#4338ca',
+      dotBorder: '#ffffff',
+      glow: 'rgba(79, 70, 229, 0.25)',
+      inactiveBar: '#e2e8f0',
+      inactiveHover: '#cbd5e1',
+    },
+    purple: {
+      activeGradientStart: '#a855f7',
+      activeGradientEnd: '#7e22ce',
+      line: '#9333ea',
+      dot: '#7e22ce',
+      dotBorder: '#ffffff',
+      glow: 'rgba(147, 51, 234, 0.25)',
+      inactiveBar: '#e2e8f0',
+      inactiveHover: '#cbd5e1',
+    },
   };
 
   const scheme = colorSchemes[themeColor] || colorSchemes.blue;

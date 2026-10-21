@@ -3,7 +3,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { 
   SlidersHorizontal, 
-  FileSpreadsheet
+  FileSpreadsheet,
+  AlertTriangle
 } from 'lucide-react';
 import { DynamicFilterState, DynamicReportPayload } from '@/lib/types/dynamicReport.types';
 import { 
@@ -27,9 +28,12 @@ export function DynamicReportView() {
   const [hasExecuted, setHasExecuted] = useState<boolean>(false);
   const [executionTimestamp, setExecutionTimestamp] = useState<string>('');
 
+  const [error, setError] = useState<string | null>(null);
+
   // Fetch dynamic report from API with query params
   const fetchReport = useCallback(async (currentFilters: DynamicFilterState) => {
     setIsLoading(true);
+    setError(null);
     try {
       const params = new URLSearchParams();
       if (currentFilters.startDate) params.set('start_date', currentFilters.startDate);
@@ -56,16 +60,37 @@ export function DynamicReportView() {
       if (currentFilters.status) params.set('status', currentFilters.status);
 
       const res = await fetch(`/api/dashboard/dynamic-report?${params.toString()}`);
-      if (res.ok) {
-        const json: DynamicReportPayload = await res.json();
-        setReportData(json);
-      } else {
-        // Fallback to local computation
-        setReportData(calculateFilteredReport(currentFilters));
+      if (!res.ok) {
+        const errorText = await res.text().catch(() => '');
+        let parsedMessage = `Dynamic report query failed (HTTP ${res.status}).`;
+        try {
+          const parsed = JSON.parse(errorText);
+          if (parsed?.error) parsedMessage = parsed.error;
+        } catch {
+          if (res.status === 502 || res.status === 504) {
+            parsedMessage = 'Supabase gateway timeout. Please retry with a narrower date filter or refresh.';
+          }
+        }
+        setError(parsedMessage);
+        return;
       }
-    } catch (err) {
-      console.warn('API fetch failed, falling back to local simulation engine:', err);
-      setReportData(calculateFilteredReport(currentFilters));
+
+      const contentType = res.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        setError('Dynamic report service returned an invalid non-JSON response.');
+        return;
+      }
+
+      const json = await res.json();
+      if (json?.dax_measures) {
+        setReportData(json as DynamicReportPayload);
+        setError(null);
+      } else {
+        setError(json?.error || 'Dynamic report returned incomplete data.');
+      }
+    } catch (err: any) {
+      console.error('API fetch failed:', err);
+      setError(err?.message || 'Network error connecting to Dynamic BI report service.');
     } finally {
       setIsLoading(false);
       setHasExecuted(true);
@@ -100,10 +125,33 @@ export function DynamicReportView() {
         hasExecuted={hasExecuted}
       />
 
-      {/* 2. Content: Empty "Ready to Calculate" State OR Live Results */}
-      {!hasExecuted ? (
+      {/* 2. Content: Error State OR Empty State OR Live Results */}
+      {error ? (
+        <div className="bg-white rounded-3xl p-8 sm:p-12 border border-rose-200 text-center flex flex-col items-center justify-center space-y-4 shadow-xs animate-in fade-in duration-200">
+          <div className="w-14 h-14 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center border border-rose-200 shadow-inner">
+            <AlertTriangle className="w-7 h-7 stroke-[2.2]" />
+          </div>
+          <div className="max-w-md space-y-1.5">
+            <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-rose-100 text-rose-900 border border-rose-200 inline-block">
+              Query Error
+            </span>
+            <h3 className="text-base sm:text-lg font-black text-slate-900 uppercase tracking-tight">
+              Unable to Retrieve Dynamic Report Data
+            </h3>
+            <p className="text-xs text-rose-700 font-medium leading-relaxed">
+              {error}
+            </p>
+          </div>
+          <button
+            onClick={() => fetchReport(filters)}
+            className="px-4 py-2 rounded-xl text-xs font-bold bg-brand-navy text-white hover:bg-brand-navyDark transition-all cursor-pointer shadow-xs"
+          >
+            Retry Query
+          </button>
+        </div>
+      ) : !hasExecuted ? (
         <div className="bg-white rounded-3xl p-8 sm:p-14 border-2 border-dashed border-slate-300 text-center flex flex-col items-center justify-center space-y-4 shadow-xs animate-in fade-in duration-200">
-          <div className="w-16 h-16 rounded-3xl bg-blue-50 text-[#0c4ca3] flex items-center justify-center border border-blue-200 shadow-inner">
+          <div className="w-16 h-16 rounded-3xl bg-blue-50 text-brand-navy flex items-center justify-center border border-blue-200 shadow-inner">
             <SlidersHorizontal className="w-8 h-8 stroke-[2.2]" />
           </div>
 
@@ -146,7 +194,7 @@ export function DynamicReportView() {
               <button
                 onClick={handleExportCsv}
                 disabled={isExporting}
-                className="flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-black bg-[#e5a812] hover:bg-[#d4970b] text-slate-950 shadow-xs transition-all cursor-pointer font-sans"
+                className="flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-black bg-brand-gold hover:bg-brand-goldDark text-slate-950 shadow-xs transition-all cursor-pointer font-sans"
                 title="Export report data to CSV"
               >
                 <FileSpreadsheet className="w-3.5 h-3.5 text-slate-950" />

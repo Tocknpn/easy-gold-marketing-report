@@ -42,4 +42,4 @@ export interface ExecutiveDashboardData {
   cached_at: string;
 }
 
-export type ThemeSectionColor = 'blue' | 'green' | 'red';
+export type ThemeSectionColor = 'blue' | 'green' | 'red' | 'indigo' | 'purple';

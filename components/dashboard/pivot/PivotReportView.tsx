@@ -103,9 +103,14 @@ export function PivotReportView({
 
       const res = await fetch(`/api/dashboard/pivot-report?${params.toString()}`, { headers });
       if (res.ok) {
-        const json = await res.json();
-        if (json && json.rows && json.rows.length > 0) {
-          setLivePayload(json);
+        const contentType = res.headers.get('content-type') || '';
+        if (contentType.includes('application/json')) {
+          const json = await res.json();
+          if (json && json.rows && json.rows.length > 0) {
+            setLivePayload(json);
+          } else {
+            setLivePayload(fallbackPayload);
+          }
         } else {
           setLivePayload(fallbackPayload);
         }

@@ -15,6 +15,8 @@ import { CorporateLoginView } from '@/components/dashboard/auth/CorporateLoginVi
 import { AdminUserManagementModal } from '@/components/dashboard/admin/AdminUserManagementModal';
 import { SystemCheckAndValidationModal } from '@/components/dashboard/audit/SystemCheckAndValidationModal';
 import { FreshnessBadge } from '@/components/dashboard/FreshnessBadge';
+import { ExecutivePulseBanner } from '@/components/dashboard/ExecutivePulseBanner';
+import { prorateWeeklyRow, calculateVariance } from '@/lib/utils/runRate';
 import { ExecutiveDashboardData, WeeklyMetricRow, MetricVariances } from '@/lib/types/dashboard.types';
 import { MtdReportPayload, MtdQuery } from '@/lib/types/mtd.types';
 import { UserProfile } from '@/lib/types/auth.types';
@@ -90,9 +92,36 @@ export default function DashboardPage() {
     }
   };
 
+  // Accessible roving-tabindex keyboard navigation for tablist
+  const handleTabKeyDown = (e: React.KeyboardEvent, currentTab: ReportTab) => {
+    const currentIndex = VALID_TABS.indexOf(currentTab);
+    let nextTab: ReportTab | null = null;
+
+    if (e.key === 'ArrowRight') {
+      e.preventDefault();
+      nextTab = VALID_TABS[(currentIndex + 1) % VALID_TABS.length];
+    } else if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      nextTab = VALID_TABS[(currentIndex - 1 + VALID_TABS.length) % VALID_TABS.length];
+    } else if (e.key === 'Home') {
+      e.preventDefault();
+      nextTab = VALID_TABS[0];
+    } else if (e.key === 'End') {
+      e.preventDefault();
+      nextTab = VALID_TABS[VALID_TABS.length - 1];
+    }
+
+    if (nextTab) {
+      handleTabChange(nextTab);
+      const targetEl = document.getElementById(`tab-${nextTab}`);
+      targetEl?.focus();
+    }
+  };
+
   // Weekly data state initialized with default data
   const [weeklyData, setWeeklyData] = useState<ExecutiveDashboardData>(DEFAULT_WEEKLY_FALLBACK_DATA);
   const [weeklyLoading, setWeeklyLoading] = useState(false);
+  const [weeklyError, setWeeklyError] = useState<string | null>(null);
   const [selectedWeekLabel, setSelectedWeekLabel] = useState<string>(DEFAULT_WEEKLY_FALLBACK_DATA.current_week.week_label || 'W43');
   const [isProratedWoW, setIsProratedWoW] = useState<boolean>(false);
   const [densityMode, setDensityMode] = useState<'comfortable' | 'compact'>('comfortable');
@@ -104,26 +133,52 @@ export default function DashboardPage() {
   // Last filters used by the MTD report, so page-level refreshes keep the user's selection
   const mtdQueryRef = useRef<MtdQuery>({});
 
-  // Fetch weekly summary with cache-busting
+  // Fetch weekly summary with cache-busting & resilient status/content-type checks
   const fetchWeeklySummary = async () => {
     setWeeklyLoading(true);
+    setWeeklyError(null);
     try {
       const res = await fetch(`/api/dashboard/summary?refresh=true&t=${Date.now()}`, { cache: 'no-store' });
-      if (res.ok) {
-        const json: ExecutiveDashboardData = await res.json();
+      if (!res.ok) {
+        const errorText = await res.text().catch(() => '');
+        let msg = `Weekly summary failed (HTTP ${res.status})`;
+        try {
+          const parsed = JSON.parse(errorText);
+          if (parsed?.error) msg = parsed.error;
+        } catch {
+          if (res.status === 502 || res.status === 504) {
+            msg = 'Supabase gateway timeout loading weekly summary. Click retry.';
+          }
+        }
+        setWeeklyError(msg);
+        return;
+      }
+
+      const contentType = res.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        setWeeklyError('Weekly summary service returned an invalid response format.');
+        return;
+      }
+
+      const json: ExecutiveDashboardData = await res.json();
+      if (json && json.current_week) {
         setWeeklyData(json);
+        setWeeklyError(null);
         if (json.current_week?.week_label) {
           setSelectedWeekLabel(json.current_week.week_label);
         }
+      } else {
+        setWeeklyError('Incomplete weekly summary data received.');
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to load weekly summary', err);
+      setWeeklyError(err?.message || 'Network error connecting to weekly summary service.');
     } finally {
       setWeeklyLoading(false);
     }
   };
 
-  // Fetch MTD & Forecast report with cache-busting
+  // Fetch MTD & Forecast report with cache-busting & resilient status/content-type checks
   const fetchMtdData = async (query?: MtdQuery) => {
     if (query) mtdQueryRef.current = query;
     const q = mtdQueryRef.current;
@@ -140,16 +195,37 @@ export default function DashboardPage() {
     setMtdLoading(true);
     try {
       const res = await fetch(`/api/dashboard/mtd-forecast?${params.toString()}`, { cache: 'no-store' });
+      if (!res.ok) {
+        const errorText = await res.text().catch(() => '');
+        let parsedMessage = `MTD report failed (HTTP ${res.status})`;
+        try {
+          const parsed = JSON.parse(errorText);
+          if (parsed?.error) parsedMessage = parsed.error;
+        } catch {
+          if (res.status === 502 || res.status === 504) {
+            parsedMessage = 'Gateway timeout / Supabase connection unavailable. Please retry in a few moments.';
+          }
+        }
+        setMtdError(parsedMessage);
+        return;
+      }
+
+      const contentType = res.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        setMtdError('Received non-JSON response from MTD forecast service.');
+        return;
+      }
+
       const json = await res.json();
-      if (res.ok && json?.metrics) {
+      if (json?.metrics) {
         setMtdData(json as MtdReportPayload);
         setMtdError(null);
       } else {
         setMtdError(json?.error || `MTD report failed (HTTP ${res.status})`);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to load MTD forecast report', err);
-      setMtdError('Failed to load MTD forecast report.');
+      setMtdError(err?.message || 'Network error connecting to MTD forecast service.');
     } finally {
       setMtdLoading(false);
     }
@@ -239,66 +315,49 @@ export default function DashboardPage() {
       ? Math.max(1, Math.min(7, Math.round((new Date(latestDbDateStr).getTime() - new Date(rawWeek.start_date).getTime()) / (1000 * 60 * 60 * 24)) + 1))
       : 7;
 
-    const rawBuyVal = rawWeek.buy_value_mil_lak ?? Math.round(Number(rawWeek.buy_weight_15g) * 15 * 3.14);
-    const rawSellVal = rawWeek.sell_value_mil_lak ?? Math.round(Number(rawWeek.sell_weight_15g) * 15 * 3.14);
+    const rawBuyVal = rawWeek.buy_value_mil_lak ?? 0;
+    const rawSellVal = rawWeek.sell_value_mil_lak ?? 0;
 
-    // Prorated 7-day run-rate based on dynamic elapsed days
+    // Prorated 7-day run-rate based on dynamic elapsed days using central math utility
     const currentWeek: WeeklyMetricRow = (isProratedWoW && isPartial)
-      ? {
-          ...rawWeek,
-          all_transactions: Math.round((rawWeek.all_transactions / elapsedDays) * 7),
-          active_users: Math.round((rawWeek.active_users / elapsedDays) * Math.min(7, elapsedDays * 1.5 + 2)),
-          new_registers: Math.round((rawWeek.new_registers / elapsedDays) * 7),
-          withdraw_gold_grams: Number(((Number(rawWeek.withdraw_gold_grams) / elapsedDays) * 7).toFixed(2)),
-          buy_weight_15g: Math.round((Number(rawWeek.buy_weight_15g) / elapsedDays) * 7),
-          buy_transactions: Math.round((rawWeek.buy_transactions / elapsedDays) * 7),
-          buy_value_mil_lak: Math.round((rawBuyVal / elapsedDays) * 7),
-          sell_weight_15g: Math.round((Number(rawWeek.sell_weight_15g) / elapsedDays) * 7),
-          sell_transactions: Math.round((rawWeek.sell_transactions / elapsedDays) * 7),
-          sell_value_mil_lak: Math.round((rawSellVal / elapsedDays) * 7),
-        }
+      ? prorateWeeklyRow(rawWeek, elapsedDays)
       : {
           ...rawWeek,
           buy_value_mil_lak: rawBuyVal,
           sell_value_mil_lak: rawSellVal,
         };
 
-    const calcVariance = (curr: number, prev: number | undefined): number => {
-      if (prev === undefined || prev === 0) return 0;
-      return Math.round(((curr - prev) / prev) * 100);
-    };
-
-    const prevBuyVal = previousWeek ? (previousWeek.buy_value_mil_lak ?? Math.round(Number(previousWeek.buy_weight_15g) * 15 * 3.14)) : undefined;
-    const prevSellVal = previousWeek ? (previousWeek.sell_value_mil_lak ?? Math.round(Number(previousWeek.sell_weight_15g) * 15 * 3.14)) : undefined;
+    const prevBuyVal = previousWeek ? (previousWeek.buy_value_mil_lak ?? 0) : undefined;
+    const prevSellVal = previousWeek ? (previousWeek.sell_value_mil_lak ?? 0) : undefined;
 
     const variances: MetricVariances = {
-      all_transactions: calcVariance(currentWeek.all_transactions, previousWeek?.all_transactions),
-      active_users: calcVariance(currentWeek.active_users, previousWeek?.active_users),
-      new_registers: calcVariance(currentWeek.new_registers, previousWeek?.new_registers),
-      withdraw_gold_grams: calcVariance(
+      all_transactions: calculateVariance(currentWeek.all_transactions, previousWeek?.all_transactions),
+      active_users: calculateVariance(currentWeek.active_users, previousWeek?.active_users),
+      new_registers: calculateVariance(currentWeek.new_registers, previousWeek?.new_registers),
+      withdraw_gold_grams: calculateVariance(
         Number(currentWeek.withdraw_gold_grams),
         previousWeek ? Number(previousWeek.withdraw_gold_grams) : undefined
       ),
-      buy_weight_15g: calcVariance(
+      buy_weight_15g: calculateVariance(
         Number(currentWeek.buy_weight_15g),
         previousWeek ? Number(previousWeek.buy_weight_15g) : undefined
       ),
-      buy_transactions: calcVariance(currentWeek.buy_transactions, previousWeek?.buy_transactions),
-      buy_ticket_size_g: calcVariance(
+      buy_transactions: calculateVariance(currentWeek.buy_transactions, previousWeek?.buy_transactions),
+      buy_ticket_size_g: calculateVariance(
         Number(currentWeek.buy_ticket_size_g),
         previousWeek ? Number(previousWeek.buy_ticket_size_g) : undefined
       ),
-      buy_value_mil_lak: calcVariance(Number(currentWeek.buy_value_mil_lak), prevBuyVal),
-      sell_weight_15g: calcVariance(
+      buy_value_mil_lak: calculateVariance(Number(currentWeek.buy_value_mil_lak), prevBuyVal),
+      sell_weight_15g: calculateVariance(
         Number(currentWeek.sell_weight_15g),
         previousWeek ? Number(previousWeek.sell_weight_15g) : undefined
       ),
-      sell_transactions: calcVariance(currentWeek.sell_transactions, previousWeek?.sell_transactions),
-      sell_ticket_size_g: calcVariance(
+      sell_transactions: calculateVariance(currentWeek.sell_transactions, previousWeek?.sell_transactions),
+      sell_ticket_size_g: calculateVariance(
         Number(currentWeek.sell_ticket_size_g),
         previousWeek ? Number(previousWeek.sell_ticket_size_g) : undefined
       ),
-      sell_value_mil_lak: calcVariance(Number(currentWeek.sell_value_mil_lak), prevSellVal),
+      sell_value_mil_lak: calculateVariance(Number(currentWeek.sell_value_mil_lak), prevSellVal),
     };
 
     const effectiveIndex = activeIndex >= 0 ? activeIndex : history.length - 1;
@@ -340,6 +399,19 @@ export default function DashboardPage() {
       elapsedDays,
     };
   }, [weeklyData, sortedHistory, selectedWeekLabel, isProratedWoW, mtdData]);
+
+  // Target pacing memo for the Executive Pulse Banner
+  const pulseTargetPace = useMemo(() => {
+    if (mtdData?.metrics?.buy_transactions) {
+      const cur = mtdData.metrics.buy_transactions.current_mtd || 0;
+      const full = mtdData.metrics.buy_transactions.full_comp_month || 1;
+      const days = mtdData.elapsed_days || activeWeeklyMetrics?.elapsedDays || 18;
+      const tot = mtdData.total_days_current_month || 31;
+      const proratedTarget = full * (days / tot);
+      return proratedTarget > 0 ? (cur / proratedTarget) * 100 : 100;
+    }
+    return 100;
+  }, [mtdData, activeWeeklyMetrics?.elapsedDays]);
 
   // Format date to DD/MM/YYYY
   const formatDisplayDate = (dateStr?: string) => {
@@ -554,12 +626,58 @@ export default function DashboardPage() {
           </div>
         </header>
 
-        {/* Tier 2: Executive Navigation Tabs Bar */}
-        <nav aria-label="Reporting Views Navigation" className="mb-4">
-          <div className="flex items-center bg-white p-1 rounded-xl border border-slate-300/80 shadow-xs flex-wrap gap-1 w-fit">
+        {/* Universal Executive Pulse Banner across all reporting views */}
+        <div className="mb-3.5">
+          <ExecutivePulseBanner
+            currentMonthLabel={mtdData?.current_month_label || 'Current Month'}
+            targetPacePct={pulseTargetPace}
+            isAheadOfTarget={pulseTargetPace >= 100}
+            daysGone={mtdData?.elapsed_days || activeWeeklyMetrics?.elapsedDays || 18}
+            totalDays={mtdData?.total_days_current_month || 31}
+            activeWeekLabel={activeWeeklyMetrics?.currentWeek?.week_label || 'Current Week'}
+            weeklyVolumeBaht={activeWeeklyMetrics ? Number(activeWeeklyMetrics.currentWeek.buy_weight_15g) : 0}
+            weeklyWoWVariance={activeWeeklyMetrics ? activeWeeklyMetrics.variances.buy_weight_15g : 0}
+            isPartialWeek={activeWeeklyMetrics?.isPartial ?? false}
+            isProrated={isProratedWoW}
+            netGoldFlowBaht={activeWeeklyMetrics?.netGoldFlow ?? 0}
+            totalTurnoverBaht={activeWeeklyMetrics?.totalGoldTurnover ?? 0}
+            orderFlowRatio={activeWeeklyMetrics?.orderFlowRatio ?? '1.00'}
+            onNavigateTab={(tab) => handleTabChange(tab)}
+          />
+        </div>
+
+        {/* Weekly Summary Error Notice with Retry */}
+        {weeklyError && (
+          <div className="mb-3.5 p-3.5 rounded-2xl bg-amber-50 border border-amber-300 text-amber-900 text-xs flex items-center justify-between gap-3 shadow-xs">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+              <span>{weeklyError}</span>
+            </div>
             <button
+              onClick={() => fetchWeeklySummary()}
+              className="px-3 py-1.5 rounded-xl bg-brand-navy text-white font-bold hover:bg-brand-navyDark transition-all shrink-0 cursor-pointer shadow-xs"
+            >
+              Retry Weekly
+            </button>
+          </div>
+        )}
+
+        {/* Tier 2: Executive Navigation Tabs Bar (Accessible, Scrollable on Mobile <400px) */}
+        <nav aria-label="Reporting Views Navigation" className="mb-4">
+          <div
+            role="tablist"
+            aria-label="Executive Reporting Sections"
+            className="flex items-center bg-white p-1 rounded-xl border border-slate-300/80 shadow-xs flex-nowrap overflow-x-auto max-w-full gap-1 scrollbar-none"
+          >
+            <button
+              role="tab"
+              id="tab-targets"
+              aria-selected={activeReportTab === 'targets'}
+              aria-controls="panel-targets"
+              tabIndex={activeReportTab === 'targets' ? 0 : -1}
               onClick={() => handleTabChange('targets')}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+              onKeyDown={(e) => handleTabKeyDown(e, 'targets')}
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-all cursor-pointer shrink-0 whitespace-nowrap focus:outline-hidden focus:ring-2 focus:ring-brand-navy ${
                 activeReportTab === 'targets'
                   ? 'bg-brand-navy text-white shadow-xs'
                   : 'text-slate-700 hover:text-slate-900 hover:bg-slate-50'
@@ -572,8 +690,14 @@ export default function DashboardPage() {
               </span>
             </button>
             <button
+              role="tab"
+              id="tab-dynamic"
+              aria-selected={activeReportTab === 'dynamic'}
+              aria-controls="panel-dynamic"
+              tabIndex={activeReportTab === 'dynamic' ? 0 : -1}
               onClick={() => handleTabChange('dynamic')}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+              onKeyDown={(e) => handleTabKeyDown(e, 'dynamic')}
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-all cursor-pointer shrink-0 whitespace-nowrap focus:outline-hidden focus:ring-2 focus:ring-brand-navy ${
                 activeReportTab === 'dynamic'
                   ? 'bg-brand-navy text-white shadow-xs'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
@@ -583,8 +707,14 @@ export default function DashboardPage() {
               <span>Dynamic BI</span>
             </button>
             <button
+              role="tab"
+              id="tab-mtd"
+              aria-selected={activeReportTab === 'mtd'}
+              aria-controls="panel-mtd"
+              tabIndex={activeReportTab === 'mtd' ? 0 : -1}
               onClick={() => handleTabChange('mtd')}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+              onKeyDown={(e) => handleTabKeyDown(e, 'mtd')}
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-all cursor-pointer shrink-0 whitespace-nowrap focus:outline-hidden focus:ring-2 focus:ring-brand-navy ${
                 activeReportTab === 'mtd'
                   ? 'bg-brand-navy text-white shadow-xs'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
@@ -594,8 +724,14 @@ export default function DashboardPage() {
               <span>MTD Forecast</span>
             </button>
             <button
+              role="tab"
+              id="tab-weekly"
+              aria-selected={activeReportTab === 'weekly'}
+              aria-controls="panel-weekly"
+              tabIndex={activeReportTab === 'weekly' ? 0 : -1}
               onClick={() => handleTabChange('weekly')}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+              onKeyDown={(e) => handleTabKeyDown(e, 'weekly')}
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-all cursor-pointer shrink-0 whitespace-nowrap focus:outline-hidden focus:ring-2 focus:ring-brand-navy ${
                 activeReportTab === 'weekly'
                   ? 'bg-brand-navy text-white shadow-xs'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
@@ -605,8 +741,14 @@ export default function DashboardPage() {
               <span>WoW Trends</span>
             </button>
             <button
+              role="tab"
+              id="tab-pivot"
+              aria-selected={activeReportTab === 'pivot'}
+              aria-controls="panel-pivot"
+              tabIndex={activeReportTab === 'pivot' ? 0 : -1}
               onClick={() => handleTabChange('pivot')}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+              onKeyDown={(e) => handleTabKeyDown(e, 'pivot')}
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-all cursor-pointer shrink-0 whitespace-nowrap focus:outline-hidden focus:ring-2 focus:ring-brand-navy ${
                 activeReportTab === 'pivot'
                   ? 'bg-brand-navy text-white shadow-xs'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
@@ -616,8 +758,14 @@ export default function DashboardPage() {
               <span>Custom Pivot Profile</span>
             </button>
             <button
+              role="tab"
+              id="tab-campaign"
+              aria-selected={activeReportTab === 'campaign'}
+              aria-controls="panel-campaign"
+              tabIndex={activeReportTab === 'campaign' ? 0 : -1}
               onClick={() => handleTabChange('campaign')}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+              onKeyDown={(e) => handleTabKeyDown(e, 'campaign')}
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-all cursor-pointer shrink-0 whitespace-nowrap focus:outline-hidden focus:ring-2 focus:ring-brand-navy ${
                 activeReportTab === 'campaign'
                   ? 'bg-brand-navy text-white shadow-xs'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
@@ -629,19 +777,23 @@ export default function DashboardPage() {
           </div>
         </nav>
 
-        {/* TAB 0: MONTHLY RUN-RATE & 2026 TARGET TRACKING (Image 1, 2, 3) */}
+        {/* TAB 0: MONTHLY RUN-RATE & 2026 TARGET TRACKING */}
         {activeReportTab === 'targets' && (
-          <TargetReportView />
+          <div role="tabpanel" id="panel-targets" aria-labelledby="tab-targets" tabIndex={0} className="focus:outline-hidden">
+            <TargetReportView />
+          </div>
         )}
 
         {/* TAB: DYNAMIC BI PERFORMANCE & DAX MEASURES EXPLORER */}
         {activeReportTab === 'dynamic' && (
-          <DynamicReportView />
+          <div role="tabpanel" id="panel-dynamic" aria-labelledby="tab-dynamic" tabIndex={0} className="focus:outline-hidden">
+            <DynamicReportView />
+          </div>
         )}
 
-        {/* TAB 1: MTD & FORECAST REPORT (Requested by user) */}
+        {/* TAB 1: MTD & FORECAST REPORT */}
         {activeReportTab === 'mtd' && (
-          <div>
+          <div role="tabpanel" id="panel-mtd" aria-labelledby="tab-mtd" tabIndex={0} className="focus:outline-hidden">
             {mtdLoading && !mtdData ? (
               <div className="flex-1 flex flex-col items-center justify-center gap-3 py-24 text-slate-500">
                 <RefreshCw className="w-8 h-8 animate-spin text-brand-navy" />
@@ -654,13 +806,27 @@ export default function DashboardPage() {
                 loading={mtdLoading}
                 error={mtdError}
               />
+            ) : mtdError ? (
+              <div className="p-6 rounded-2xl bg-amber-50 border border-amber-300 text-amber-900 text-sm space-y-3">
+                <div className="font-bold flex items-center gap-2">
+                  <AlertTriangle className="w-5 h-5 text-amber-600" />
+                  <span>Unable to load MTD Forecast Report</span>
+                </div>
+                <p className="text-xs text-amber-800">{mtdError}</p>
+                <button
+                  onClick={() => fetchMtdData()}
+                  className="px-4 py-2 bg-brand-navy text-white text-xs font-bold rounded-xl shadow-xs hover:bg-brand-navyDark transition-all cursor-pointer"
+                >
+                  Retry Loading MTD
+                </button>
+              </div>
             ) : null}
           </div>
         )}
 
         {/* TAB 2: WEEK OVER WEEK (WoW) HISTORICAL REPORT */}
         {activeReportTab === 'weekly' && (
-          <div>
+          <div role="tabpanel" id="panel-weekly" aria-labelledby="tab-weekly" tabIndex={0} className="focus:outline-hidden">
             {/* Top Header Row for Weekly View */}
             <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4 mb-4 pb-2 border-b border-slate-200/80">
               {/* Left Title & Date */}
@@ -834,6 +1000,8 @@ export default function DashboardPage() {
                       variances={activeWeeklyMetrics.variances}
                       selectedWeek={selectedWeekLabel}
                       isPartialWeek={activeWeeklyMetrics.isPartial}
+                      elapsedDays={activeWeeklyMetrics.elapsedDays}
+                      isProratedWoW={isProratedWoW}
                     />
                   </section>
 
@@ -845,6 +1013,8 @@ export default function DashboardPage() {
                       variances={activeWeeklyMetrics.variances}
                       selectedWeek={selectedWeekLabel}
                       isPartialWeek={activeWeeklyMetrics.isPartial}
+                      elapsedDays={activeWeeklyMetrics.elapsedDays}
+                      isProratedWoW={isProratedWoW}
                     />
                   </section>
 
@@ -856,6 +1026,8 @@ export default function DashboardPage() {
                       variances={activeWeeklyMetrics.variances}
                       selectedWeek={selectedWeekLabel}
                       isPartialWeek={activeWeeklyMetrics.isPartial}
+                      elapsedDays={activeWeeklyMetrics.elapsedDays}
+                      isProratedWoW={isProratedWoW}
                     />
                   </section>
                 </div>
@@ -930,18 +1102,22 @@ export default function DashboardPage() {
 
         {/* TAB 3: CUSTOM REPORTING PROFILE (PIVOT STUDIO) */}
         {activeReportTab === 'pivot' && (
-          <PowerPivotStudio
-            currentUser={currentUser}
-            onOpenAuthModal={() => setIsAuthModalOpen(true)}
-          />
+          <div role="tabpanel" id="panel-pivot" aria-labelledby="tab-pivot" tabIndex={0} className="focus:outline-hidden">
+            <PowerPivotStudio
+              currentUser={currentUser}
+              onOpenAuthModal={() => setIsAuthModalOpen(true)}
+            />
+          </div>
         )}
 
         {/* TAB 4: CAMPAIGN TRACKING & TARGET INTELLIGENCE */}
         {activeReportTab === 'campaign' && (
-          <CampaignTrackingView
-            currentUser={currentUser}
-            onOpenAuthModal={() => setIsAuthModalOpen(true)}
-          />
+          <div role="tabpanel" id="panel-campaign" aria-labelledby="tab-campaign" tabIndex={0} className="focus:outline-hidden">
+            <CampaignTrackingView
+              currentUser={currentUser}
+              onOpenAuthModal={() => setIsAuthModalOpen(true)}
+            />
+          </div>
         )}
       </div>
 

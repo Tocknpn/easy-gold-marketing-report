@@ -97,25 +97,7 @@ export function MtdReportView({ initialData, onRefresh, loading = false, error =
     const day = parts.length === 3 ? (parseInt(parts[2], 10) || 18) : (initialData.elapsed_days || 18);
     const totalDays = initialData.total_days_current_month || new Date(currYear, currMonth, 0).getDate();
     
-    // Scale factor for branch and bank selection (historical share distribution)
-    let branchFactor = 1.0;
-    if (selectedBranch === 'hq') branchFactor = 0.38;
-    else if (selectedBranch === 'morning_market') branchFactor = 0.22;
-    else if (selectedBranch === 'vientiane_center') branchFactor = 0.18;
-    else if (selectedBranch === 'itecc') branchFactor = 0.11;
-    else if (selectedBranch === 'wattay') branchFactor = 0.06;
-    else if (selectedBranch === 'app') branchFactor = 0.05;
-
-    let bankFactor = 1.0;
-    if (selectedBank === 'bcel') bankFactor = 0.72;
-    else if (selectedBank === 'ldb') bankFactor = 0.13;
-    else if (selectedBank === 'jdb') bankFactor = 0.07;
-    else if (selectedBank === 'umoney') bankFactor = 0.05;
-    else if (selectedBank === 'mmoney') bankFactor = 0.03;
-
-    const combinedFilterFactor = branchFactor * bankFactor;
-
-    // Run-rate projection ratio
+    // 100% Real Consolidated Metrics (No synthetic branch/bank multipliers)
     let runRateMultiplier = totalDays / Math.max(1, day);
     if (forecastScenario === 'conservative') runRateMultiplier *= 0.90;
     if (forecastScenario === 'optimistic') runRateMultiplier *= 1.10;
@@ -132,14 +114,12 @@ export function MtdReportView({ initialData, onRefresh, loading = false, error =
       const mKey = key as keyof typeof updatedMetrics;
       const base = initialData.metrics[mKey];
 
-    const baseElapsed = initialData.elapsed_days || 18;
-    const dayFactor = day / baseElapsed;
-      const currentMtd = Math.round(base.current_mtd * dayFactor * combinedFilterFactor);
-      const compMtd = Math.round(base.comp_mtd * dayFactor * combinedFilterFactor);
+      const currentMtd = base.current_mtd;
+      const compMtd = base.comp_mtd;
       const mtdVar = compMtd > 0 ? Math.round(((currentMtd - compMtd) / compMtd) * 100) : 0;
       
       const estLanding = Math.round(currentMtd * runRateMultiplier);
-      const fullComp = Math.round(base.full_comp_month * combinedFilterFactor);
+      const fullComp = base.full_comp_month;
       const estVar = fullComp > 0 ? Math.round(((estLanding - fullComp) / fullComp) * 100) : 0;
 
       updatedMetrics[mKey] = {
@@ -248,16 +228,16 @@ export function MtdReportView({ initialData, onRefresh, loading = false, error =
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 pb-2 border-b border-slate-200/80">
         <div>
           {/* Main Title */}
-          <h1 className="text-2xl sm:text-3xl lg:text-[34px] font-black text-[#0c4ca3] tracking-tight flex items-center gap-2 flex-wrap">
+          <h1 className="text-2xl sm:text-3xl lg:text-[34px] font-black text-brand-navy tracking-tight flex items-center gap-2 flex-wrap">
             <span>Overall performance MTD and Forecast vs</span>
-            <span className="text-[#0c4ca3] underline decoration-[#0c4ca3]/30 underline-offset-4">
+            <span className="text-brand-navy underline decoration-brand-navy/30 underline-offset-4">
               {displayedData.comparison_month_label}
             </span>
           </h1>
 
           {/* Subtitle & Date Meta */}
           <div className="mt-1 flex items-center gap-2 sm:gap-3 flex-wrap">
-            <span className="text-xs sm:text-sm font-bold text-[#1d63b8] underline underline-offset-2">
+            <span className="text-xs sm:text-sm font-bold text-brand-navyLight underline underline-offset-2">
               Data up to date {displayedData.display_as_of_date}
             </span>
             <span className="text-slate-300">•</span>
@@ -271,7 +251,7 @@ export function MtdReportView({ initialData, onRefresh, loading = false, error =
             </span>
             <button
               onClick={() => setShowFormulaInfo(!showFormulaInfo)}
-              className="text-xs text-slate-500 hover:text-[#0c4ca3] font-medium flex items-center gap-1 transition-colors"
+              className="text-xs text-slate-500 hover:text-brand-navy font-medium flex items-center gap-1 transition-colors"
               title="Click to view formula calculation details"
             >
               <Info className="w-3.5 h-3.5 text-slate-400" />
@@ -288,7 +268,7 @@ export function MtdReportView({ initialData, onRefresh, loading = false, error =
               onClick={() => handleModeChange('calendar_days')}
               className={`px-2.5 py-1 rounded-lg transition-all ${
                 mode === 'calendar_days'
-                  ? 'bg-[#0c4ca3] text-white shadow-xs'
+                  ? 'bg-brand-navy text-white shadow-xs'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
               title="Compare based on calendar days elapsed"
@@ -299,7 +279,7 @@ export function MtdReportView({ initialData, onRefresh, loading = false, error =
               onClick={() => handleModeChange('working_days')}
               className={`px-2.5 py-1 rounded-lg flex items-center gap-1 transition-all ${
                 mode === 'working_days'
-                  ? 'bg-[#0c4ca3] text-white shadow-xs'
+                  ? 'bg-brand-navy text-white shadow-xs'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
               title="Compare based on same number of business working days"
@@ -311,11 +291,11 @@ export function MtdReportView({ initialData, onRefresh, loading = false, error =
 
           {/* Comparison Month Dropdown */}
           <div className="relative flex items-center">
-            <Calendar className="w-3.5 h-3.5 text-[#0c4ca3] absolute left-2.5 pointer-events-none" />
+            <Calendar className="w-3.5 h-3.5 text-brand-navy absolute left-2.5 pointer-events-none" />
             <select
               value={selectedCompMonth}
               onChange={(e) => handleCompMonthChange(e.target.value)}
-              className="text-xs font-black text-slate-800 bg-white border border-slate-300/80 rounded-xl pl-8 pr-3 py-1.5 shadow-xs cursor-pointer focus:ring-1 focus:ring-[#0c4ca3]"
+              className="text-xs font-black text-slate-800 bg-white border border-slate-300/80 rounded-xl pl-8 pr-3 py-1.5 shadow-xs cursor-pointer focus:ring-1 focus:ring-brand-navy"
               title="Select comparison month"
             >
               {(displayedData.available_months || [
@@ -336,10 +316,10 @@ export function MtdReportView({ initialData, onRefresh, loading = false, error =
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-slate-300/80 text-xs font-bold text-slate-700 hover:bg-slate-50 shadow-xs transition-all"
             title="Filter by Date Cutoff, Branch & Channel"
           >
-            <Filter className="w-3.5 h-3.5 text-[#0c4ca3]" />
+            <Filter className="w-3.5 h-3.5 text-brand-navy" />
             <span>Filters</span>
             {activeSlicersCount > 0 && (
-              <span className="w-4 h-4 rounded-full bg-[#0c4ca3] text-white text-[10px] flex items-center justify-center font-black">
+              <span className="w-4 h-4 rounded-full bg-brand-navy text-white text-[10px] flex items-center justify-center font-black">
                 {activeSlicersCount}
               </span>
             )}
@@ -365,7 +345,7 @@ export function MtdReportView({ initialData, onRefresh, loading = false, error =
           <button
             onClick={handleExportCsv}
             disabled={isExporting}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#e5a812] hover:bg-[#d4970b] text-slate-950 text-xs font-black shadow-xs transition-all"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-brand-gold hover:bg-brand-goldDark text-slate-950 text-xs font-black shadow-xs transition-all"
             title="Export MTD report to Excel/CSV"
           >
             <FileSpreadsheet className="w-3.5 h-3.5 text-slate-950" />
@@ -391,7 +371,7 @@ export function MtdReportView({ initialData, onRefresh, loading = false, error =
         <div className="bg-white rounded-2xl p-4 border border-slate-200/90 shadow-sm space-y-3 animate-in fade-in duration-200">
           <div className="flex items-center justify-between pb-2 border-b border-slate-100 flex-wrap gap-2">
             <div className="flex items-center gap-2">
-              <Filter className="w-4 h-4 text-[#0c4ca3]" />
+              <Filter className="w-4 h-4 text-brand-navy" />
               <span className="text-xs font-black uppercase tracking-wider text-slate-800">
                 MTD Multi-Dimensional Slicers &amp; Forecast Scenarios
               </span>
@@ -411,7 +391,7 @@ export function MtdReportView({ initialData, onRefresh, loading = false, error =
             {/* 1. As-Of Cutoff Date Picker */}
             <div className="flex flex-col gap-1">
               <label className="text-[11px] font-bold text-slate-600 flex items-center gap-1.5">
-                <Calendar className="w-3.5 h-3.5 text-[#0c4ca3]" />
+                <Calendar className="w-3.5 h-3.5 text-brand-navy" />
                 <span>Cutoff As-Of Date</span>
               </label>
               <input
@@ -420,54 +400,34 @@ export function MtdReportView({ initialData, onRefresh, loading = false, error =
                 min="2025-01-01"
                 max="2026-12-31"
                 onChange={(e) => setAsOfDate(e.target.value)}
-                className="text-xs font-semibold bg-slate-50 border border-slate-300 rounded-xl px-2.5 py-1.5 focus:ring-2 focus:ring-[#0c4ca3] focus:outline-hidden text-slate-800"
+                className="text-xs font-semibold bg-slate-50 border border-slate-300 rounded-xl px-2.5 py-1.5 focus:ring-2 focus:ring-brand-navy focus:outline-hidden text-slate-800"
               />
             </div>
 
-            {/* 2. Branch Location Slicer */}
-            <div className="flex flex-col gap-1">
+            {/* 2. Consolidated Scope Indicator */}
+            <div className="flex flex-col gap-1 sm:col-span-2">
               <label className="text-[11px] font-bold text-slate-600 flex items-center gap-1.5">
-                <Building2 className="w-3.5 h-3.5 text-[#0c4ca3]" />
-                <span>Branch Location</span>
+                <Building2 className="w-3.5 h-3.5 text-brand-navy" />
+                <span>Reporting Scope</span>
               </label>
-              <select
-                value={selectedBranch}
-                onChange={(e) => setSelectedBranch(e.target.value)}
-                className="text-xs font-semibold bg-slate-50 border border-slate-300 rounded-xl px-2.5 py-1.5 focus:ring-2 focus:ring-[#0c4ca3] focus:outline-hidden text-slate-800"
-              >
-                {branches.map((b) => (
-                  <option key={b.id} value={b.id}>{b.label}</option>
-                ))}
-              </select>
+              <div className="text-xs font-bold bg-slate-100/80 border border-slate-300 text-slate-800 rounded-xl px-3 py-1.5 flex items-center justify-between">
+                <span>Company-Wide Consolidated (All Branches &amp; Banks)</span>
+                <span className="text-[10px] font-mono text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                  100% Real Parity
+                </span>
+              </div>
             </div>
 
-            {/* 3. Settlement Bank Channel */}
+            {/* 3. Forecast Model Scenario */}
             <div className="flex flex-col gap-1">
               <label className="text-[11px] font-bold text-slate-600 flex items-center gap-1.5">
-                <Landmark className="w-3.5 h-3.5 text-[#0c4ca3]" />
-                <span>Settlement Bank</span>
-              </label>
-              <select
-                value={selectedBank}
-                onChange={(e) => setSelectedBank(e.target.value)}
-                className="text-xs font-semibold bg-slate-50 border border-slate-300 rounded-xl px-2.5 py-1.5 focus:ring-2 focus:ring-[#0c4ca3] focus:outline-hidden text-slate-800"
-              >
-                {banks.map((b) => (
-                  <option key={b.id} value={b.id}>{b.label}</option>
-                ))}
-              </select>
-            </div>
-
-            {/* 4. Forecast Model Scenario */}
-            <div className="flex flex-col gap-1">
-              <label className="text-[11px] font-bold text-slate-600 flex items-center gap-1.5">
-                <Sparkles className="w-3.5 h-3.5 text-[#0c4ca3]" />
+                <Sparkles className="w-3.5 h-3.5 text-brand-navy" />
                 <span>Forecast Model Scenario</span>
               </label>
               <select
                 value={forecastScenario}
                 onChange={(e) => setForecastScenario(e.target.value as any)}
-                className="text-xs font-semibold bg-blue-50/60 border border-blue-200 text-[#0c4ca3] rounded-xl px-2.5 py-1.5 focus:ring-2 focus:ring-[#0c4ca3] focus:outline-hidden"
+                className="text-xs font-semibold bg-blue-50/60 border border-blue-200 text-brand-navy rounded-xl px-2.5 py-1.5 focus:ring-2 focus:ring-brand-navy focus:outline-hidden"
               >
                 <option value="standard">Linear Run-Rate (Standard)</option>
                 <option value="working_days">Working-Days Velocity (Mon-Sat)</option>
@@ -476,15 +436,12 @@ export function MtdReportView({ initialData, onRefresh, loading = false, error =
                 <option value="optimistic">Optimistic (+10% Month-End Rally)</option>
               </select>
             </div>
-
-            {(selectedBranch !== 'all' || selectedBank !== 'all') && (
-              <div className="col-span-full bg-amber-50 border border-amber-200 text-amber-900 text-[11px] rounded-xl px-3 py-1.5 flex items-center gap-2">
-                <Info className="w-3.5 h-3.5 text-amber-700 shrink-0" />
-                <span>
-                  <strong>Channel Distribution Estimate:</strong> Applying historical channel share. For exact ledger counts and sums by bank or branch, view <strong>Dynamic BI</strong> or <strong>Power Pivot Studio</strong>.
-                </span>
-              </div>
-            )}
+          </div>
+          <div className="bg-slate-50 border border-slate-200 text-slate-600 text-[11px] rounded-xl px-3 py-1.5 flex items-center gap-2">
+            <Info className="w-3.5 h-3.5 text-brand-navy shrink-0" />
+            <span>
+              <strong>Note:</strong> MTD Forecast displays certified company-wide consolidated ledger metrics. For granular ad-hoc bank or branch dimensional analysis, switch to <strong>Dynamic BI</strong> or <strong>Power Pivot Studio</strong>.
+            </span>
           </div>
         </div>
       )}
@@ -494,7 +451,7 @@ export function MtdReportView({ initialData, onRefresh, loading = false, error =
         <div className="bg-gradient-to-r from-blue-50 to-indigo-50/70 border border-blue-200/80 rounded-xl p-3.5 text-xs text-slate-700 animate-in fade-in duration-200 shadow-xs">
           <div className="flex items-start justify-between gap-3">
             <div className="flex items-start gap-2.5">
-              <Sparkles className="w-4 h-4 text-[#0c4ca3] shrink-0 mt-0.5" />
+              <Sparkles className="w-4 h-4 text-brand-navy shrink-0 mt-0.5" />
               <div className="space-y-1">
                 <p className="font-bold text-slate-900">
                   Business Intelligence Methodology (MTD &amp; Forecast Landing):
@@ -528,7 +485,7 @@ export function MtdReportView({ initialData, onRefresh, loading = false, error =
       {/* 2. Main Executive Grid OR Empty "Ready to Calculate" State */}
       {!hasExecuted ? (
         <div className="bg-white rounded-3xl p-8 sm:p-14 border-2 border-dashed border-slate-300 text-center flex flex-col items-center justify-center space-y-4 shadow-xs animate-in fade-in duration-200">
-          <div className="w-16 h-16 rounded-3xl bg-blue-50 text-[#0c4ca3] flex items-center justify-center border border-blue-200 shadow-inner">
+          <div className="w-16 h-16 rounded-3xl bg-blue-50 text-brand-navy flex items-center justify-center border border-blue-200 shadow-inner">
             <Calendar className="w-8 h-8 stroke-[2.2]" />
           </div>
 

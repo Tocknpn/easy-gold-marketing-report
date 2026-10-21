@@ -25,8 +25,11 @@ export function FreshnessBadge({ onTriggerRefresh }: FreshnessBadgeProps) {
     try {
       const res = await fetch('/api/dashboard/health');
       if (res.ok) {
-        const json = await res.json();
-        if (json.latest_data_date) setLatestDbDate(json.latest_data_date);
+        const contentType = res.headers.get('content-type') || '';
+        if (contentType.includes('application/json')) {
+          const json = await res.json();
+          if (json?.latest_data_date) setLatestDbDate(json.latest_data_date);
+        }
       }
     } catch {
       // Fallback

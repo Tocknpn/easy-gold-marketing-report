@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { ThemeSectionColor } from '@/lib/types/dashboard.types';
-import { WeeklyComboChart } from './WeeklyComboChart';
+import { SparklineChart } from './SparklineChart';
 
 interface MetricKpiCardProps {
   title: string;
@@ -41,69 +41,85 @@ export function MetricKpiCard({
         : value.toLocaleString()
       : value;
 
-  // Color accents for subtle card highlights
-  const accentBorderColors = {
-    blue: 'hover:border-blue-300 focus-within:border-blue-400',
-    green: 'hover:border-emerald-300 focus-within:border-emerald-400',
-    red: 'hover:border-rose-300 focus-within:border-rose-400',
+  // Curated border & indicator styling
+  const accentBorderColors: Record<string, string> = {
+    blue: 'border-slate-200/90 hover:border-blue-400 focus-within:border-blue-500',
+    green: 'border-slate-200/90 hover:border-emerald-400 focus-within:border-emerald-500',
+    indigo: 'border-slate-200/90 hover:border-indigo-400 focus-within:border-indigo-500',
+    purple: 'border-slate-200/90 hover:border-purple-400 focus-within:border-purple-500',
+    red: 'border-slate-200/90 hover:border-rose-400 focus-within:border-rose-500',
   };
 
-  const indicatorDots = {
+  const indicatorDots: Record<string, string> = {
     blue: 'bg-blue-600',
     green: 'bg-emerald-600',
+    indigo: 'bg-indigo-600',
+    purple: 'bg-purple-600',
     red: 'bg-rose-600',
   };
 
   return (
-    <div className={`bg-white rounded-xl border border-slate-200/90 p-3 sm:p-3.5 shadow-[0_1px_4px_rgba(0,0,0,0.05)] hover:shadow-md transition-all duration-200 flex flex-col justify-between group ${accentBorderColors[themeColor]}`}>
-      {/* Top Header & Metric */}
+    <div
+      className={`bg-white rounded-xl border p-3 sm:p-3.5 shadow-2xs hover:shadow-xs transition-all duration-150 flex flex-col justify-between group ${
+        accentBorderColors[themeColor] || accentBorderColors.blue
+      }`}
+    >
       <div>
-        {/* Title Row with Status Dot */}
+        {/* Title Row with Domain Status Indicator */}
         <div className="flex items-center justify-between gap-1 mb-1.5">
           <div className="flex items-center gap-1.5 min-w-0">
-            <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${indicatorDots[themeColor]}`} />
+            <span
+              className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                indicatorDots[themeColor] || indicatorDots.blue
+              }`}
+            />
             <h4 className="font-bold text-slate-700 text-xs sm:text-[13px] tracking-tight truncate" title={title}>
               {title}
             </h4>
           </div>
           {subtitle && (
-            <span className="text-xs text-slate-500 font-medium shrink-0">
+            <span className="text-[11px] text-slate-500 font-semibold shrink-0 uppercase tracking-wider">
               {subtitle}
             </span>
           )}
         </div>
 
-        {/* Hero KPI Metric + Variance Badge Row */}
+        {/* Hero KPI Number + Variance Badge */}
         <div className="flex items-baseline justify-between gap-2 my-1">
-          {/* Main Number */}
-          <div className="text-2xl sm:text-[26px] lg:text-[28px] font-black text-slate-900 tracking-tight font-mono tabular-nums leading-none">
+          <div className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight font-mono tabular-nums leading-none">
             {formattedValue}
           </div>
 
           {/* Variance Badge */}
           <div className="shrink-0">
             {isNeutral && (
-              <span className="px-2 py-0.5 rounded-md text-xs font-bold font-mono tabular-nums bg-slate-100 text-slate-600 border border-slate-200">
+              <span className="px-1.5 py-0.5 rounded text-[11px] font-bold font-mono tabular-nums bg-slate-100 text-slate-600 border border-slate-200">
                 0%
               </span>
             )}
             {isPositive && (
-              <span className="px-2 py-0.5 rounded-md text-xs font-bold font-mono tabular-nums bg-emerald-50 text-emerald-700 border border-emerald-200/80 flex items-center gap-0.5 shadow-2xs">
-                ▲ {variancePercent}%
+              <span className="px-1.5 py-0.5 rounded text-[11px] font-bold font-mono tabular-nums bg-emerald-50 text-emerald-700 border border-emerald-200/80">
+                +{variancePercent}%
               </span>
             )}
             {isNegative && (
-              <span className="px-2 py-0.5 rounded-md text-xs font-bold font-mono tabular-nums bg-rose-50 text-brand-outflowLight border border-rose-200/80 flex items-center gap-0.5 shadow-2xs">
-                ▼ {Math.abs(variancePercent)}%
+              <span
+                className={`px-1.5 py-0.5 rounded text-[11px] font-bold font-mono tabular-nums border ${
+                  themeColor === 'indigo' || themeColor === 'purple'
+                    ? 'bg-slate-100 text-slate-700 border-slate-200'
+                    : 'bg-rose-50 text-rose-700 border-rose-200/80'
+                }`}
+              >
+                {variancePercent}%
               </span>
             )}
           </div>
         </div>
 
-        {/* Partial Week Prorated Context Badge (if applicable) */}
-        {isPartialWeek && proratedEstimate && (
-          <div className="flex items-center gap-1.5 text-xs text-amber-800 font-medium bg-amber-50/80 border border-amber-200/60 rounded-md px-2 py-0.5 mt-1">
-            <span>⚡ 7D Est:</span>
+        {/* Partial Week 7-Day Run-Rate Context Badge */}
+        {isPartialWeek && proratedEstimate !== undefined && (
+          <div className="flex items-center justify-between text-[11px] font-medium bg-amber-50/90 border border-amber-200/80 rounded-md px-2 py-0.5 mt-1 text-amber-900">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800">7D Run-Rate:</span>
             <span className="font-bold font-mono tabular-nums text-slate-900">
               {typeof proratedEstimate === 'number' ? proratedEstimate.toLocaleString() : proratedEstimate}
             </span>
@@ -111,14 +127,14 @@ export function MetricKpiCard({
         )}
       </div>
 
-      {/* Embedded 5-Week Trend Combo Chart */}
-      <div className="w-full h-24 sm:h-26 mt-2 pt-1 border-t border-slate-100">
-        <WeeklyComboChart
+      {/* Modern High-Clarity Sparkline Chart */}
+      <div className="w-full mt-2 pt-1.5 border-t border-slate-100">
+        <SparklineChart
           data={historyData}
           themeColor={themeColor}
-          isDecimal={isDecimal}
           selectedWeek={selectedWeek}
-          height={95}
+          isDecimal={isDecimal}
+          height={32}
         />
       </div>
     </div>

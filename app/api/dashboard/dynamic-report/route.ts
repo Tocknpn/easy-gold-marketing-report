@@ -71,46 +71,56 @@ export async function GET(request: NextRequest) {
     };
 
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    if (supabaseUrl && !supabaseUrl.includes('placeholder')) {
-      const supabase = createServerSupabaseClient();
-      const { data, error } = await supabase.rpc('get_dynamic_bi_report', {
-        p_start_date: startDate ? `${startDate}T00:00:00Z` : null,
-        p_end_date: endDate ? `${endDate}T23:59:59Z` : null,
-        p_banks: banks.length > 0 ? banks : null,
-        p_branches: branches.length > 0 ? branches : null,
-        p_tx_types: txTypes.length > 0 ? txTypes : null,
-        p_min_weight: minWeight,
-        p_max_weight: maxWeight,
-        p_min_amount: minAmount,
-        p_max_amount: maxAmount,
-        p_start_hour: startHour,
-        p_end_hour: endHour,
-        p_status: statusParam === 'all' ? null : statusParam,
-      });
-
-      if (!error && data && data.dax_measures) {
-        responseData = data;
-      } else {
-        responseData = calculateFilteredReport(filterState);
-      }
-    } else {
-      // Local calculation fallback
-      responseData = calculateFilteredReport(filterState);
+    if (!supabaseUrl || supabaseUrl.includes('placeholder')) {
+      return NextResponse.json(
+        { error: 'Supabase is not configured (NEXT_PUBLIC_SUPABASE_URL missing).' },
+        { status: 503 }
+      );
     }
-  } catch (err) {
-    console.error('Error generating dynamic report:', err);
-    responseData = calculateFilteredReport({
-      ...DEFAULT_FILTER_STATE,
-      startDate: new URL(request.url).searchParams.get('start_date') || DEFAULT_FILTER_STATE.startDate,
-      endDate: new URL(request.url).searchParams.get('end_date') || DEFAULT_FILTER_STATE.endDate,
-    });
-  }
 
-  return NextResponse.json(responseData, {
-    status: 200,
-    headers: {
-      'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300',
-      'CDN-Cache-Control': 'max-age=60',
-    },
-  });
+    const supabase = createServerSupabaseClient();
+    const { data, error } = await supabase.rpc('get_dynamic_bi_report', {
+      p_start_date: startDate ? `${startDate}T00:00:00Z` : null,
+      p_end_date: endDate ? `${endDate}T23:59:59Z` : null,
+      p_banks: banks.length > 0 ? banks : null,
+      p_branches: branches.length > 0 ? branches : null,
+      p_tx_types: txTypes.length > 0 ? txTypes : null,
+      p_min_weight: minWeight,
+      p_max_weight: maxWeight,
+      p_min_amount: minAmount,
+      p_max_amount: maxAmount,
+      p_start_hour: startHour,
+      p_end_hour: endHour,
+      p_status: statusParam === 'all' ? null : statusParam,
+    });
+
+    if (error) {
+      console.error('Error generating dynamic report RPC:', error);
+      return NextResponse.json(
+        { error: `Dynamic BI RPC failed: ${error.message}` },
+        { status: 502 }
+      );
+    }
+
+    if (!data || !data.dax_measures) {
+      return NextResponse.json(
+        { error: 'Dynamic BI report returned no data for the selected filter criteria.' },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json(data, {
+      status: 200,
+      headers: {
+        'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300',
+        'CDN-Cache-Control': 'max-age=60',
+      },
+    });
+  } catch (err: any) {
+    console.error('Error in dynamic report route:', err);
+    return NextResponse.json(
+      { error: err?.message || 'Internal error calculating dynamic report.' },
+      { status: 500 }
+    );
+  }
 }
