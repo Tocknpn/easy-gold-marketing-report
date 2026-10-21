@@ -6,8 +6,10 @@ export const runtime = 'edge';
 
 import { DEFAULT_WEEKLY_FALLBACK_DATA } from '@/lib/constants/weeklyData';
 
-export async function GET() {
+export async function GET(request: Request) {
   let responseData = DEFAULT_WEEKLY_FALLBACK_DATA;
+  const url = new URL(request.url);
+  const isRefresh = url.searchParams.get('refresh') === 'true';
 
   try {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -24,13 +26,20 @@ export async function GET() {
   }
 
   // Edge Caching for Cloudflare & Next.js
-  // s-maxage=300 (5 minutes edge cache), stale-while-revalidate=3600 (serve stale up to 1 hour while fetching update)
+  const cacheHeaders = isRefresh
+    ? {
+        'Cache-Control': 'no-store, no-cache, must-revalidate',
+        'CDN-Cache-Control': 'no-store',
+        'Cloudflare-CDN-Cache-Control': 'no-store',
+      }
+    : {
+        'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=3600',
+        'CDN-Cache-Control': 'max-age=300',
+        'Cloudflare-CDN-Cache-Control': 'max-age=300',
+      };
+
   return NextResponse.json(responseData, {
     status: 200,
-    headers: {
-      'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=3600',
-      'CDN-Cache-Control': 'max-age=300',
-      'Cloudflare-CDN-Cache-Control': 'max-age=300',
-    },
+    headers: cacheHeaders,
   });
 }

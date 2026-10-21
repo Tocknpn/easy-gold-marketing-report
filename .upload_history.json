@@ -36,5 +36,23 @@
     ],
     "uploaded_at": "2026-10-19 10:16:07",
     "status": "SUCCESS"
+  },
+  "transaction_histories_20-10-2026.xlsx": {
+    "mtime": 1792483718.6244466,
+    "rows": 5862,
+    "dates": [
+      "2026-10-19"
+    ],
+    "uploaded_at": "2026-10-21 12:11:29",
+    "status": "SUCCESS"
+  },
+  "transaction_histories_21-10-2026.csv": {
+    "mtime": 1792555117.9225645,
+    "rows": 9394,
+    "dates": [
+      "2026-10-20"
+    ],
+    "uploaded_at": "2026-10-21 12:12:04",
+    "status": "SUCCESS"
   }
 }

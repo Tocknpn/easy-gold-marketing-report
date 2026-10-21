@@ -270,11 +270,11 @@ def map_headers(raw_headers):
         # bank
         elif "ທະນາຄານ" in h or "bank" in h:
             mapping["bank"] = idx
-        # gold_weight
-        elif "ຍອດຄໍາ" in h or "weight" in h or "gold" in h:
+        # gold_weight (Handle both Lao Unicode vowel AM forms \u0eb3 and \u0ecd\u0eb2, plus English)
+        elif any(k in h for k in ("ຍອດຄໍາ", "ຍອດຄຳ", "ຄຳ", "ຄໍາ", "weight", "gold")):
             mapping["gold_weight"] = idx
         # total_amount
-        elif "ຖືກເປັນເງີນ" in h or "ຖືກເປັນເງິນ" in h or "amount" in h or "lak" in h or "ກີບ" in h:
+        elif any(k in h for k in ("ຖືກເປັນເງີນ", "ຖືກເປັນເງິນ", "amount", "lak", "ກີບ")):
             mapping["total_amount"] = idx
         # status
         elif "ສະຖານະ" in h or "status" in h:
@@ -283,30 +283,44 @@ def map_headers(raw_headers):
         elif "ສາຂາ" in h or "branch" in h:
             mapping["branch"] = idx
         # created_at
-        elif "ວັນທີ່" in h or "ວັນທີ" in h or "date" in h or "time" in h:
+        elif any(k in h for k in ("ວັນທີ່", "ວັນທີ", "date", "time")):
             mapping["created_at"] = idx
 
     return mapping
 
 
 def parse_excel_file(file_path):
-    """Reads an Excel file and returns parsed rows ready for monthly_data table."""
-    wb = openpyxl.load_workbook(file_path, data_only=True, read_only=True)
-    ws = wb.active
+    """Reads an Excel (.xlsx/.xls) or CSV (.csv) file and returns parsed rows ready for monthly_data table."""
+    ext = os.path.splitext(file_path)[1].lower()
 
-    rows_iter = ws.iter_rows(values_only=True)
-    try:
-        header_row = next(rows_iter)
-    except StopIteration:
-        wb.close()
-        return [], set()
+    if ext == ".csv":
+        import csv
+        with open(file_path, mode="r", encoding="utf-8-sig", errors="replace") as f:
+            reader = csv.reader(f)
+            try:
+                header_row = next(reader)
+            except StopIteration:
+                return [], set()
+            rows_data = [row for row in reader if any(row)]
+        rows_iter = iter(rows_data)
+        close_wb = lambda: None
+    else:
+        wb = openpyxl.load_workbook(file_path, data_only=True, read_only=True)
+        ws = wb.active
+        rows_iter = ws.iter_rows(values_only=True)
+        try:
+            header_row = next(rows_iter)
+        except StopIteration:
+            wb.close()
+            return [], set()
+        close_wb = wb.close
 
     hmap = map_headers(header_row)
 
     required = ["customer_name", "transaction_type", "created_at"]
     missing = [r for r in required if r not in hmap]
     if missing:
-        wb.close()
+        close_wb()
         raise ValueError(f"Missing required columns in {file_path}: {missing}")
 
     records = []
@@ -363,7 +377,7 @@ def parse_excel_file(file_path):
             "created_at": parsed_date,
         })
 
-    wb.close()
+    close_wb()
     return records, sorted(list(distinct_dates))
 
 
@@ -598,7 +612,7 @@ def main():
             log(f"[*] Please check that the drive is connected or specify --folder <path>", YELLOW)
             sys.exit(1)
 
-        patterns = [os.path.join(folder, "*.xlsx"), os.path.join(folder, "*.xls")]
+        patterns = [os.path.join(folder, "*.xlsx"), os.path.join(folder, "*.xls"), os.path.join(folder, "*.csv")]
         found = []
         for p in patterns:
             found.extend(glob.glob(p))
@@ -606,7 +620,7 @@ def main():
         target_files = [f for f in sorted(found) if not os.path.basename(f).startswith("~$")]
 
     if not target_files:
-        log(f"[*] No Excel files (.xlsx / .xls) found in '{args.folder}'.", YELLOW)
+        log(f"[*] No transaction files (.xlsx / .xls / .csv) found in '{args.folder}'.", YELLOW)
         sys.exit(0)
 
     log(f"[*] Found {len(target_files)} transaction file(s) in source location.", BLUE)
