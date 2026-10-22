@@ -37,11 +37,6 @@ function doPost(e) {
       var decodedBytes = Utilities.base64Decode(data.pdfBase64);
       var visualPdfBlob = Utilities.newBlob(decodedBytes, 'application/pdf', 'Easy_Gold_Executive_Report_' + (data.reportDate || 'Daily') + '.pdf');
       attachments.push(visualPdfBlob);
-    } else if (data.pdfHtml || data.html) {
-      var reportContent = data.pdfHtml || data.html;
-      var htmlBlob = Utilities.newBlob(reportContent, 'text/html', 'report.html');
-      var fallbackPdf = htmlBlob.getAs('application/pdf').setName('Easy_Gold_Executive_Report_' + (data.reportDate || 'Daily') + '.pdf');
-      attachments.push(fallbackPdf);
     }
 
     var options = {
