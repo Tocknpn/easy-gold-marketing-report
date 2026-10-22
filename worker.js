@@ -1553,11 +1553,62 @@ WHERE created_at >= '${bwdStart}'
           ? body.recipient
           : recipient.split(',').map((e) => e.trim()).filter(Boolean);
 
-        let emailSent = false;
-        let emailError = null;
-        let provider = 'simulated';
+        const result = await executeEmailDispatch({
+          env,
+          recipientList,
+          reportDate,
+          triggerType: body.trigger_type || 'manual_test',
+        });
 
-        const emailHtml = `
+        return new Response(JSON.stringify({
+          success: result.emailSent || (!env.GOOGLE_APPS_SCRIPT_URL && !env.GOOGLE_SERVICE_ACCOUNT_KEY && !env.RESEND_API_KEY),
+          status: result.emailSent ? 'success' : (result.emailError ? 'failed' : 'simulated'),
+          sent: result.emailSent,
+          provider: result.provider,
+          recipient: result.recipient,
+          reportDate: result.reportDate,
+          hasServiceAccount: Boolean(env.GOOGLE_SERVICE_ACCOUNT_KEY),
+          hasGoogleAppsScript: Boolean(env.GOOGLE_APPS_SCRIPT_URL || env.GMAIL_PROXY_URL),
+          message: result.successMessage,
+          error: result.emailError || (!result.emailSent ? result.successMessage : null),
+        }), {
+          headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+        });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err?.message }), {
+          status: 500,
+          headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+        });
+      }
+    }
+
+    // 7. Serve all other static assets (HTML, CSS, JS, images) via Workers Static Assets
+    if (env.ASSETS) {
+      return env.ASSETS.fetch(request);
+    }
+
+    return new Response('Asset binding not found', { status: 404 });
+  },
+
+  // Cloudflare Workers Scheduled Cron Trigger Handler
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(handleCronTrigger(env));
+  },
+};
+
+// ============================================================================
+// Shared Email Dispatch Helper (used by both UI manual test and cron trigger)
+// ============================================================================
+async function executeEmailDispatch({ env, recipientList, reportDate, triggerType = 'manual_test' }) {
+  const recipient = recipientList.join(', ');
+  const supabaseUrl = env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey = env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  let emailSent = false;
+  let emailError = null;
+  let provider = 'simulated';
+
+  const emailHtml = `
 <!DOCTYPE html>
 <html>
 <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f8fafc; margin: 0; padding: 24px; color: #0f172a;">
@@ -1585,168 +1636,220 @@ WHERE created_at >= '${bwdStart}'
 </body>
 </html>`;
 
-        // 0. Attempt Google Apps Script Web App Gateway (Direct native Gmail dispatch)
-        const appsScriptUrl = env.GOOGLE_APPS_SCRIPT_URL || env.GMAIL_PROXY_URL;
-        if (appsScriptUrl) {
-          try {
-            const gasRes = await fetch(appsScriptUrl, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                to: recipientList.join(', '),
-                subject: `Easy Gold Executive Daily BI Report - ${reportDate}`,
-                html: emailHtml,
-                body: `Easy Gold Executive Daily BI Report for ${reportDate}`,
-              }),
-            });
+  // 0. Attempt Google Apps Script Web App Gateway (Direct native Gmail dispatch)
+  const appsScriptUrl = env.GOOGLE_APPS_SCRIPT_URL || env.GMAIL_PROXY_URL;
+  if (appsScriptUrl) {
+    try {
+      const gasRes = await fetch(appsScriptUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: recipientList.join(', '),
+          subject: `Easy Gold Executive Daily BI Report - ${reportDate}`,
+          html: emailHtml,
+          body: `Easy Gold Executive Daily BI Report for ${reportDate}`,
+          reportDate: reportDate,
+        }),
+      });
 
-            const gasData = await gasRes.json().catch(() => ({ success: gasRes.ok }));
-            if (gasRes.ok && gasData.success !== false) {
-              emailSent = true;
-              provider = 'google_apps_script';
-              emailError = null;
-            } else {
-              throw new Error(gasData.error || `Apps Script returned HTTP status ${gasRes.status}`);
-            }
-          } catch (gasErr) {
-            console.warn('Google Apps Script gateway dispatch error:', gasErr);
-            emailError = `Google Apps Script: ${gasErr.message || String(gasErr)}`;
-          }
-        }
+      const gasData = await gasRes.json().catch(() => ({ success: gasRes.ok }));
+      if (gasRes.ok && gasData.success !== false) {
+        emailSent = true;
+        provider = 'google_apps_script';
+        emailError = null;
+      } else {
+        throw new Error(gasData.error || `Apps Script returned HTTP status ${gasRes.status}`);
+      }
+    } catch (gasErr) {
+      console.warn('Google Apps Script gateway dispatch error:', gasErr);
+      emailError = `Google Apps Script: ${gasErr.message || String(gasErr)}`;
+    }
+  }
 
-        // 1. Attempt Google Service Account Gmail API delivery
-        const rawGoogleKey = env.GOOGLE_SERVICE_ACCOUNT_KEY;
-        if (!emailSent && rawGoogleKey) {
-          try {
-            let serviceAccountObj = null;
-            if (typeof rawGoogleKey === 'object') {
-              serviceAccountObj = rawGoogleKey;
-            } else if (typeof rawGoogleKey === 'string') {
-              serviceAccountObj = JSON.parse(rawGoogleKey.trim());
-            }
+  // 1. Attempt Google Service Account Gmail API delivery
+  const rawGoogleKey = env.GOOGLE_SERVICE_ACCOUNT_KEY;
+  if (!emailSent && rawGoogleKey) {
+    try {
+      let serviceAccountObj = null;
+      if (typeof rawGoogleKey === 'object') {
+        serviceAccountObj = rawGoogleKey;
+      } else if (typeof rawGoogleKey === 'string') {
+        serviceAccountObj = JSON.parse(rawGoogleKey.trim());
+      }
 
-            if (serviceAccountObj && serviceAccountObj.client_email && serviceAccountObj.private_key) {
-              const impersonateUser = env.GMAIL_IMPERSONATE_USER || env.GOOGLE_SERVICE_ACCOUNT_EMAIL || null;
-              const accessToken = await getGoogleServiceAccountToken(serviceAccountObj, impersonateUser);
+      if (serviceAccountObj && serviceAccountObj.client_email && serviceAccountObj.private_key) {
+        const impersonateUser = env.GMAIL_IMPERSONATE_USER || env.GOOGLE_SERVICE_ACCOUNT_EMAIL || null;
+        const accessToken = await getGoogleServiceAccountToken(serviceAccountObj, impersonateUser);
 
-              const sender = impersonateUser || serviceAccountObj.client_email;
-              await sendGmailWithServiceAccount({
-                accessToken,
-                fromEmail: sender,
-                toEmails: recipientList,
-                subject: `Easy Gold Executive Daily BI Report - ${reportDate}`,
-                htmlBody: emailHtml,
-              });
-
-              emailSent = true;
-              provider = 'google_service_account';
-            }
-          } catch (gErr) {
-            console.warn('Google Service Account Gmail API attempt failed:', gErr);
-            emailError = `Google Service Account: ${gErr.message || String(gErr)}`;
-          }
-        }
-
-        // 2. Fallback to Resend API if Google Service Account failed or not provided
-        if (!emailSent && env.RESEND_API_KEY) {
-          try {
-            const resendRes = await fetch('https://api.resend.com/emails', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${env.RESEND_API_KEY}`,
-              },
-              body: JSON.stringify({
-                from: env.RESEND_FROM || 'Easy Gold Report <onboarding@resend.dev>',
-                to: recipientList,
-                subject: `Easy Gold Executive Daily BI Report - ${reportDate}`,
-                html: emailHtml,
-              }),
-            });
-
-            const resendData = await resendRes.json();
-            if (resendRes.ok && resendData.id) {
-              emailSent = true;
-              provider = 'resend';
-              emailError = null; // Cleared since fallback succeeded
-            } else {
-              const rErr = resendData.message || JSON.stringify(resendData);
-              emailError = emailError ? `${emailError} | Resend: ${rErr}` : `Resend: ${rErr}`;
-            }
-          } catch (rErr) {
-            emailError = emailError ? `${emailError} | Resend: ${rErr.message}` : `Resend: ${rErr.message}`;
-          }
-        }
-
-        // 3. Log attempt into Supabase report_delivery_logs
-        if (supabaseUrl && supabaseKey) {
-          try {
-            await fetch(`${supabaseUrl}/rest/v1/report_delivery_logs`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                apikey: supabaseKey,
-                Authorization: `Bearer ${supabaseKey}`,
-              },
-              body: JSON.stringify({
-                report_date: reportDate,
-                sent_at: new Date().toISOString(),
-                recipient: recipient,
-                status: emailSent || (!env.GOOGLE_APPS_SCRIPT_URL && !env.GOOGLE_SERVICE_ACCOUNT_KEY && !env.RESEND_API_KEY) ? 'success' : 'failed',
-                trigger_type: body.trigger_type || 'manual_test',
-                subject: `Easy Gold Executive Daily BI Report - ${reportDate}`,
-                error_message: emailError || (!emailSent ? 'Simulated dispatch (No live credentials configured in Cloudflare)' : null),
-                execution_duration_ms: 150,
-              }),
-            });
-          } catch (logErr) {
-            console.error('Worker log insert error:', logErr);
-          }
-        }
-
-        const providerLabel = provider === 'google_apps_script'
-          ? 'Google Apps Script (from your Gmail)'
-          : provider === 'google_service_account'
-          ? 'Google Service Account Gmail API'
-          : provider === 'resend'
-          ? 'Resend'
-          : 'Simulation';
-
-        const successMessage = emailSent
-          ? `Daily report delivered to ${recipient} via ${providerLabel}`
-          : emailError
-          ? `Delivery attempt failed: ${emailError}`
-          : `Simulated dispatch logged. Set GOOGLE_APPS_SCRIPT_URL in Cloudflare Worker environment to send real emails directly from Gmail.`;
-
-        return new Response(JSON.stringify({
-          success: emailSent || (!env.GOOGLE_APPS_SCRIPT_URL && !env.GOOGLE_SERVICE_ACCOUNT_KEY && !env.RESEND_API_KEY),
-          status: emailSent ? 'success' : (emailError ? 'failed' : 'simulated'),
-          sent: emailSent,
-          provider,
-          recipient,
-          reportDate,
-          hasServiceAccount: Boolean(env.GOOGLE_SERVICE_ACCOUNT_KEY),
-          hasGoogleAppsScript: Boolean(env.GOOGLE_APPS_SCRIPT_URL || env.GMAIL_PROXY_URL),
-          message: successMessage,
-          error: emailError || (!emailSent ? successMessage : null),
-        }), {
-          headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+        const sender = impersonateUser || serviceAccountObj.client_email;
+        await sendGmailWithServiceAccount({
+          accessToken,
+          fromEmail: sender,
+          toEmails: recipientList,
+          subject: `Easy Gold Executive Daily BI Report - ${reportDate}`,
+          htmlBody: emailHtml,
         });
-      } catch (err) {
-        return new Response(JSON.stringify({ error: err?.message }), {
-          status: 500,
-          headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
-        });
+
+        emailSent = true;
+        provider = 'google_service_account';
+      }
+    } catch (gErr) {
+      console.warn('Google Service Account Gmail API attempt failed:', gErr);
+      emailError = `Google Service Account: ${gErr.message || String(gErr)}`;
+    }
+  }
+
+  // 2. Fallback to Resend API if Google Service Account failed or not provided
+  if (!emailSent && env.RESEND_API_KEY) {
+    try {
+      const resendRes = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${env.RESEND_API_KEY}`,
+        },
+        body: JSON.stringify({
+          from: env.RESEND_FROM || 'Easy Gold Report <onboarding@resend.dev>',
+          to: recipientList,
+          subject: `Easy Gold Executive Daily BI Report - ${reportDate}`,
+          html: emailHtml,
+        }),
+      });
+
+      const resendData = await resendRes.json();
+      if (resendRes.ok && resendData.id) {
+        emailSent = true;
+        provider = 'resend';
+        emailError = null;
+      } else {
+        const rErr = resendData.message || JSON.stringify(resendData);
+        emailError = emailError ? `${emailError} | Resend: ${rErr}` : `Resend: ${rErr}`;
+      }
+    } catch (rErr) {
+      emailError = emailError ? `${emailError} | Resend: ${rErr.message}` : `Resend: ${rErr.message}`;
+    }
+  }
+
+  // 3. Log attempt into Supabase report_delivery_logs
+  if (supabaseUrl && supabaseKey) {
+    try {
+      await fetch(`${supabaseUrl}/rest/v1/report_delivery_logs`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: supabaseKey,
+          Authorization: `Bearer ${supabaseKey}`,
+        },
+        body: JSON.stringify({
+          report_date: reportDate,
+          sent_at: new Date().toISOString(),
+          recipient: recipient,
+          status: emailSent || (!env.GOOGLE_APPS_SCRIPT_URL && !env.GOOGLE_SERVICE_ACCOUNT_KEY && !env.RESEND_API_KEY) ? 'success' : 'failed',
+          trigger_type: triggerType,
+          subject: `Easy Gold Executive Daily BI Report - ${reportDate}`,
+          error_message: emailError || (!emailSent ? 'Simulated dispatch (No live credentials configured in Cloudflare)' : null),
+          execution_duration_ms: 150,
+        }),
+      });
+    } catch (logErr) {
+      console.error('Worker log insert error:', logErr);
+    }
+  }
+
+  const providerLabel = provider === 'google_apps_script'
+    ? 'Google Apps Script (from your Gmail)'
+    : provider === 'google_service_account'
+    ? 'Google Service Account Gmail API'
+    : provider === 'resend'
+    ? 'Resend'
+    : 'Simulation';
+
+  const successMessage = emailSent
+    ? `Daily report delivered to ${recipient} via ${providerLabel}`
+    : emailError
+    ? `Delivery attempt failed: ${emailError}`
+    : `Simulated dispatch logged. Set GOOGLE_APPS_SCRIPT_URL in Cloudflare Worker environment to send real emails directly from Gmail.`;
+
+  return {
+    emailSent,
+    emailError,
+    provider,
+    recipient,
+    reportDate,
+    successMessage,
+  };
+}
+
+// ============================================================================
+// Automated Cron Scheduler (Executed every minute by Cloudflare Workers)
+// ============================================================================
+async function handleCronTrigger(env) {
+  const supabaseUrl = env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey = env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!supabaseUrl || !supabaseKey) return;
+
+  try {
+    const settingsRes = await fetch(`${supabaseUrl}/rest/v1/report_schedule_settings?id=eq.1&select=*`, {
+      headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` },
+    });
+    if (!settingsRes.ok) return;
+    const settingsRows = await settingsRes.json();
+    if (!settingsRows || !settingsRows[0]) return;
+    const s = settingsRows[0];
+
+    if (!s.is_active) {
+      return;
+    }
+
+    const timeZone = s.timezone || 'Asia/Vientiane';
+    const now = new Date();
+    const formatter = new Intl.DateTimeFormat('en-GB', {
+      timeZone,
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    });
+    const currentHHMM = formatter.format(now); // e.g. "22:54"
+    const targetHHMM = (s.send_time || '08:00').substring(0, 5);
+
+    if (currentHHMM !== targetHHMM) {
+      return;
+    }
+
+    const todayDate = new Intl.DateTimeFormat('en-CA', {
+      timeZone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(now); // "2026-10-22"
+
+    // Guard: Prevent double-dispatches if cron fires multiple times within the same minute
+    const checkLogRes = await fetch(
+      `${supabaseUrl}/rest/v1/report_delivery_logs?report_date=eq.${todayDate}&trigger_type=eq.scheduled&status=eq.success&select=id&limit=1`,
+      { headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` } }
+    );
+    if (checkLogRes.ok) {
+      const existing = await checkLogRes.json();
+      if (existing && existing.length > 0) {
+        console.log(`Cron: Daily report already delivered today (${todayDate}) at ${targetHHMM}`);
+        return;
       }
     }
 
-    // 7. Serve all other static assets (HTML, CSS, JS, images) via Workers Static Assets
+    const emailList = Array.isArray(s.target_emails)
+      ? s.target_emails
+      : typeof s.target_emails === 'string'
+      ? s.target_emails.split(',').map((e) => e.trim()).filter(Boolean)
+      : ['management@easygold.la'];
 
-
-    if (env.ASSETS) {
-      return env.ASSETS.fetch(request);
-    }
-
-    return new Response('Asset binding not found', { status: 404 });
-  },
-};
+    console.log(`Cron: Triggering scheduled daily dispatch for ${todayDate} (${targetHHMM}) to ${emailList.join(', ')}`);
+    await executeEmailDispatch({
+      env,
+      recipientList: emailList,
+      reportDate: todayDate,
+      triggerType: 'scheduled',
+    });
+  } catch (err) {
+    console.error('handleCronTrigger execution error:', err);
+  }
+}
