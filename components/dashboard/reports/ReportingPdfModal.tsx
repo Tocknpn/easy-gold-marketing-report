@@ -243,30 +243,55 @@ export function ReportingPdfModal({
         .map((em) => em.trim())
         .filter((em) => em.length > 0);
 
-      // Capture the full rendered 7-section executive report DOM for PDF attachment
-      const reportElem = document.querySelector('.executive-report-root');
-      const pdfHtml = reportElem ? `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <title>Easy Gold Executive Daily Report</title>
-  <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: #ffffff; padding: 24px; color: #0f172a; margin: 0; }
-    * { box-sizing: border-box; }
-    table { width: 100%; border-collapse: collapse; margin-bottom: 24px; font-size: 11px; }
-    th, td { border: 1px solid #e2e8f0; padding: 8px 10px; text-align: left; }
-    th { background: #f8fafc; font-weight: 700; color: #475569; }
-    .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
-    .card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; }
-    h1 { font-size: 20px; font-weight: 800; color: #0c4ca3; margin-bottom: 4px; }
-    h2, h3 { font-size: 14px; font-weight: 700; color: #0f172a; margin-top: 20px; margin-bottom: 8px; }
-  </style>
-</head>
-<body>
-  ${reportElem.innerHTML}
-</body>
-</html>`.trim() : null;
+      // Capture the visual report as a high-resolution PDF canvas (pixel-perfect matching web view)
+      let pdfBase64: string | null = null;
+      const reportElem = document.querySelector('.executive-report-root') as HTMLElement | null;
+      if (reportElem) {
+        try {
+          const html2canvas = (await import('html2canvas')).default;
+          const { jsPDF } = await import('jspdf');
+
+          const canvas = await html2canvas(reportElem, {
+            scale: 1.5,
+            useCORS: true,
+            logging: false,
+            backgroundColor: '#ffffff',
+            windowWidth: 1400,
+          });
+
+          const imgData = canvas.toDataURL('image/jpeg', 0.90);
+          const pdf = new jsPDF({
+            orientation: 'portrait',
+            unit: 'mm',
+            format: 'a4',
+          });
+
+          const pdfWidth = pdf.internal.pageSize.getWidth();
+          const pdfHeight = pdf.internal.pageSize.getHeight();
+          const imgWidth = canvas.width;
+          const imgHeight = canvas.height;
+          const ratio = pdfWidth / imgWidth;
+          const renderedHeight = imgHeight * ratio;
+
+          let heightLeft = renderedHeight;
+          let position = 0;
+
+          pdf.addImage(imgData, 'JPEG', 0, position, pdfWidth, renderedHeight, undefined, 'FAST');
+          heightLeft -= pdfHeight;
+
+          while (heightLeft > 0) {
+            position = heightLeft - renderedHeight;
+            pdf.addPage();
+            pdf.addImage(imgData, 'JPEG', 0, position, pdfWidth, renderedHeight, undefined, 'FAST');
+            heightLeft -= pdfHeight;
+          }
+
+          const dataUri = pdf.output('datauristring');
+          pdfBase64 = dataUri.split(',')[1] || null;
+        } catch (canvasErr) {
+          console.warn('Canvas PDF capture warning:', canvasErr);
+        }
+      }
 
       const res = await fetch('/api/reports/send-daily-email', {
         method: 'POST',
@@ -274,7 +299,7 @@ export function ReportingPdfModal({
         body: JSON.stringify({
           recipient: emailList,
           trigger_type: 'manual_test',
-          pdfHtml,
+          pdfBase64,
         }),
       });
 

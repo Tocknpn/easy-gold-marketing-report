@@ -31,13 +31,17 @@ function doPost(e) {
     var htmlBody = data.html || "<p>Daily Report Dispatch</p>";
     var plainBody = data.body || "Please open in an HTML-compatible email client.";
 
-    // If full PDF report HTML is provided, convert to PDF attachment (fallback to data.html)
+    // Attach exact pixel-perfect Visual PDF (from web canvas screenshot)
     var attachments = [];
-    var reportContent = data.pdfHtml || data.html || null;
-    if (reportContent) {
+    if (data.pdfBase64) {
+      var decodedBytes = Utilities.base64Decode(data.pdfBase64);
+      var visualPdfBlob = Utilities.newBlob(decodedBytes, 'application/pdf', 'Easy_Gold_Executive_Report_' + (data.reportDate || 'Daily') + '.pdf');
+      attachments.push(visualPdfBlob);
+    } else if (data.pdfHtml || data.html) {
+      var reportContent = data.pdfHtml || data.html;
       var htmlBlob = Utilities.newBlob(reportContent, 'text/html', 'report.html');
-      var pdfBlob = htmlBlob.getAs('application/pdf').setName('Easy_Gold_Executive_Report_' + (data.reportDate || 'Daily') + '.pdf');
-      attachments.push(pdfBlob);
+      var fallbackPdf = htmlBlob.getAs('application/pdf').setName('Easy_Gold_Executive_Report_' + (data.reportDate || 'Daily') + '.pdf');
+      attachments.push(fallbackPdf);
     }
 
     var options = {
