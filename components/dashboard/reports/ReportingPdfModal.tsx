@@ -243,12 +243,38 @@ export function ReportingPdfModal({
         .map((em) => em.trim())
         .filter((em) => em.length > 0);
 
+      // Capture the full rendered 7-section executive report DOM for PDF attachment
+      const reportElem = document.querySelector('.executive-report-root');
+      const pdfHtml = reportElem ? `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Easy Gold Executive Daily Report</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: #ffffff; padding: 24px; color: #0f172a; margin: 0; }
+    * { box-sizing: border-box; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 24px; font-size: 11px; }
+    th, td { border: 1px solid #e2e8f0; padding: 8px 10px; text-align: left; }
+    th { background: #f8fafc; font-weight: 700; color: #475569; }
+    .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
+    .card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; }
+    h1 { font-size: 20px; font-weight: 800; color: #0c4ca3; margin-bottom: 4px; }
+    h2, h3 { font-size: 14px; font-weight: 700; color: #0f172a; margin-top: 20px; margin-bottom: 8px; }
+  </style>
+</head>
+<body>
+  ${reportElem.innerHTML}
+</body>
+</html>`.trim() : null;
+
       const res = await fetch('/api/reports/send-daily-email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           recipient: emailList,
           trigger_type: 'manual_test',
+          pdfHtml,
         }),
       });
 

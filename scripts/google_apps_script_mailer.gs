@@ -31,11 +31,25 @@ function doPost(e) {
     var htmlBody = data.html || "<p>Daily Report Dispatch</p>";
     var plainBody = data.body || "Please open in an HTML-compatible email client.";
 
-    // Send email using native GmailApp
-    GmailApp.sendEmail(recipients, subject, plainBody, {
+    // If full PDF report HTML is provided, convert to PDF attachment
+    var attachments = [];
+    var reportContent = data.pdfHtml || null;
+    if (reportContent) {
+      var htmlBlob = Utilities.newBlob(reportContent, 'text/html', 'report.html');
+      var pdfBlob = htmlBlob.getAs('application/pdf').setName('Easy_Gold_Executive_Report_' + (data.reportDate || 'Daily') + '.pdf');
+      attachments.push(pdfBlob);
+    }
+
+    var options = {
       htmlBody: htmlBody,
       name: "Easy Gold Executive Report"
-    });
+    };
+    if (attachments.length > 0) {
+      options.attachments = attachments;
+    }
+
+    // Send email using native GmailApp
+    GmailApp.sendEmail(recipients, subject, plainBody, options);
 
     return ContentService.createTextOutput(JSON.stringify({
       success: true,

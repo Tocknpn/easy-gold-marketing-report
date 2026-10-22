@@ -1567,6 +1567,7 @@ WHERE created_at >= '${bwdStart}'
           recipientList,
           reportDate,
           triggerType: body.trigger_type || 'manual_test',
+          pdfHtml: body.pdfHtml || null,
         });
 
         return new Response(JSON.stringify({
@@ -1608,7 +1609,7 @@ WHERE created_at >= '${bwdStart}'
 // ============================================================================
 // Shared Email Dispatch Helper (used by both UI manual test and cron trigger)
 // ============================================================================
-async function executeEmailDispatch({ env, recipientList, reportDate, triggerType = 'manual_test' }) {
+async function executeEmailDispatch({ env, recipientList, reportDate, triggerType = 'manual_test', pdfHtml = null }) {
   const recipient = recipientList.join(', ');
   const supabaseUrl = env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -1656,6 +1657,7 @@ async function executeEmailDispatch({ env, recipientList, reportDate, triggerTyp
           to: recipientList.join(', '),
           subject: `Easy Gold Executive Daily BI Report - ${reportDate}`,
           html: emailHtml,
+          pdfHtml: pdfHtml,
           body: `Easy Gold Executive Daily BI Report for ${reportDate}`,
           reportDate: reportDate,
         }),
