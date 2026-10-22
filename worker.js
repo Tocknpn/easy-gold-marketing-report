@@ -1541,6 +1541,15 @@ WHERE created_at >= '${bwdStart}'
       });
     }
 
+    // 5b. API Route: /api/reports/cron-check (Test/Verify Cron Engine)
+    if (url.pathname === '/api/reports/cron-check') {
+      const force = url.searchParams.get('force') === 'true';
+      const result = await handleCronTrigger(env, force);
+      return new Response(JSON.stringify(result || { status: 'checked', timestamp: new Date().toISOString() }), {
+        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+      });
+    }
+
     // 6. API Route: /api/reports/send-daily-email (POST)
     if (url.pathname === '/api/reports/send-daily-email') {
       try {
@@ -1783,22 +1792,22 @@ async function executeEmailDispatch({ env, recipientList, reportDate, triggerTyp
 // ============================================================================
 // Automated Cron Scheduler (Executed every minute by Cloudflare Workers)
 // ============================================================================
-async function handleCronTrigger(env) {
+async function handleCronTrigger(env, forceRun = false) {
   const supabaseUrl = env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!supabaseUrl || !supabaseKey) return;
+  if (!supabaseUrl || !supabaseKey) return { error: 'Supabase credentials missing' };
 
   try {
     const settingsRes = await fetch(`${supabaseUrl}/rest/v1/report_schedule_settings?id=eq.1&select=*`, {
       headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` },
     });
-    if (!settingsRes.ok) return;
+    if (!settingsRes.ok) return { error: `Failed to fetch settings: ${settingsRes.status}` };
     const settingsRows = await settingsRes.json();
-    if (!settingsRows || !settingsRows[0]) return;
+    if (!settingsRows || !settingsRows[0]) return { error: 'No schedule settings found' };
     const s = settingsRows[0];
 
-    if (!s.is_active) {
-      return;
+    if (!s.is_active && !forceRun) {
+      return { skipped: true, reason: 'Scheduler is paused (is_active is false)' };
     }
 
     const timeZone = s.timezone || 'Asia/Vientiane';
@@ -1809,11 +1818,25 @@ async function handleCronTrigger(env) {
       minute: '2-digit',
       hour12: false,
     });
-    const currentHHMM = formatter.format(now); // e.g. "22:54"
+    const currentHHMM = formatter.format(now); // e.g. "23:14"
     const targetHHMM = (s.send_time || '08:00').substring(0, 5);
 
-    if (currentHHMM !== targetHHMM) {
-      return;
+    // Calculate minute difference to allow a resilient 10-minute dispatch window
+    const [curH, curM] = currentHHMM.split(':').map(Number);
+    const [tgtH, tgtM] = targetHHMM.split(':').map(Number);
+    const curTotalMin = curH * 60 + curM;
+    const tgtTotalMin = tgtH * 60 + tgtM;
+    const diff = curTotalMin - tgtTotalMin;
+
+    const inWindow = diff >= 0 && diff <= 10;
+    if (!inWindow && !forceRun) {
+      return {
+        skipped: true,
+        reason: `Current time ${currentHHMM} does not match target ${targetHHMM} (diff: ${diff} mins)`,
+        currentTime: currentHHMM,
+        targetTime: targetHHMM,
+        timeZone,
+      };
     }
 
     const todayDate = new Intl.DateTimeFormat('en-CA', {
@@ -1823,16 +1846,21 @@ async function handleCronTrigger(env) {
       day: '2-digit',
     }).format(now); // "2026-10-22"
 
-    // Guard: Prevent double-dispatches if cron fires multiple times within the same minute
-    const checkLogRes = await fetch(
-      `${supabaseUrl}/rest/v1/report_delivery_logs?report_date=eq.${todayDate}&trigger_type=eq.scheduled&status=eq.success&select=id&limit=1`,
-      { headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` } }
-    );
-    if (checkLogRes.ok) {
-      const existing = await checkLogRes.json();
-      if (existing && existing.length > 0) {
-        console.log(`Cron: Daily report already delivered today (${todayDate}) at ${targetHHMM}`);
-        return;
+    // Guard: Prevent double-dispatches if cron fires multiple times within the window
+    if (!forceRun) {
+      const checkLogRes = await fetch(
+        `${supabaseUrl}/rest/v1/report_delivery_logs?report_date=eq.${todayDate}&trigger_type=eq.scheduled&status=eq.success&select=id&limit=1`,
+        { headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` } }
+      );
+      if (checkLogRes.ok) {
+        const existing = await checkLogRes.json();
+        if (existing && existing.length > 0) {
+          return {
+            skipped: true,
+            reason: `Daily report already successfully dispatched today (${todayDate})`,
+            reportDate: todayDate,
+          };
+        }
       }
     }
 
@@ -1842,14 +1870,23 @@ async function handleCronTrigger(env) {
       ? s.target_emails.split(',').map((e) => e.trim()).filter(Boolean)
       : ['management@easygold.la'];
 
-    console.log(`Cron: Triggering scheduled daily dispatch for ${todayDate} (${targetHHMM}) to ${emailList.join(', ')}`);
-    await executeEmailDispatch({
+    const dispatchResult = await executeEmailDispatch({
       env,
       recipientList: emailList,
       reportDate: todayDate,
       triggerType: 'scheduled',
     });
+
+    return {
+      triggered: true,
+      time: currentHHMM,
+      targetTime: targetHHMM,
+      todayDate,
+      recipients: emailList,
+      result: dispatchResult,
+    };
   } catch (err) {
     console.error('handleCronTrigger execution error:', err);
+    return { error: err?.message || String(err) };
   }
 }
