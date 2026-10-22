@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { getGoogleServiceAccountCredentials } from '@/lib/email/googleCredentials';
 
 export const runtime = 'edge';
 
@@ -7,22 +8,19 @@ export async function POST(request: NextRequest) {
   const startTime = Date.now();
   try {
     const body = await request.json().catch(() => ({}));
-    const recipient = body.recipient || 'management@easygold.la';
+    const recipientRaw = body.recipient || 'management@easygold.la';
+    const recipient = Array.isArray(recipientRaw) ? recipientRaw.join(', ') : String(recipientRaw);
     const reportDate = body.report_date || new Date().toISOString().split('T')[0];
 
     const supabase = createServerSupabaseClient();
-
-    // Check if Google Service Account Gmail is configured
-    const hasGoogleServiceAccount = Boolean(
-      process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL && process.env.GOOGLE_SERVICE_ACCOUNT_KEY
-    );
+    const creds = getGoogleServiceAccountCredentials();
+    const hasGoogleServiceAccount = creds.configured;
 
     let status: 'success' | 'failed' = 'success';
     let errorMessage: string | null = null;
     let subject = `Easy Gold Executive Daily BI Report - ${reportDate}`;
 
     if (!hasGoogleServiceAccount) {
-      // In development / before credentials added: simulated verified dispatch
       subject = `[Simulated Dispatch] ${subject}`;
     }
 
@@ -33,7 +31,7 @@ export async function POST(request: NextRequest) {
       await supabase.from('report_delivery_logs').insert({
         report_date: reportDate,
         sent_at: new Date().toISOString(),
-        recipient: Array.isArray(recipient) ? recipient.join(', ') : String(recipient),
+        recipient: recipient,
         status: status,
         trigger_type: body.trigger_type || 'manual_test',
         subject: subject,
@@ -51,11 +49,16 @@ export async function POST(request: NextRequest) {
       reportDate,
       durationMs: duration,
       hasServiceAccount: hasGoogleServiceAccount,
+      serviceAccountEmail: creds.clientEmail,
+      credentialSource: creds.source,
       message: hasGoogleServiceAccount 
-        ? `Daily report dispatched successfully to ${recipient}`
-        : `Test dispatch completed & logged for ${recipient}. To enable real Gmail sending, configure GOOGLE_SERVICE_ACCOUNT_EMAIL and GOOGLE_SERVICE_ACCOUNT_KEY.`
+        ? `Daily report dispatched successfully to ${recipient} (Verified via Google Service Account ${creds.clientEmail})`
+        : `Test dispatch completed & logged for ${recipient}. To enable real Gmail sending, configure Google Service Account credentials.`
     });
   } catch (err: any) {
-    return NextResponse.json({ error: err?.message }, { status: 500 });
+    return NextResponse.json({ 
+      success: false,
+      error: err?.message || 'Internal server error processing email dispatch' 
+    }, { status: 500 });
   }
 }

@@ -2,13 +2,13 @@
 
 import React from 'react';
 import { MtdMetricItem } from '@/lib/types/mtd.types';
-import { 
-  ShoppingBag, 
-  ShoppingCart, 
-  Tag, 
-  Scale, 
-  Layers, 
-  UserPlus, 
+import {
+  ShoppingBag,
+  ShoppingCart,
+  Tag,
+  Scale,
+  Layers,
+  UserPlus,
   ArrowLeftRight,
   Gauge,
   CheckCircle2,
@@ -71,9 +71,9 @@ export function PdfMtdMetricCard({
   const cleanLabel = (() => {
     switch (metric.id) {
       case 'buy_weight_g':
-        return 'Buy Wt';
+        return 'Buy Weight (15g)';
       case 'sell_weight_g':
-        return 'Sell Wt';
+        return 'Sell Weight (15g)';
       case 'buy_transactions':
         return 'Buy Trx';
       case 'sell_transactions':
@@ -98,10 +98,9 @@ export function PdfMtdMetricCard({
   return (
     <div className="bg-white rounded-xl border border-slate-200/90 p-2 shadow-2xs flex flex-col justify-between relative overflow-hidden min-w-0">
       {/* Top Accent Stripe */}
-      <div 
-        className={`absolute top-0 left-0 right-0 h-1 ${
-          isForecastPositive ? 'bg-emerald-500' : isForecastNegative ? 'bg-rose-500' : 'bg-slate-300'
-        }`} 
+      <div
+        className={`absolute top-0 left-0 right-0 h-1 ${isForecastPositive ? 'bg-emerald-500' : isForecastNegative ? 'bg-rose-500' : 'bg-slate-300'
+          }`}
       />
 
       {/* 1. HEADER (Strict 1-Line: Icon + Name ... Compact Pace Badge, ZERO Overlap) */}
@@ -111,7 +110,7 @@ export function PdfMtdMetricCard({
             <div className="p-0.5 rounded bg-blue-50 text-[#0c4ca3] shrink-0">
               {renderIcon()}
             </div>
-            <span 
+            <span
               className="font-black text-slate-800 text-[10.5px] truncate tracking-tight whitespace-nowrap"
               title={cleanLabel}
             >
@@ -120,12 +119,11 @@ export function PdfMtdMetricCard({
           </div>
 
           {/* Ahead / Behind Pace Badge */}
-          <span 
-            className={`text-[8px] font-black px-1 py-0.5 rounded shrink-0 uppercase whitespace-nowrap tracking-tighter ${
-              isAheadOfPace 
-                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
+          <span
+            className={`text-[8px] font-black px-1 py-0.5 rounded shrink-0 uppercase whitespace-nowrap tracking-tighter ${isAheadOfPace
+                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                 : 'bg-rose-50 text-rose-700 border border-rose-200'
-            }`}
+              }`}
           >
             {isAheadOfPace ? `+${pacingDelta}% Pace` : `${pacingDelta}% Pace`}
           </span>
@@ -167,13 +165,12 @@ export function PdfMtdMetricCard({
           <span className="text-slate-400">Tgt: {metric.full_comp_month.toLocaleString()}</span>
         </div>
         <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden relative">
-          <div 
-            className={`h-full rounded-full ${
-              isAheadOfPace ? 'bg-emerald-500' : 'bg-amber-500'
-            }`}
+          <div
+            className={`h-full rounded-full ${isAheadOfPace ? 'bg-emerald-500' : 'bg-amber-500'
+              }`}
             style={{ width: `${Math.min(100, targetAchievedPct)}%` }}
           />
-          <div 
+          <div
             className="absolute top-0 bottom-0 w-0.5 bg-slate-900 z-10"
             style={{ left: `${Math.min(100, elapsedMonthPct)}%` }}
           />
@@ -194,9 +191,8 @@ export function PdfMtdMetricCard({
 
           <div className="flex items-baseline gap-0.5 shrink-0">
             <span className="text-[8px] font-bold text-slate-400 uppercase tracking-tight">vs {comparisonMonthLabel}:</span>
-            <span className={`text-[9.5px] font-black ${
-              isForecastPositive ? 'text-emerald-700' : isForecastNegative ? 'text-rose-700' : 'text-slate-600'
-            }`}>
+            <span className={`text-[9.5px] font-black ${isForecastPositive ? 'text-emerald-700' : isForecastNegative ? 'text-rose-700' : 'text-slate-600'
+              }`}>
               {isForecastPositive ? `▲+${metric.forecast_variance_percent}%` : isForecastNegative ? `▼${metric.forecast_variance_percent}%` : '0%'}
             </span>
           </div>

@@ -66,7 +66,7 @@ export function ReportingPdfModal({
   const [frequency, setFrequency] = useState<string>('daily');
   const [isActive, setIsActive] = useState<boolean>(true);
   const [isSavingSettings, setIsSavingSettings] = useState<boolean>(false);
-  const [settingsSaveMsg, setSettingsSaveMsg] = useState<string | null>(null);
+  const [settingsSaveMsg, setSettingsSaveMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [hasGoogleServiceAccount, setHasGoogleServiceAccount] = useState<boolean>(false);
 
   // Send Test Email State
@@ -208,14 +208,24 @@ export function ReportingPdfModal({
         }),
       });
 
-      if (res.ok) {
-        setSettingsSaveMsg('Schedule settings saved successfully!');
+      let data: any = null;
+      try {
+        data = await res.json();
+      } catch {
+        // Fallback if response is non-JSON
+      }
+
+      if (res.ok && data?.success !== false) {
+        setSettingsSaveMsg({ type: 'success', text: 'Schedule settings saved successfully!' });
         setTimeout(() => setSettingsSaveMsg(null), 3500);
       } else {
-        setSettingsSaveMsg('Failed to save settings.');
+        setSettingsSaveMsg({
+          type: 'error',
+          text: data?.error || (res.status !== 200 ? `Failed to save (Status ${res.status})` : 'Failed to save settings.')
+        });
       }
     } catch (err: any) {
-      setSettingsSaveMsg(`Error saving settings: ${err?.message}`);
+      setSettingsSaveMsg({ type: 'error', text: `Error saving settings: ${err?.message}` });
     } finally {
       setIsSavingSettings(false);
     }
@@ -240,8 +250,14 @@ export function ReportingPdfModal({
         }),
       });
 
-      const data = await res.json();
-      if (res.ok && data.success) {
+      let data: any = null;
+      try {
+        data = await res.json();
+      } catch {
+        // Fallback for non-JSON or stream termination
+      }
+
+      if (res.ok && data?.success) {
         setTestResult({
           status: 'success',
           message: data.message || `Test email sent successfully to ${emailList.join(', ')}`,
@@ -250,7 +266,7 @@ export function ReportingPdfModal({
       } else {
         setTestResult({
           status: 'failed',
-          message: data.error || 'Failed to dispatch test email',
+          message: data?.error || (res.status !== 200 ? `Dispatch failed with status ${res.status}` : 'Failed to dispatch test email'),
         });
       }
     } catch (err: any) {
@@ -688,9 +704,17 @@ export function ReportingPdfModal({
 
                 {/* Save Feedback */}
                 {settingsSaveMsg && (
-                  <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                    <span>{settingsSaveMsg}</span>
+                  <div className={`p-3 rounded-xl border text-xs font-bold flex items-center gap-2 ${
+                    settingsSaveMsg.type === 'success' 
+                      ? 'bg-emerald-50 border-emerald-200 text-emerald-800' 
+                      : 'bg-rose-50 border-rose-200 text-rose-800'
+                  }`}>
+                    {settingsSaveMsg.type === 'success' ? (
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    ) : (
+                      <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                    )}
+                    <span>{settingsSaveMsg.text}</span>
                   </div>
                 )}
 

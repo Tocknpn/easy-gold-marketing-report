@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { getGoogleServiceAccountCredentials } from '@/lib/email/googleCredentials';
 
 export const runtime = 'edge';
 
@@ -74,12 +75,14 @@ export async function GET(request: NextRequest) {
       ];
     }
 
+    const creds = getGoogleServiceAccountCredentials();
+
     return NextResponse.json({
       settings,
       logs,
-      googleServiceAccountConfigured: Boolean(
-        process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || process.env.GOOGLE_SERVICE_ACCOUNT_KEY
-      )
+      googleServiceAccountConfigured: creds.configured,
+      googleServiceAccountEmail: creds.clientEmail,
+      googleServiceAccountSource: creds.source,
     });
   } catch (err: any) {
     return NextResponse.json({
@@ -98,15 +101,21 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
+    const body = await request.json().catch(() => ({}));
     const { target_emails, send_time, frequency, is_active } = body;
+
+    const emailList = Array.isArray(target_emails)
+      ? target_emails
+      : typeof target_emails === 'string'
+      ? target_emails.split(',').map((e: string) => e.trim()).filter(Boolean)
+      : ['management@easygold.la'];
 
     const supabase = createServerSupabaseClient();
     const { data, error } = await supabase
       .from('report_schedule_settings')
       .upsert({
         id: 1,
-        target_emails: Array.isArray(target_emails) ? target_emails : [target_emails],
+        target_emails: emailList,
         send_time: send_time || '08:00:00',
         frequency: frequency || 'daily',
         is_active: is_active ?? true,
@@ -122,6 +131,6 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, settings: data?.[0] });
   } catch (err: any) {
-    return NextResponse.json({ error: err?.message }, { status: 500 });
+    return NextResponse.json({ error: err?.message || 'Failed to save settings' }, { status: 500 });
   }
 }
