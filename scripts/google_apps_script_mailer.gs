@@ -31,9 +31,9 @@ function doPost(e) {
     var htmlBody = data.html || "<p>Daily Report Dispatch</p>";
     var plainBody = data.body || "Please open in an HTML-compatible email client.";
 
-    // If full PDF report HTML is provided, convert to PDF attachment
+    // If full PDF report HTML is provided, convert to PDF attachment (fallback to data.html)
     var attachments = [];
-    var reportContent = data.pdfHtml || null;
+    var reportContent = data.pdfHtml || data.html || null;
     if (reportContent) {
       var htmlBlob = Utilities.newBlob(reportContent, 'text/html', 'report.html');
       var pdfBlob = htmlBlob.getAs('application/pdf').setName('Easy_Gold_Executive_Report_' + (data.reportDate || 'Daily') + '.pdf');

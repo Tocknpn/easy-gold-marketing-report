@@ -576,43 +576,41 @@ export function ReportingPdfModal({
         {/* ================================================================== */}
         {/* TAB 1: REPORT PREVIEW & PRINT ENGINE                               */}
         {/* ================================================================== */}
-        {activeTab === 'preview' && (
-          <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-100">
-            {loading && !momMtd ? (
-              <div className="py-24 text-center space-y-3">
-                <RefreshCw className="w-8 h-8 animate-spin text-[#0c4ca3] mx-auto" />
-                <p className="text-sm font-bold text-slate-700">Compiling 7 Executive Sections...</p>
-              </div>
-            ) : (
-              <div 
-                id="executive-pdf-printable" 
-                className="bg-white rounded-2xl shadow-md border border-slate-200/80 p-2 sm:p-6 transition-all"
-              >
-                <ExecutivePdfReportDocument
-                  currentYear={currentYear}
-                  currentMonth={currentMonth}
-                  currentMonthLabel={currentMonthLabel}
-                  comparisonMonthLabel={compMonthLabel}
-                  yoyMonthLabel={yoyMonthLabel}
-                  asOfDateDisplay={asOfDateDisplay}
-                  targetTrackingData={rrMomData}
-                  rrMomData={rrMomData}
-                  rrYoyData={rrYoyData}
-                  momMtdData={momMtd || effectiveYoyMtd}
-                  yoyMtdData={effectiveYoyMtd}
-                  weeklyCurrentWeek={proratedWeek}
-                  weeklyRawWeek={weeklyRawWeek}
-                  weeklyHistory={weeklyHistory}
-                  weeklyVariances={weeklyVariances}
-                  weeklyProratedVariances={weeklyProratedVariances}
-                  selectedWeekLabel={weeklyCurrentWeek.week_label}
-                  isPartialWeek={isPartialWeek}
-                  elapsedDays={weeklyElapsedDays}
-                />
-              </div>
-            )}
-          </div>
-        )}
+        <div className={activeTab === 'preview' ? 'flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-100' : 'hidden'}>
+          {loading && !momMtd ? (
+            <div className="py-24 text-center space-y-3">
+              <RefreshCw className="w-8 h-8 animate-spin text-[#0c4ca3] mx-auto" />
+              <p className="text-sm font-bold text-slate-700">Compiling 7 Executive Sections...</p>
+            </div>
+          ) : (
+            <div 
+              id="executive-pdf-printable" 
+              className="bg-white rounded-2xl shadow-md border border-slate-200/80 p-2 sm:p-6 transition-all"
+            >
+              <ExecutivePdfReportDocument
+                currentYear={currentYear}
+                currentMonth={currentMonth}
+                currentMonthLabel={currentMonthLabel}
+                comparisonMonthLabel={compMonthLabel}
+                yoyMonthLabel={yoyMonthLabel}
+                asOfDateDisplay={asOfDateDisplay}
+                targetTrackingData={rrMomData}
+                rrMomData={rrMomData}
+                rrYoyData={rrYoyData}
+                momMtdData={momMtd || effectiveYoyMtd}
+                yoyMtdData={effectiveYoyMtd}
+                weeklyCurrentWeek={proratedWeek}
+                weeklyRawWeek={weeklyRawWeek}
+                weeklyHistory={weeklyHistory}
+                weeklyVariances={weeklyVariances}
+                weeklyProratedVariances={weeklyProratedVariances}
+                selectedWeekLabel={weeklyCurrentWeek.week_label}
+                isPartialWeek={isPartialWeek}
+                elapsedDays={weeklyElapsedDays}
+              />
+            </div>
+          )}
+        </div>
 
         {/* ================================================================== */}
         {/* TAB 2: AUTOMATED DAILY EMAIL SETTINGS                               */}
