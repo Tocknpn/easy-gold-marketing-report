@@ -34,6 +34,7 @@ import {
 import { MtdReportPayload } from '@/lib/types/mtd.types';
 import { ExecutiveDashboardData, WeeklyMetricRow, MetricVariances } from '@/lib/types/dashboard.types';
 import { calculateVariance, prorateLinear, prorateActiveUsers, prorateWeeklyRow } from '@/lib/utils/runRate';
+import { createClient } from '@/lib/supabase/client';
 
 interface ReportingPdfModalProps {
   isOpen: boolean;
@@ -76,6 +77,19 @@ export function ReportingPdfModal({
   const [deliveryLogs, setDeliveryLogs] = useState<any[]>([]);
   const [loadingLogs, setLoadingLogs] = useState<boolean>(false);
 
+  // Sync state whenever props update
+  useEffect(() => {
+    if (passedMtdData && passedMtdData.metrics) {
+      setMomMtd(passedMtdData);
+    }
+  }, [passedMtdData]);
+
+  useEffect(() => {
+    if (passedWeeklyData && passedWeeklyData.current_week) {
+      setWeekly(passedWeeklyData);
+    }
+  }, [passedWeeklyData]);
+
   // Load schedule settings & delivery logs from backend
   const loadScheduleData = async () => {
     try {
@@ -109,10 +123,36 @@ export function ReportingPdfModal({
   const loadReportData = async () => {
     setLoading(true);
     try {
-      // 1. Fetch YoY MTD
-      const curYear = 2026;
-      const curMonth = 10;
-      const yoyRes = await fetch(`/api/dashboard/mtd-forecast?comp_year=${curYear - 1}&comp_month=${curMonth}&refresh=true`);
+      const supabase = createClient();
+
+      // 1. Fetch live daily metrics so run-rate and targets calculate with real rows
+      const { data: rows } = await supabase
+        .from('summary_daily_metrics')
+        .select('*')
+        .order('date_id', { ascending: true });
+      if (rows && rows.length > 0) {
+        setLocalDailyRows(rows as DailyMetricRow[]);
+      }
+
+      // 2. Fetch live MTD if not passed or ensure it is up-to-date
+      let activeAsOf = passedMtdData?.as_of_date || '2026-10-21';
+      if (!passedMtdData || !passedMtdData.metrics) {
+        const momRes = await fetch(`/api/dashboard/mtd-forecast?refresh=true`);
+        if (momRes.ok) {
+          const momJson = await momRes.json();
+          if (momJson?.metrics) {
+            setMomMtd(momJson);
+            if (momJson.as_of_date) activeAsOf = momJson.as_of_date;
+          }
+        }
+      } else {
+        setMomMtd(passedMtdData);
+      }
+
+      // 3. Fetch live YoY MTD using exact same as_of_date
+      const curYear = passedMtdData?.current_month_year || 2026;
+      const curMonth = passedMtdData?.current_month_num || 10;
+      const yoyRes = await fetch(`/api/dashboard/mtd-forecast?as_of_date=${activeAsOf}&comp_year=${curYear - 1}&comp_month=${curMonth}&refresh=true`);
       if (yoyRes.ok) {
         const yoyJson = await yoyRes.json();
         if (yoyJson?.metrics) {
@@ -120,19 +160,8 @@ export function ReportingPdfModal({
         }
       }
 
-      // 2. Fetch MoM MTD if not passed
-      if (!momMtd) {
-        const momRes = await fetch(`/api/dashboard/mtd-forecast?refresh=true`);
-        if (momRes.ok) {
-          const momJson = await momRes.json();
-          if (momJson?.metrics) {
-            setMomMtd(momJson);
-          }
-        }
-      }
-
-      // 3. Fetch weekly if not passed
-      if (!weekly) {
+      // 4. Fetch weekly if not passed
+      if (!passedWeeklyData || !passedWeeklyData.current_week) {
         const wkRes = await fetch('/api/dashboard/summary?refresh=true');
         if (wkRes.ok) {
           const wkJson = await wkRes.json();
@@ -140,6 +169,8 @@ export function ReportingPdfModal({
             setWeekly(wkJson);
           }
         }
+      } else {
+        setWeekly(passedWeeklyData);
       }
     } catch (err) {
       console.error('Failed to load comprehensive report data:', err);
@@ -237,14 +268,32 @@ export function ReportingPdfModal({
     window.print();
   };
 
-  // Dynamically compute calendar bounds
-  const currentYear = momMtd?.current_month_year || 2026;
-  const currentMonth = momMtd?.current_month_num || 10;
-  const currentMonthLabel = momMtd?.current_month_label || "Oct'26";
-  const compMonthLabel = momMtd?.comparison_month_label || "Sep'26";
+  // Dynamically compute calendar bounds matching live active data
+  const currentYear = momMtd?.current_month_year || passedMtdData?.current_month_year || 2026;
+  const currentMonth = momMtd?.current_month_num || passedMtdData?.current_month_num || 10;
+  const currentMonthLabel = momMtd?.current_month_label || passedMtdData?.current_month_label || "Oct'26";
+  const compMonthLabel = momMtd?.comparison_month_label || passedMtdData?.comparison_month_label || "Sep'26";
   const yoyMonthLabel = `${MONTH_NAMES[currentMonth - 1]}'${String(currentYear - 1).slice(-2)}`;
-  const cutoffDay = momMtd?.elapsed_days || LATEST_DATA_DATE.day;
-  const asOfDateDisplay = momMtd?.display_as_of_date || `${cutoffDay}/10/${currentYear}`;
+
+  const cutoffDay = useMemo(() => {
+    if (momMtd?.elapsed_days) return momMtd.elapsed_days;
+    if (passedMtdData?.elapsed_days) return passedMtdData.elapsed_days;
+    if (momMtd?.as_of_date) {
+      const parts = String(momMtd.as_of_date).split('-');
+      const d = parseInt(parts[2], 10);
+      if (!isNaN(d)) return d;
+    }
+    return 21;
+  }, [momMtd, passedMtdData]);
+
+  const asOfDateDisplay = useMemo(() => {
+    if (momMtd?.display_as_of_date) return momMtd.display_as_of_date;
+    if (passedMtdData?.display_as_of_date) return passedMtdData.display_as_of_date;
+    if (momMtd?.as_of_date) {
+      return String(momMtd.as_of_date).split('-').reverse().join('/');
+    }
+    return `21/10/${currentYear}`;
+  }, [momMtd, passedMtdData, currentYear]);
 
   // Compute Run-Rate payloads
   const rrMomData = useMemo(() => {
@@ -332,7 +381,12 @@ export function ReportingPdfModal({
   };
 
   const weeklyRawWeek = { ...weeklyCurrentWeek };
-  const weeklyHistory = weekly?.history || [weeklyCurrentWeek];
+  // Only last 5 weeks so sparklines are clean without cramming W01..W43
+  const weeklyHistory = useMemo(() => {
+    const list = weekly?.history || [weeklyCurrentWeek];
+    return list.slice(Math.max(0, list.length - 5));
+  }, [weekly, weeklyCurrentWeek]);
+
   const weeklyElapsedDays = 2; // e.g. W43 partial week
   const isPartialWeek = true;
 
@@ -385,7 +439,7 @@ export function ReportingPdfModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/75 backdrop-blur-sm animate-in fade-in duration-150 overflow-y-auto">
-      <div className="bg-white rounded-3xl border border-slate-300 shadow-2xl w-full max-w-7xl max-h-[96vh] flex flex-col overflow-hidden my-auto">
+      <div className="bg-white rounded-3xl border border-slate-300 shadow-2xl w-full max-w-[96vw] 2xl:max-w-[1600px] max-h-[96vh] flex flex-col overflow-hidden my-auto">
         {/* ================================================================== */}
         {/* MODAL HEADER                                                       */}
         {/* ================================================================== */}

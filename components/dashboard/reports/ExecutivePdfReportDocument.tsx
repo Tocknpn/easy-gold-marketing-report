@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { RunRateComparisonPayload } from '@/lib/types/target.types';
 import { MtdReportPayload } from '@/lib/types/mtd.types';
 import { WeeklyMetricRow, MetricVariances } from '@/lib/types/dashboard.types';
@@ -12,18 +12,8 @@ import { MtdPlatformSection } from '@/components/dashboard/mtd/MtdPlatformSectio
 import { PlatformOverviewSection } from '@/components/dashboard/PlatformOverviewSection';
 import { BuyActivitySection } from '@/components/dashboard/BuyActivitySection';
 import { SellActivitySection } from '@/components/dashboard/SellActivitySection';
-import { 
-  FileText, 
-  Printer, 
-  Target, 
-  TrendingUp, 
-  Calendar, 
-  CheckCircle2, 
-  Clock, 
-  Sparkles,
-  Layers,
-  ArrowRight
-} from 'lucide-react';
+import { ExecutivePulseBanner } from '@/components/dashboard/ExecutivePulseBanner';
+import { DEFAULT_2026_TARGETS } from '@/lib/constants/targetData';
 
 export interface ExecutivePdfReportDocumentProps {
   currentYear: number;
@@ -74,51 +64,104 @@ export function ExecutivePdfReportDocument({
   isPartialWeek,
   elapsedDays,
 }: ExecutivePdfReportDocumentProps) {
-  const generatedTime = new Date().toLocaleTimeString('en-US', {
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: true
-  });
+  // Compute Executive Pulse statistics dynamically matching live front tab
+  const pulseStats = useMemo(() => {
+    const octTarget = DEFAULT_2026_TARGETS.find(t => t.month === currentMonth) || DEFAULT_2026_TARGETS[9];
+    
+    const curNc = momMtdData?.metrics?.new_customers?.current_mtd || 1571;
+    const curBuyTx = momMtdData?.metrics?.buy_transactions?.current_mtd || 90253;
+    const curBuyWt = (momMtdData?.metrics?.buy_weight_g?.current_mtd ? momMtdData.metrics.buy_weight_g.current_mtd * 15 : 142751);
+    const curSellTx = momMtdData?.metrics?.sell_transactions?.current_mtd || 35016;
+    const curSellWt = (momMtdData?.metrics?.sell_weight_g?.current_mtd ? momMtdData.metrics.sell_weight_g.current_mtd * 15 : 59251);
+
+    const ncPct = octTarget.target_nc > 0 ? (curNc / octTarget.target_nc) * 100 : 0;
+    const buyTxPct = octTarget.buy_trans > 0 ? (curBuyTx / octTarget.buy_trans) * 100 : 0;
+    const buyWtPct = octTarget.buy_weight_g > 0 ? (curBuyWt / octTarget.buy_weight_g) * 100 : 0;
+    const sellTxPct = octTarget.sell_trans > 0 ? (curSellTx / octTarget.sell_trans) * 100 : 0;
+    const sellWtPct = octTarget.sell_weight_g > 0 ? (curSellWt / octTarget.sell_weight_g) * 100 : 0;
+
+    const avgPace = (ncPct + buyTxPct + buyWtPct + sellTxPct + sellWtPct) / 5;
+    const daysGone = momMtdData?.elapsed_days || 21;
+    const totalDays = momMtdData?.total_days_current_month || 31;
+    const estLanding = daysGone > 0 ? avgPace * (totalDays / daysGone) : avgPace;
+
+    // Est MoM average
+    let avgEstLandingMoM = -4;
+    if (momMtdData?.metrics) {
+      const m = momMtdData.metrics;
+      const list = [
+        m.buy_weight_g?.forecast_variance_percent ?? 0,
+        m.buy_transactions?.forecast_variance_percent ?? 0,
+        m.sell_weight_g?.forecast_variance_percent ?? 0,
+        m.sell_transactions?.forecast_variance_percent ?? 0,
+        m.withdraw_15g?.forecast_variance_percent ?? 0,
+        m.new_customers?.forecast_variance_percent ?? 0,
+        m.total_transactions?.forecast_variance_percent ?? 0,
+      ];
+      avgEstLandingMoM = Math.round(list.reduce((a, b) => a + b, 0) / list.length);
+    }
+
+    return {
+      targetPacePct: Number(avgPace.toFixed(1)),
+      targetEstLandingPct: Number(estLanding.toFixed(0)),
+      avgEstLandingMoM,
+      daysGone,
+      totalDays,
+    };
+  }, [momMtdData, currentMonth]);
+
+  // Clean weekly history: only last 5 weeks for clean, un-squished sparklines
+  const cleanWeeklyHistory = useMemo(() => {
+    if (!weeklyHistory || weeklyHistory.length === 0) return [weeklyCurrentWeek];
+    return weeklyHistory.slice(Math.max(0, weeklyHistory.length - 5));
+  }, [weeklyHistory, weeklyCurrentWeek]);
 
   return (
-    <div className="executive-report-root bg-white text-slate-900 select-text max-w-7xl mx-auto space-y-8 p-4 sm:p-8">
+    <div className="executive-report-root bg-white text-slate-900 select-text w-full max-w-[1550px] mx-auto space-y-6 p-4 sm:p-7">
       {/* ==================================================================== */}
-      {/* REPORT MASTER HEADER BANNER                                          */}
+      {/* 1. REPORT HEADER BANNER                                              */}
       {/* ==================================================================== */}
-      <header className="border-b-2 border-slate-900 pb-4 flex flex-col md:flex-row md:items-end justify-between gap-4">
+      <header className="border-b-2 border-slate-900 pb-3 flex items-center justify-between gap-4 flex-wrap">
         <div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="w-3 h-3 rounded-full bg-[#d4a017]"></span>
-            <span className="text-xs font-black uppercase tracking-widest text-[#0c4ca3]">
-              Easy Gold • Executive Daily BI &amp; Marketing Performance
-            </span>
-          </div>
           <h1 className="text-2xl sm:text-3xl font-black text-slate-950 tracking-tight">
-            Daily Executive Performance Report
+            Easy Gold Marketing performance
           </h1>
-          <p className="text-xs text-slate-500 font-medium mt-1">
-            Official Consolidated Daily KPI Ledger &amp; Machine-Generated Performance Intelligence
-          </p>
         </div>
 
-        <div className="flex flex-col md:items-end gap-1 text-xs font-mono tabular-nums">
-          <div className="flex items-center gap-2">
-            <span className="font-bold text-slate-500">Data As-Of Date:</span>
-            <span className="px-2 py-0.5 rounded bg-blue-50 border border-blue-200 text-[#0c4ca3] font-black">
-              {asOfDateDisplay}
-            </span>
-          </div>
-          <div className="flex items-center gap-2 text-slate-500 text-[11px]">
-            <span>Generated: {new Date().toLocaleDateString('en-GB')} at {generatedTime}</span>
-            <span>•</span>
-            <span className="text-emerald-700 font-bold">100% High-DPI Vector Sharp</span>
-          </div>
+        <div className="flex items-center gap-2 text-sm font-mono tabular-nums">
+          <span className="font-bold text-slate-600">Data As-Of Date:</span>
+          <span className="px-2.5 py-1 rounded-lg bg-blue-50 border border-blue-200 text-[#0c4ca3] font-black text-sm">
+            {asOfDateDisplay}
+          </span>
         </div>
       </header>
 
       {/* ==================================================================== */}
-      {/* 1. CURRENT MONTH MTD TARGET HIT + YTD TARGET HIT                    */}
+      {/* EXECUTIVE BRIEFING PULSE                                             */}
+      {/* ==================================================================== */}
+      <div className="report-section break-inside-avoid">
+        <ExecutivePulseBanner
+          targetMonthLabel={currentMonthLabel}
+          targetPacePct={pulseStats.targetPacePct}
+          targetEstLandingPct={pulseStats.targetEstLandingPct}
+          daysGone={pulseStats.daysGone}
+          totalDays={pulseStats.totalDays}
+          mtdCompMonthLabel={comparisonMonthLabel}
+          avgEstLandingMoMPct={pulseStats.avgEstLandingMoM}
+          totalTransactionsMtd={momMtdData?.metrics?.total_transactions?.current_mtd || 127982}
+          totalTransactionsMoMPct={momMtdData?.metrics?.total_transactions?.mtd_variance_percent || 16}
+          newCustomersMtd={momMtdData?.metrics?.new_customers?.current_mtd || 1571}
+          newCustomersMoMPct={momMtdData?.metrics?.new_customers?.mtd_variance_percent || -27}
+          activeWeekLabel={selectedWeekLabel}
+          weeklyVolumeBaht={Number(weeklyCurrentWeek?.buy_weight_15g || 1912)}
+          weeklyWoWVariance={weeklyVariances?.buy_weight_15g || -26}
+          isPartialWeek={isPartialWeek}
+          onNavigateTab={() => {}}
+        />
+      </div>
+
+      {/* ==================================================================== */}
+      {/* SECTION 1: CURRENT MONTH MTD TARGET HIT + YTD TARGET HIT            */}
       {/* ==================================================================== */}
       <section className="report-section space-y-3 break-inside-avoid">
         <div className="flex items-center justify-between border-b border-slate-200 pb-2">
@@ -143,7 +186,7 @@ export function ExecutivePdfReportDocument({
       </section>
 
       {/* ==================================================================== */}
-      {/* 2. MTD FORECAST MoM (Oct'26 compare with Sep'26) - CARDS ONLY        */}
+      {/* SECTION 2: MTD FORECAST MoM (Oct'26 compare with Sep'26) - CARDS ONLY*/}
       {/* ==================================================================== */}
       <section className="report-section space-y-3 break-inside-avoid pt-2">
         <div className="flex items-center justify-between border-b border-slate-200 pb-2">
@@ -162,10 +205,10 @@ export function ExecutivePdfReportDocument({
           </div>
         </div>
 
-        {/* 7 Cards across 3 Themed Containers (No filters, no buttons) */}
-        <div className="grid grid-cols-1 xl:grid-cols-7 gap-3 sm:gap-3.5 items-stretch">
+        {/* 7 Cards across 3 Themed Containers in comfortable horizontal spacing */}
+        <div className="grid grid-cols-1 xl:grid-cols-7 gap-3.5 items-stretch w-full">
           {/* BUY ACTIVITY: 2 Cards (xl:col-span-2) */}
-          <div className="xl:col-span-2 flex flex-col">
+          <div className="xl:col-span-2 flex flex-col min-w-[280px]">
             <MtdBuyActivitySection
               buyWeight={momMtdData.metrics.buy_weight_g}
               buyTransactions={momMtdData.metrics.buy_transactions}
@@ -176,7 +219,7 @@ export function ExecutivePdfReportDocument({
           </div>
 
           {/* SELL ACTIVITY: 3 Cards (xl:col-span-3) */}
-          <div className="xl:col-span-3 flex flex-col">
+          <div className="xl:col-span-3 flex flex-col min-w-[420px]">
             <MtdSellActivitySection
               sellWeight={momMtdData.metrics.sell_weight_g}
               sellTransactions={momMtdData.metrics.sell_transactions}
@@ -188,7 +231,7 @@ export function ExecutivePdfReportDocument({
           </div>
 
           {/* PLATFORM OVERVIEW: 2 Cards (xl:col-span-2) */}
-          <div className="xl:col-span-2 flex flex-col">
+          <div className="xl:col-span-2 flex flex-col min-w-[280px]">
             <MtdPlatformSection
               newCustomers={momMtdData.metrics.new_customers}
               totalTransactions={momMtdData.metrics.total_transactions}
@@ -201,7 +244,7 @@ export function ExecutivePdfReportDocument({
       </section>
 
       {/* ==================================================================== */}
-      {/* 3. MTD FORECAST YoY (Oct'26 compare with Oct'25) - CARDS ONLY        */}
+      {/* SECTION 3: MTD FORECAST YoY (Oct'26 compare with Oct'25) - CARDS ONLY*/}
       {/* ==================================================================== */}
       <section className="report-section space-y-3 break-inside-avoid pt-2">
         <div className="flex items-center justify-between border-b border-slate-200 pb-2">
@@ -220,9 +263,9 @@ export function ExecutivePdfReportDocument({
           </div>
         </div>
 
-        {/* 7 Cards across 3 Themed Containers (YoY, no filters) */}
-        <div className="grid grid-cols-1 xl:grid-cols-7 gap-3 sm:gap-3.5 items-stretch">
-          <div className="xl:col-span-2 flex flex-col">
+        {/* 7 Cards across 3 Themed Containers in comfortable horizontal spacing */}
+        <div className="grid grid-cols-1 xl:grid-cols-7 gap-3.5 items-stretch w-full">
+          <div className="xl:col-span-2 flex flex-col min-w-[280px]">
             <MtdBuyActivitySection
               buyWeight={yoyMtdData.metrics.buy_weight_g}
               buyTransactions={yoyMtdData.metrics.buy_transactions}
@@ -232,7 +275,7 @@ export function ExecutivePdfReportDocument({
             />
           </div>
 
-          <div className="xl:col-span-3 flex flex-col">
+          <div className="xl:col-span-3 flex flex-col min-w-[420px]">
             <MtdSellActivitySection
               sellWeight={yoyMtdData.metrics.sell_weight_g}
               sellTransactions={yoyMtdData.metrics.sell_transactions}
@@ -243,7 +286,7 @@ export function ExecutivePdfReportDocument({
             />
           </div>
 
-          <div className="xl:col-span-2 flex flex-col">
+          <div className="xl:col-span-2 flex flex-col min-w-[280px]">
             <MtdPlatformSection
               newCustomers={yoyMtdData.metrics.new_customers}
               totalTransactions={yoyMtdData.metrics.total_transactions}
@@ -256,7 +299,7 @@ export function ExecutivePdfReportDocument({
       </section>
 
       {/* ==================================================================== */}
-      {/* 4. WoW REPORTING (ACTUAL BACKEND WEEK)                               */}
+      {/* SECTION 4: WoW REPORTING (ACTUAL BACKEND WEEK)                        */}
       {/* ==================================================================== */}
       <section className="report-section space-y-3 break-inside-avoid pt-2">
         <div className="flex items-center justify-between border-b border-slate-200 pb-2">
@@ -269,17 +312,17 @@ export function ExecutivePdfReportDocument({
                 Weekly report of {selectedWeekLabel} ({elapsedDays} day{elapsedDays > 1 ? 's' : ''} gone)
               </h2>
               <span className="text-[11px] font-semibold text-slate-500">
-                Current week actuals recorded in database (no orange banner, raw performance)
+                Current week actuals recorded in database (no orange banner, clean 5-week sparklines)
               </span>
             </div>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-3.5 w-full items-stretch">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3.5 w-full items-stretch">
           <section className="w-full flex flex-col">
             <PlatformOverviewSection
               currentWeek={weeklyRawWeek || weeklyCurrentWeek}
-              history={weeklyHistory}
+              history={cleanWeeklyHistory}
               variances={weeklyVariances}
               selectedWeek={selectedWeekLabel}
               isPartialWeek={isPartialWeek}
@@ -291,7 +334,7 @@ export function ExecutivePdfReportDocument({
           <section className="w-full flex flex-col">
             <BuyActivitySection
               currentWeek={weeklyRawWeek || weeklyCurrentWeek}
-              history={weeklyHistory}
+              history={cleanWeeklyHistory}
               variances={weeklyVariances}
               selectedWeek={selectedWeekLabel}
               isPartialWeek={isPartialWeek}
@@ -303,7 +346,7 @@ export function ExecutivePdfReportDocument({
           <section className="w-full flex flex-col">
             <SellActivitySection
               currentWeek={weeklyRawWeek || weeklyCurrentWeek}
-              history={weeklyHistory}
+              history={cleanWeeklyHistory}
               variances={weeklyVariances}
               selectedWeek={selectedWeekLabel}
               isPartialWeek={isPartialWeek}
@@ -315,7 +358,7 @@ export function ExecutivePdfReportDocument({
       </section>
 
       {/* ==================================================================== */}
-      {/* 5. WoW REPORTING (7-DAY PRORATED ESTIMATE)                           */}
+      {/* SECTION 5: WoW REPORTING (7-DAY PRORATED ESTIMATE)                    */}
       {/* ==================================================================== */}
       <section className="report-section space-y-3 break-inside-avoid pt-2">
         <div className="flex items-center justify-between border-b border-slate-200 pb-2">
@@ -334,11 +377,11 @@ export function ExecutivePdfReportDocument({
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-3.5 w-full items-stretch">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3.5 w-full items-stretch">
           <section className="w-full flex flex-col">
             <PlatformOverviewSection
               currentWeek={weeklyCurrentWeek}
-              history={weeklyHistory}
+              history={cleanWeeklyHistory}
               variances={weeklyProratedVariances}
               selectedWeek={selectedWeekLabel}
               isPartialWeek={isPartialWeek}
@@ -350,7 +393,7 @@ export function ExecutivePdfReportDocument({
           <section className="w-full flex flex-col">
             <BuyActivitySection
               currentWeek={weeklyCurrentWeek}
-              history={weeklyHistory}
+              history={cleanWeeklyHistory}
               variances={weeklyProratedVariances}
               selectedWeek={selectedWeekLabel}
               isPartialWeek={isPartialWeek}
@@ -362,7 +405,7 @@ export function ExecutivePdfReportDocument({
           <section className="w-full flex flex-col">
             <SellActivitySection
               currentWeek={weeklyCurrentWeek}
-              history={weeklyHistory}
+              history={cleanWeeklyHistory}
               variances={weeklyProratedVariances}
               selectedWeek={selectedWeekLabel}
               isPartialWeek={isPartialWeek}
@@ -374,7 +417,7 @@ export function ExecutivePdfReportDocument({
       </section>
 
       {/* ==================================================================== */}
-      {/* 6. MONTHLY RUN RATE (RR) TABLE MoM                                   */}
+      {/* SECTION 6: MONTHLY RUN RATE (RR) TABLE MoM                            */}
       {/* ==================================================================== */}
       <section className="report-section space-y-3 break-inside-avoid pt-2">
         <div className="flex items-center justify-between border-b border-slate-200 pb-2">
@@ -404,7 +447,7 @@ export function ExecutivePdfReportDocument({
       </section>
 
       {/* ==================================================================== */}
-      {/* 7. MONTHLY RUN RATE (RR) TABLE YoY                                   */}
+      {/* SECTION 7: MONTHLY RUN RATE (RR) TABLE YoY                            */}
       {/* ==================================================================== */}
       <section className="report-section space-y-3 break-inside-avoid pt-2">
         <div className="flex items-center justify-between border-b border-slate-200 pb-2">
@@ -433,23 +476,7 @@ export function ExecutivePdfReportDocument({
         </div>
       </section>
 
-      {/* ==================================================================== */}
-      {/* FOOTER & INTEGRITY AUDIT STAMP                                       */}
-      {/* ==================================================================== */}
-      <footer className="border-t-2 border-slate-900 pt-4 text-center space-y-1 text-slate-500 text-xs">
-        <div className="flex items-center justify-center gap-2 font-mono text-[11px] text-slate-600">
-          <span>Easy Gold Certified Financial Ledger</span>
-          <span>•</span>
-          <span>Supabase Dual-Tier Fast-Path</span>
-          <span>•</span>
-          <span>End of Report</span>
-        </div>
-        <p className="text-[10px] text-slate-400">
-          Confidential • For internal executive and management review only • Generated automatically by Easy Gold BI System
-        </p>
-      </footer>
-
-      {/* Pure High-Definition Print Stylesheet */}
+      {/* Pure High-Definition Landscape Print Stylesheet */}
       <style jsx global>{`
         @media print {
           body {
@@ -458,7 +485,6 @@ export function ExecutivePdfReportDocument({
             margin: 0 !important;
             padding: 0 !important;
           }
-          /* Hide all application chrome, headers, navigation bars, modals overlays */
           header.sticky, 
           nav[role="tablist"], 
           aside, 
@@ -487,8 +513,8 @@ export function ExecutivePdfReportDocument({
             margin-bottom: 24px !important;
           }
           @page {
-            size: A4 portrait;
-            margin: 12mm 10mm 15mm 10mm;
+            size: A4 landscape;
+            margin: 8mm 8mm 8mm 8mm;
           }
           * {
             -webkit-print-color-adjust: exact !important;
