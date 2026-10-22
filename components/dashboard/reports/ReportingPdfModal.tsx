@@ -71,7 +71,7 @@ export function ReportingPdfModal({
 
   // Send Test Email State
   const [isSendingTest, setIsSendingTest] = useState<boolean>(false);
-  const [testResult, setTestResult] = useState<{ status: 'success' | 'failed'; message: string } | null>(null);
+  const [testResult, setTestResult] = useState<{ status: 'success' | 'failed' | 'simulated'; message: string } | null>(null);
 
   // Delivery History State
   const [deliveryLogs, setDeliveryLogs] = useState<any[]>([]);
@@ -259,8 +259,8 @@ export function ReportingPdfModal({
 
       if (res.ok && data?.success) {
         setTestResult({
-          status: 'success',
-          message: data.message || `Test email sent successfully to ${emailList.join(', ')}`,
+          status: data.sent ? 'success' : 'simulated',
+          message: data.message || `Dispatch logged for ${emailList.join(', ')}`,
         });
         loadScheduleData(); // refresh audit logs
       } else {
@@ -745,17 +745,27 @@ export function ReportingPdfModal({
                   <div className={`p-3.5 rounded-xl border text-xs font-medium ${
                     testResult.status === 'success' 
                       ? 'bg-emerald-50 border-emerald-200 text-emerald-900' 
+                      : testResult.status === 'simulated'
+                      ? 'bg-amber-50 border-amber-200 text-amber-900'
                       : 'bg-rose-50 border-rose-200 text-rose-900'
                   }`}>
-                    <div className="flex items-center gap-2 font-bold mb-0.5">
+                    <div className="flex items-center gap-2 font-bold mb-1">
                       {testResult.status === 'success' ? (
-                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                      ) : testResult.status === 'simulated' ? (
+                        <Clock className="w-4 h-4 text-amber-600 shrink-0" />
                       ) : (
-                        <AlertCircle className="w-4 h-4 text-rose-600" />
+                        <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
                       )}
-                      <span>{testResult.status === 'success' ? 'Dispatch Successful' : 'Dispatch Failed'}</span>
+                      <span>
+                        {testResult.status === 'success' 
+                          ? 'Email Delivered to Inbox' 
+                          : testResult.status === 'simulated'
+                          ? 'Simulated Dispatch Logged in Database'
+                          : 'Dispatch Failed'}
+                      </span>
                     </div>
-                    <p className="text-[11px] ml-6">{testResult.message}</p>
+                    <p className="text-[11px] ml-6 leading-relaxed opacity-90">{testResult.message}</p>
                   </div>
                 )}
               </form>
