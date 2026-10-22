@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     // 1. Get MAX(created_at) from monthly_data
-    let maxDbDateStr = config.data_update_on || '2026-10-19';
+    let maxDbDateStr = config.data_update_on || '2026-10-21';
     try {
       const { data: maxDateRow, error: maxDateErr } = await supabase.rpc('get_max_monthly_data_date');
       if (!maxDateErr && maxDateRow) {
@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const asOfDate = config.auto_sync_max_date !== false ? (maxDbDateStr || config.data_update_on || '2026-10-19') : (config.data_update_on || maxDbDateStr || '2026-10-19');
+    const asOfDate = config.auto_sync_max_date !== false ? (maxDbDateStr || config.data_update_on || '2026-10-21') : (config.data_update_on || maxDbDateStr || '2026-10-21');
 
     // 2. Timeline calculations
     const totalDays = calculateDateDiffDays(config.campaign_date_start, config.campaign_date_end);
@@ -63,6 +63,9 @@ export async function POST(req: NextRequest) {
     const elapsedDays = isEnded 
       ? totalDays 
       : isUpcoming ? 0 : Math.min(totalDays, calculateDateDiffDays(config.campaign_date_start, asOfDate));
+
+    // Effective cutoff date for MTD actuals calculation (capped at campaign period end date)
+    const effectiveCutoffDate = isEnded ? config.campaign_date_end : (isUpcoming ? config.campaign_date_start : asOfDate);
 
     // 3. Reverse Backward Dates (supports full planned horizon for upcoming campaigns)
     const backwardWindow = computeBackwardDates(config.campaign_date_start, elapsedDays, totalDays);
@@ -116,7 +119,7 @@ export async function POST(req: NextRequest) {
 -- Rule: ${config.condition_label || (rules.length === 0 ? 'No Condition (All Trans)' : 'Custom Filter')} | Bank: ${effectiveBank.toUpperCase()}
 -- ============================================================================
 
--- 1. Actual MTD Performance (${config.campaign_date_start} to ${asOfDate})
+-- 1. Actual MTD Performance (${config.campaign_date_start} to ${effectiveCutoffDate})
 SELECT 
     COUNT(*) AS ec_actual_mtd,
     COUNT(DISTINCT phone) AS unique_customers_mtd,
@@ -124,7 +127,7 @@ SELECT
     ROUND(COALESCE(SUM(total_amount), 0)::numeric / 1000000.0, 1) AS mtd_buy_value_mil_lak
 FROM public.monthly_data
 WHERE created_at >= '${config.campaign_date_start}'
-  AND created_at <= '${asOfDate} 23:59:59'
+  AND created_at <= '${effectiveCutoffDate} 23:59:59'
   AND status = 'ສໍາເລັດ'
   AND transaction_type = '${txType}'${bankSql}${condSql};
 
@@ -152,7 +155,7 @@ WHERE created_at >= '${backwardWindow.start}'
 
         const { data: rpcData, error: rpcError } = await supabase.rpc('get_campaign_actual_metrics', {
           p_start_date: config.campaign_date_start,
-          p_as_of_date: asOfDate,
+          p_as_of_date: effectiveCutoffDate,
           p_backward_start: backwardWindow.start,
           p_backward_end: backwardWindow.end,
           p_cond_type: rpcCondType,
@@ -184,7 +187,7 @@ WHERE created_at >= '${backwardWindow.start}'
         }
         mtdQuery = mtdQuery
           .gte('created_at', config.campaign_date_start)
-          .lte('created_at', `${asOfDate} 23:59:59`);
+          .lte('created_at', `${effectiveCutoffDate} 23:59:59`);
 
         if (banks.length === 1) {
           mtdQuery = mtdQuery.ilike('bank', `%${banks[0]}%`);
@@ -329,16 +332,16 @@ WHERE created_at >= '${backwardWindow.start}'
           backward_val_mil: Number(liveAgg.backward_revenue_mil_lak) || 0,
           backward_weight_g: Number(liveAgg.backward_gold_weight_g) || 0,
           backward_nc: exactBwdNc,
-          max_db_date: asOfDate,
+          max_db_date: maxDbDateStr,
         }
       : {
-          max_db_date: asOfDate,
+          max_db_date: maxDbDateStr,
         };
 
     const finalAnalytics = computeCampaignAnalytics(
       {
         ...config,
-        data_update_on: asOfDate,
+        data_update_on: effectiveCutoffDate,
         same_period_backward_start: backwardWindow.start,
         same_period_backward_end: backwardWindow.end,
       },

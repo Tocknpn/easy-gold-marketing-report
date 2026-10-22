@@ -359,7 +359,7 @@ export function CampaignDetailModal({
               <span className="font-mono text-[10px] text-emerald-400">Data Source: {analytics.dataSource || 'supabase_live'}</span>
             </div>
             <pre className="text-[11px] font-mono text-emerald-400 bg-slate-950/80 p-3 rounded-xl overflow-x-auto whitespace-pre">
-{analytics.sql_script || `-- 1. Actual MTD Performance (${campaign.campaign_date_start} to ${campaign.data_update_on || '2026-10-18'})
+{analytics.sql_script || `-- 1. Actual MTD Performance (${campaign.campaign_date_start} to ${campaign.data_update_on || '2026-10-21'})
 SELECT 
     COUNT(*) AS ec_actual_mtd,
     COUNT(DISTINCT phone) AS unique_customers_mtd,
@@ -367,7 +367,7 @@ SELECT
     ROUND(COALESCE(SUM(total_amount), 0)::numeric / 1000000.0, 1) AS mtd_buy_value_mil_lak
 FROM public.monthly_data
 WHERE created_at >= '${campaign.campaign_date_start}'
-  AND created_at <= '${campaign.data_update_on || '2026-10-18'} 23:59:59'
+  AND created_at <= '${campaign.data_update_on || '2026-10-21'} 23:59:59'
   AND status = 'ສໍາເລັດ'
   AND transaction_type = '${campaign.tx_type || 'BUY_GOLD'}'${(() => {
     if (!campaign.bank || campaign.bank === 'all') return '';

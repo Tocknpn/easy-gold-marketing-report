@@ -436,17 +436,58 @@ export default {
       const supabaseUrl = headerUrl || (env && env.NEXT_PUBLIC_SUPABASE_URL) || DEFAULT_SUPABASE_URL;
       const supabaseKey = headerKey || (env && env.NEXT_PUBLIC_SUPABASE_ANON_KEY) || DEFAULT_SUPABASE_KEY;
 
-      const asOfDate = config.as_of_date || config.data_update_on || '2026-10-18';
-      const startDate = config.campaign_date_start || '2026-10-15';
-      const endDate = config.campaign_date_end || '2026-10-27';
+      // 1. Discover MAX(created_at) date from Supabase dynamically
+      let maxDbDate = '2026-10-21';
+      if (supabaseUrl && supabaseKey && !supabaseUrl.includes('placeholder')) {
+        try {
+          const maxDateRes = await fetch(`${supabaseUrl}/rest/v1/rpc/get_max_monthly_data_date`, {
+            method: 'POST',
+            headers: {
+              apikey: supabaseKey,
+              Authorization: `Bearer ${supabaseKey}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({}),
+          });
+          if (maxDateRes.ok) {
+            const rawDate = await maxDateRes.json();
+            if (rawDate && typeof rawDate === 'string' && rawDate.includes('-')) {
+              maxDbDate = rawDate.split('T')[0];
+            }
+          }
+        } catch (e) {
+          try {
+            const dailyRes = await fetch(`${supabaseUrl}/rest/v1/summary_daily_metrics?select=date_id&order=date_id.desc&limit=1`, {
+              headers: {
+                apikey: supabaseKey,
+                Authorization: `Bearer ${supabaseKey}`,
+              },
+            });
+            if (dailyRes.ok) {
+              const dailyData = await dailyRes.json();
+              if (Array.isArray(dailyData) && dailyData[0]?.date_id) {
+                maxDbDate = dailyData[0].date_id;
+              }
+            }
+          } catch (err) {}
+        }
+      }
+
+      const shouldAutoSync = config.auto_sync_max_date !== false;
+      const baseAsOfDate = shouldAutoSync ? maxDbDate : (config.data_update_on || config.as_of_date || maxDbDate);
+      const startDate = config.campaign_date_start || '2026-08-24';
+      const endDate = config.campaign_date_end || '2026-12-25';
 
       const startMs = new Date(startDate).getTime();
       const endMs = new Date(endDate).getTime();
-      const asOfMs = new Date(asOfDate).getTime();
+      const asOfMs = new Date(baseAsOfDate).getTime();
       const totalDays = Math.max(1, Math.round((endMs - startMs) / 86400000) + 1);
       const isUpcoming = asOfMs < startMs;
       const isEnded = asOfMs >= endMs;
       const elapsedDays = isEnded ? totalDays : isUpcoming ? 0 : Math.min(totalDays, Math.round((asOfMs - startMs) / 86400000) + 1);
+
+      // Effective cutoff date for MTD actuals calculation (capped at campaign period end date)
+      const effectiveCutoffDate = isEnded ? endDate : (isUpcoming ? startDate : baseAsOfDate);
 
       const effectiveDays = elapsedDays > 0 ? elapsedDays : totalDays;
       const bwdEndMs = startMs - 86400000;
@@ -505,7 +546,7 @@ export default {
 -- Rule: ${config.condition_label || 'Buy trans'} | Bank: ${effectiveBank.toUpperCase()}
 -- ============================================================================
 
--- 1. Actual MTD Performance (${startDate} to ${asOfDate})
+-- 1. Actual MTD Performance (${startDate} to ${effectiveCutoffDate})
 SELECT 
     COUNT(*) AS ec_actual_mtd,
     COUNT(DISTINCT phone) AS unique_customers_mtd,
@@ -513,7 +554,7 @@ SELECT
     ROUND(COALESCE(SUM(total_amount), 0)::numeric / 1000000.0, 1) AS mtd_buy_value_mil_lak
 FROM public.monthly_data
 WHERE created_at >= '${startDate}'
-  AND created_at <= '${asOfDate} 23:59:59'
+  AND created_at <= '${effectiveCutoffDate} 23:59:59'
   AND status IN ('ສໍາເລັດ', 'ສຳເລັດ')
   AND transaction_type = '${txType}'${bankSql}${condSql};
 
@@ -545,12 +586,12 @@ WHERE created_at >= '${bwdStart}'
           // Direct, ultra-fast exact aggregation via Supabase RPC
           const rpcPayload = {
             p_start_date: startDate,
-            p_as_of_date: asOfDate,
+            p_as_of_date: effectiveCutoffDate,
             p_backward_start: bwdStart,
             p_backward_end: bwdEnd,
             p_cond_type: isWeight ? 'weight_gte' : 'amount_gte',
             p_cond_op: condOp,
-            p_cond_val: condVal > 0 ? condVal : 100000,
+            p_cond_val: condVal > 0 ? condVal : (rules.length === 0 ? 0 : 100000),
             p_cond_max: config.condition_max_value ? Number(config.condition_max_value) : null,
             p_tx_type: txType || 'BUY_GOLD',
             p_bank: effectiveBank || 'all',
@@ -644,7 +685,8 @@ WHERE created_at >= '${bwdStart}'
       const payload = {
         config: {
           ...config,
-          data_update_on: asOfDate,
+          data_update_on: effectiveCutoffDate,
+          max_db_date: maxDbDate,
         },
         targetAchievement: {
           campaign_id: config.id,

@@ -24,7 +24,7 @@ export const INITIAL_PRESET_CAMPAIGNS: CampaignSetupConfig[] = [
     image_url: 'https://images.unsplash.com/photo-1610375461246-83df859d849d?w=150&auto=format&fit=crop&q=80',
     campaign_date_start: '2026-08-24',
     campaign_date_end: '2026-12-25',
-    data_update_on: '2026-10-18',
+    data_update_on: '2026-10-21',
     auto_sync_max_date: true,
     same_period_backward_start: '2026-07-03',
     same_period_backward_end: '2026-08-23',
@@ -169,7 +169,7 @@ export const INITIAL_PRESET_CAMPAIGNS: CampaignSetupConfig[] = [
     image_url: 'https://images.unsplash.com/photo-1610375461246-83df859d849d?w=150&auto=format&fit=crop&q=80',
     campaign_date_start: '2026-10-15',
     campaign_date_end: '2026-10-27',
-    data_update_on: '2026-10-18',
+    data_update_on: '2026-10-21',
     auto_sync_max_date: true,
     same_period_backward_start: '2026-10-04',
     same_period_backward_end: '2026-10-15',
@@ -335,7 +335,7 @@ export async function loadCampaignSetups(userId?: string): Promise<CampaignSetup
  */
 function sanitizeLoadedCampaign(c: CampaignSetupConfig): CampaignSetupConfig {
   const resolvedId = LEGACY_ID_MAP[c.id] || c.id;
-  const asOfDate = (c.auto_sync_max_date !== false ? '2026-10-18' : c.data_update_on) || '2026-10-18';
+  const asOfDate = c.data_update_on || '2026-10-21';
   const isUpcoming = new Date(asOfDate).getTime() < new Date(c.campaign_date_start).getTime();
 
   let customersActual = c.customers_actual;

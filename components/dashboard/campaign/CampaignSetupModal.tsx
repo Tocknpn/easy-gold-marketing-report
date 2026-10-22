@@ -138,7 +138,7 @@ export function CampaignSetupModal({
 
   // Load existing campaign data or defaults
   useEffect(() => {
-    const effectiveLatestDate = latestDataDate || '2026-10-18';
+    const effectiveLatestDate = latestDataDate || '2026-10-21';
 
     if (campaignToEdit) {
       setName(campaignToEdit.campaign_name);

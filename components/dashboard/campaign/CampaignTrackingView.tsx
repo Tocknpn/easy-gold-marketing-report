@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { CampaignSetupConfig, CampaignAnalyticsPayload } from '@/lib/types/campaign.types';
 import { UserProfile } from '@/lib/types/auth.types';
 import { 
@@ -108,78 +108,8 @@ export function CampaignTrackingView({
   const [copiedSql, setCopiedSql] = useState<boolean>(false);
   const [showSqlScript, setShowSqlScript] = useState<boolean>(true);
 
-  // Dynamically discover true latest data date from Supabase
-  useEffect(() => {
-    async function fetchLatestDate() {
-      try {
-        const supabase = createClient();
-        // 1. Try ultra-fast RPC get_max_monthly_data_date
-        const { data: rpcMaxDate } = await supabase.rpc('get_max_monthly_data_date');
-        if (rpcMaxDate) {
-          const cleanDate = String(rpcMaxDate).split('T')[0];
-          setDbLatestDate(cleanDate);
-          return;
-        }
-
-        // 2. Fallback to summary daily metrics
-        const { data: dailyRow } = await supabase
-          .from('summary_daily_metrics')
-          .select('date_id')
-          .order('date_id', { ascending: false })
-          .limit(1);
-        if (dailyRow && dailyRow.length > 0 && dailyRow[0].date_id) {
-          setDbLatestDate(dailyRow[0].date_id);
-          return;
-        }
-
-        // 3. Fallback to top monthly_data rows
-        const { data: latestRows } = await supabase
-          .from('monthly_data')
-          .select('created_at')
-          .order('id', { ascending: false })
-          .limit(50);
-        if (latestRows && latestRows.length > 0) {
-          const dates: string[] = [];
-          for (const row of latestRows) {
-            const raw = String(row.created_at || '').split('T')[0].split(' ')[0];
-            if (raw.includes('-')) {
-              dates.push(raw);
-            }
-          }
-          if (dates.length > 0) {
-            dates.sort().reverse();
-            setDbLatestDate(dates[0]);
-          }
-        }
-      } catch (err) {
-        console.warn('Could not fetch latest monthly_data date:', err);
-      }
-    }
-    fetchLatestDate();
-  }, []);
-
-  // Load campaigns from Supabase / localStorage on mount
-  const refreshCampaigns = useCallback(async () => {
-    setIsRefreshing(true);
-    try {
-      const list = await loadCampaignSetups(currentUser?.id);
-      setAllCampaigns(list);
-      setActiveCampaign((prev) => {
-        if (prev) {
-          const matched = list.find((c) => c.id === prev.id);
-          if (matched) return matched;
-        }
-        return list.length > 0 ? list[0] : null;
-      });
-    } finally {
-      setIsLoadingCampaigns(false);
-      setTimeout(() => setIsRefreshing(false), 300);
-    }
-  }, [currentUser?.id]);
-
-  useEffect(() => {
-    refreshCampaigns();
-  }, [currentUser?.id, refreshCampaigns]);
+  // Reference to current target campaign for background date syncing
+  const currentTargetCampaignRef = useRef<CampaignSetupConfig | null>(null);
 
   // Filtered campaigns
   const filteredCampaigns = useMemo(() => {
@@ -212,6 +142,8 @@ export function CampaignTrackingView({
     return activeCampaign || (allCampaigns.length > 0 ? allCampaigns[0] : null);
   }, [activeCampaign, allCampaigns]);
 
+  currentTargetCampaignRef.current = currentTargetCampaign;
+
   // Compute live analytics payload for active campaign
   const analytics: CampaignAnalyticsPayload | null = useMemo(() => {
     if (!currentTargetCampaign) return null;
@@ -220,7 +152,7 @@ export function CampaignTrackingView({
   }, [currentTargetCampaign, liveData, liveDataMap, activeCampaign?.id]);
 
   // Execute Live Calculate from Supabase for target campaign
-  const handleExecuteCalculate = useCallback(async (targetCamp: CampaignSetupConfig) => {
+  const handleExecuteCalculate = useCallback(async (targetCamp: CampaignSetupConfig, overrideAsOfDate?: string) => {
     setActiveCampaign(targetCamp);
     setRecordingId(targetCamp.id);
     try {
@@ -238,9 +170,10 @@ export function CampaignTrackingView({
       let payload: any = null;
 
       try {
-        const effectiveAsOfDate = (targetCamp.auto_sync_max_date !== false && dbLatestDate) 
-          ? dbLatestDate 
-          : (targetCamp.data_update_on || dbLatestDate || '2026-10-19');
+        const effectiveAsOfDate = overrideAsOfDate 
+          || ((targetCamp.auto_sync_max_date !== false && dbLatestDate) 
+            ? dbLatestDate 
+            : (targetCamp.data_update_on || dbLatestDate || '2026-10-21'));
 
         const res = await fetch('/api/dashboard/campaign-analytics', {
           method: 'POST',
@@ -266,7 +199,7 @@ export function CampaignTrackingView({
               backward_weight_g: data.backwardComparison?.buy_weight_g_backward,
               backward_ticket: data.backwardComparison?.ticket_size_g_backward,
               backward_nc: data.backwardComparison?.nc_backward,
-              max_db_date: data.config?.data_update_on,
+              max_db_date: data.config?.data_update_on || data.config?.max_db_date || effectiveAsOfDate,
               sql_script: data.sql_script || targetCamp.sql_script,
             };
           }
@@ -293,19 +226,22 @@ export function CampaignTrackingView({
           const condOp = firstRule ? firstRule.operator : '>=';
           const condVal = firstRule ? Number(firstRule.value) : 0;
           const condMax = firstRule && firstRule.max_value ? Number(firstRule.max_value) : null;
-          const asOf = (targetCamp.auto_sync_max_date !== false && dbLatestDate) 
-            ? dbLatestDate 
-            : (targetCamp.data_update_on || dbLatestDate || '2026-10-19');
-          const backwardWindow = computeBackwardDates(targetCamp.campaign_date_start, 56);
+          const asOf = overrideAsOfDate 
+            || ((targetCamp.auto_sync_max_date !== false && dbLatestDate) 
+              ? dbLatestDate 
+              : (targetCamp.data_update_on || dbLatestDate || '2026-10-21'));
+          const isEnded = new Date(asOf).getTime() >= new Date(targetCamp.campaign_date_end).getTime();
+          const effectiveCutoff = isEnded ? targetCamp.campaign_date_end : asOf;
+          const backwardWindow = computeBackwardDates(targetCamp.campaign_date_start, 59);
 
           const { data: rpcData } = await supabase.rpc('get_campaign_actual_metrics', {
             p_start_date: targetCamp.campaign_date_start,
-            p_as_of_date: asOf,
+            p_as_of_date: effectiveCutoff,
             p_backward_start: targetCamp.same_period_backward_start || backwardWindow.start,
             p_backward_end: targetCamp.same_period_backward_end || backwardWindow.end,
             p_cond_type: isWeight ? 'weight_gte' : 'amount_gte',
             p_cond_op: condOp,
-            p_cond_val: condVal > 0 ? condVal : 100000,
+            p_cond_val: condVal > 0 ? condVal : (rules.length === 0 ? 0 : 100000),
             p_cond_max: condMax,
             p_tx_type: targetCamp.tx_type || 'BUY_GOLD',
             p_bank: targetCamp.bank || 'all',
@@ -319,7 +255,7 @@ export function CampaignTrackingView({
                 .from('monthly_data')
                 .select('*', { count: 'exact', head: true })
                 .gte('created_at', targetCamp.campaign_date_start)
-                .lte('created_at', `${asOf} 23:59:59`)
+                .lte('created_at', `${effectiveCutoff} 23:59:59`)
                 .eq('transaction_type', 'OPEN_ACCOUNT');
 
               if (targetCamp.bank && targetCamp.bank.toLowerCase() !== 'all') {
@@ -393,7 +329,74 @@ export function CampaignTrackingView({
     } finally {
       setTimeout(() => setRecordingId(null), 500);
     }
-  }, [currentUser?.id]);
+  }, [currentUser?.id, dbLatestDate]);
+
+  // Dynamically discover true latest data date from Supabase
+  useEffect(() => {
+    async function fetchLatestDate() {
+      try {
+        const supabase = createClient();
+        let detectedDate = '';
+        const { data: rpcMaxDate } = await supabase.rpc('get_max_monthly_data_date');
+        if (rpcMaxDate) {
+          detectedDate = String(rpcMaxDate).split('T')[0];
+        } else {
+          const { data: dailyRow } = await supabase
+            .from('summary_daily_metrics')
+            .select('date_id')
+            .order('date_id', { ascending: false })
+            .limit(1);
+          if (dailyRow && dailyRow.length > 0 && dailyRow[0].date_id) {
+            detectedDate = dailyRow[0].date_id;
+          }
+        }
+
+        if (detectedDate) {
+          setDbLatestDate(detectedDate);
+          if (currentTargetCampaignRef.current) {
+            handleExecuteCalculate(currentTargetCampaignRef.current, detectedDate);
+          }
+        }
+      } catch (err) {
+        console.warn('Could not fetch latest monthly_data date:', err);
+      }
+    }
+    fetchLatestDate();
+  }, [handleExecuteCalculate]);
+
+  // Load campaigns from Supabase / localStorage on mount or refresh
+  const refreshCampaigns = useCallback(async () => {
+    setIsRefreshing(true);
+    try {
+      let latestDb = '';
+      try {
+        const supabase = createClient();
+        const { data: rpcMaxDate } = await supabase.rpc('get_max_monthly_data_date');
+        if (rpcMaxDate) latestDb = String(rpcMaxDate).split('T')[0];
+      } catch {}
+      if (latestDb) setDbLatestDate(latestDb);
+
+      const list = await loadCampaignSetups(currentUser?.id);
+      setAllCampaigns(list);
+      const campToCalc = currentTargetCampaignRef.current || (list.length > 0 ? list[0] : null);
+      if (campToCalc) {
+        setActiveCampaign(campToCalc);
+        setLiveDataMap((prev) => {
+          const next = { ...prev };
+          delete next[campToCalc.id];
+          return next;
+        });
+        await handleExecuteCalculate(campToCalc, latestDb || undefined);
+      }
+    } finally {
+      setIsLoadingCampaigns(false);
+      setTimeout(() => setIsRefreshing(false), 300);
+    }
+  }, [currentUser?.id, handleExecuteCalculate]);
+
+  useEffect(() => {
+    refreshCampaigns();
+  }, [currentUser?.id, refreshCampaigns]);
 
   // Select campaign and immediately trigger live calculation if not cached
   const handleSelectCampaign = useCallback((camp: CampaignSetupConfig) => {
@@ -406,13 +409,6 @@ export function CampaignTrackingView({
     }
   }, [liveDataMap, handleExecuteCalculate]);
 
-  // Auto-trigger live calculation on initial mount if not cached
-  useEffect(() => {
-    if (currentTargetCampaign && !liveDataMap[currentTargetCampaign.id] && !recordingId) {
-      handleExecuteCalculate(currentTargetCampaign);
-    }
-  }, [currentTargetCampaign?.id, liveDataMap, recordingId, handleExecuteCalculate]);
-
   // Copy SQL script to clipboard
   const handleCopySql = (sql: string) => {
     if (navigator?.clipboard) {
@@ -424,7 +420,7 @@ export function CampaignTrackingView({
 
   // Format date helper: YYYY-MM-DD -> DD Mon YYYY
   const formatDisplayDate = (dStr?: string) => {
-    const target = dStr || dbLatestDate || '2026-10-19';
+    const target = dStr || dbLatestDate || '2026-10-21';
     const parts = target.split('-');
     if (parts.length === 3) {
       const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -438,12 +434,14 @@ export function CampaignTrackingView({
   // Latest data date for report
   const latestDataDate = (currentTargetCampaign?.auto_sync_max_date !== false && dbLatestDate)
     ? dbLatestDate
-    : (liveData?.max_db_date || dbLatestDate || currentTargetCampaign?.data_update_on || '2026-10-19');
+    : (liveData?.max_db_date || dbLatestDate || currentTargetCampaign?.data_update_on || '2026-10-21');
 
   // Generate fallback SQL script for target campaign
   const defaultGeneratedSql = useMemo(() => {
     if (!currentTargetCampaign) return '';
     const camp = currentTargetCampaign;
+    const isEnded = camp.campaign_date_end && latestDataDate >= camp.campaign_date_end;
+    const effectiveCutoff = isEnded ? camp.campaign_date_end : latestDataDate;
     const banks = camp.bank && camp.bank !== 'all' ? camp.bank.split(',').map((b: string) => b.trim()).filter(Boolean) : [];
     const bankFilter = banks.length === 1 
       ? `\n  AND bank ILIKE '%${banks[0]}%'` 
@@ -477,7 +475,12 @@ export function CampaignTrackingView({
       }
     }
 
-    return `-- 1. Actual MTD Performance Query (${camp.campaign_name})
+    return `-- ============================================================================
+-- CAMPAIGN INTELLIGENCE: ${camp.campaign_name || 'Campaign Target'}
+-- Rule: ${camp.condition_label || 'Buy trans'} | Bank: ${(camp.bank || 'ALL').toUpperCase()}
+-- ============================================================================
+
+-- 1. Actual MTD Performance (${camp.campaign_date_start} to ${effectiveCutoff})
 SELECT 
     COUNT(*) AS ec_actual_mtd,
     COUNT(DISTINCT phone) AS unique_customers_mtd,
@@ -485,8 +488,8 @@ SELECT
     ROUND(COALESCE(SUM(total_amount), 0)::numeric / 1000000.0, 1) AS mtd_buy_value_mil_lak
 FROM public.monthly_data
 WHERE created_at >= '${camp.campaign_date_start}'
-  AND created_at <= '${latestDataDate} 23:59:59'
-  AND status = 'ສໍາເລັດ'
+  AND created_at <= '${effectiveCutoff} 23:59:59'
+  AND status IN ('ສໍາເລັດ', 'ສຳເລັດ')
   AND transaction_type = '${camp.tx_type || 'BUY_GOLD'}'${bankFilter}${condFilter};`;
   }, [currentTargetCampaign, latestDataDate]);
 
@@ -1069,7 +1072,10 @@ WHERE created_at >= '${camp.campaign_date_start}'
                 </button>
 
                 <button
-                  onClick={() => handleCopySql(liveData?.sql_script || defaultGeneratedSql)}
+                  onClick={() => {
+                    const currentDisplaySql = (liveData?.sql_script && !liveData.sql_script.includes('2026-10-19') && !liveData.sql_script.includes('2026-10-18')) ? liveData.sql_script : defaultGeneratedSql;
+                    handleCopySql(currentDisplaySql);
+                  }}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold border border-slate-700 transition-colors cursor-pointer"
                   title="Copy generated SQL script"
                 >
@@ -1093,7 +1099,7 @@ WHERE created_at >= '${camp.campaign_date_start}'
             {showSqlScript && (
               <div className="relative">
                 <pre className="text-[11px] font-mono text-emerald-400 bg-slate-950 p-3.5 rounded-xl overflow-x-auto whitespace-pre border border-slate-800/80 leading-relaxed max-h-56">
-                  {liveData?.sql_script || defaultGeneratedSql}
+                  {(liveData?.sql_script && !liveData.sql_script.includes('2026-10-19') && !liveData.sql_script.includes('2026-10-18')) ? liveData.sql_script : defaultGeneratedSql}
                 </pre>
               </div>
             )}

@@ -4,7 +4,7 @@ import { createServerSupabaseClient } from '@/lib/supabase/server';
 export const runtime = 'edge';
 
 export async function GET() {
-  let latestDataDate = '2026-10-19';
+  let latestDataDate = '2026-10-21';
   let totalWeeks = 29;
   let isConnected = false;
 
