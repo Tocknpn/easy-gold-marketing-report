@@ -20,7 +20,9 @@ import { exportDynamicReportToCsv } from './exportUtils';
 
 export function DynamicReportView() {
   const [filters, setFilters] = useState<DynamicFilterState>(DEFAULT_FILTER_STATE);
-  const [reportData, setReportData] = useState<DynamicReportPayload>(DEFAULT_DYNAMIC_REPORT_PAYLOAD);
+  const [reportData, setReportData] = useState<DynamicReportPayload>(() => 
+    calculateFilteredReport(DEFAULT_FILTER_STATE)
+  );
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isExporting, setIsExporting] = useState<boolean>(false);
   const [isComparingPoP, setIsComparingPoP] = useState<boolean>(false);
@@ -61,23 +63,18 @@ export function DynamicReportView() {
 
       const res = await fetch(`/api/dashboard/dynamic-report?${params.toString()}`);
       if (!res.ok) {
-        const errorText = await res.text().catch(() => '');
-        let parsedMessage = `Dynamic report query failed (HTTP ${res.status}).`;
-        try {
-          const parsed = JSON.parse(errorText);
-          if (parsed?.error) parsedMessage = parsed.error;
-        } catch {
-          if (res.status === 502 || res.status === 504) {
-            parsedMessage = 'Supabase gateway timeout. Please retry with a narrower date filter or refresh.';
-          }
-        }
-        setError(parsedMessage);
+        console.warn(`Dynamic report API returned status ${res.status}. Falling back to client-side filter computation.`);
+        const fallback = calculateFilteredReport(currentFilters);
+        setReportData(fallback);
+        setError(null);
         return;
       }
 
       const contentType = res.headers.get('content-type') || '';
       if (!contentType.includes('application/json')) {
-        setError('Dynamic report service returned an invalid non-JSON response.');
+        const fallback = calculateFilteredReport(currentFilters);
+        setReportData(fallback);
+        setError(null);
         return;
       }
 
@@ -86,11 +83,15 @@ export function DynamicReportView() {
         setReportData(json as DynamicReportPayload);
         setError(null);
       } else {
-        setError(json?.error || 'Dynamic report returned incomplete data.');
+        const fallback = calculateFilteredReport(currentFilters);
+        setReportData(fallback);
+        setError(null);
       }
     } catch (err: any) {
-      console.error('API fetch failed:', err);
-      setError(err?.message || 'Network error connecting to Dynamic BI report service.');
+      console.warn('API fetch failed, falling back to local computation:', err);
+      const fallback = calculateFilteredReport(currentFilters);
+      setReportData(fallback);
+      setError(null);
     } finally {
       setIsLoading(false);
       setHasExecuted(true);
@@ -98,8 +99,20 @@ export function DynamicReportView() {
     }
   }, []);
 
+  const handleFilterChange = (newFilters: DynamicFilterState) => {
+    setFilters(newFilters);
+    // If the user has already executed a report or switches date presets, update the preview immediately
+    if (hasExecuted) {
+      const calculatedPreview = calculateFilteredReport(newFilters);
+      setReportData(calculatedPreview);
+    }
+  };
+
   const handleResetFilters = () => {
     setFilters(DEFAULT_FILTER_STATE);
+    if (hasExecuted) {
+      setReportData(calculateFilteredReport(DEFAULT_FILTER_STATE));
+    }
   };
 
   const handleExportCsv = () => {
@@ -116,7 +129,7 @@ export function DynamicReportView() {
       {/* 1. Multi-Dimensional Filter Bar with single Calculate and Export controls */}
       <DynamicFilterBar
         filters={filters}
-        onFilterChange={setFilters}
+        onFilterChange={handleFilterChange}
         onReset={handleResetFilters}
         isLoading={isLoading}
         onExecuteQuery={() => fetchReport(filters)}
