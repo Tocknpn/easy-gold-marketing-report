@@ -14,6 +14,7 @@ import { UserAuthModal } from '@/components/dashboard/auth/UserAuthModal';
 import { CorporateLoginView } from '@/components/dashboard/auth/CorporateLoginView';
 import { AdminUserManagementModal } from '@/components/dashboard/admin/AdminUserManagementModal';
 import { SystemCheckAndValidationModal } from '@/components/dashboard/audit/SystemCheckAndValidationModal';
+import { ReportingPdfModal } from '@/components/dashboard/reports/ReportingPdfModal';
 import { FreshnessBadge } from '@/components/dashboard/FreshnessBadge';
 import { ExecutivePulseBanner } from '@/components/dashboard/ExecutivePulseBanner';
 import { prorateWeeklyRow, calculateVariance } from '@/lib/utils/runRate';
@@ -46,7 +47,8 @@ import {
   ArrowRightLeft,
   Maximize2,
   Minimize2,
-  FileSpreadsheet
+  FileSpreadsheet,
+  FileText
 } from 'lucide-react';
 
 import { DEFAULT_MTD_PAYLOAD } from '@/lib/constants/mtdData';
@@ -66,6 +68,7 @@ export default function DashboardPage() {
   const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
   const [isUserManagementModalOpen, setIsUserManagementModalOpen] = useState<boolean>(false);
   const [isValidatorModalOpen, setIsValidatorModalOpen] = useState<boolean>(false);
+  const [isReportingPdfModalOpen, setIsReportingPdfModalOpen] = useState<boolean>(false);
   const [isTelemetryPopoverOpen, setIsTelemetryPopoverOpen] = useState<boolean>(false);
   const telemetryPopoverRef = useRef<HTMLDivElement>(null);
 
@@ -608,6 +611,20 @@ export default function DashboardPage() {
 
                   {/* Actions inside popover */}
                   <div className="pt-2 border-t border-slate-100 flex flex-col gap-1.5">
+                    <button
+                      onClick={() => {
+                        setIsTelemetryPopoverOpen(false);
+                        setIsReportingPdfModalOpen(true);
+                      }}
+                      className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-purple-50/70 hover:bg-purple-100 hover:text-purple-950 border border-purple-200/90 text-xs font-bold text-purple-900 transition-all cursor-pointer"
+                    >
+                      <span className="flex items-center gap-2">
+                        <FileText className="w-4 h-4 text-purple-600" />
+                        <span>Reporting PDF</span>
+                      </span>
+                      <span className="text-purple-400 font-bold">→</span>
+                    </button>
+
                     <button
                       onClick={() => {
                         setIsTelemetryPopoverOpen(false);
@@ -1180,6 +1197,14 @@ export default function DashboardPage() {
       <SystemCheckAndValidationModal
         isOpen={isValidatorModalOpen}
         onClose={() => setIsValidatorModalOpen(false)}
+      />
+
+      {/* Executive Vertical PDF Report & Automated Delivery Modal */}
+      <ReportingPdfModal
+        isOpen={isReportingPdfModalOpen}
+        onClose={() => setIsReportingPdfModalOpen(false)}
+        mtdData={mtdData}
+        weeklyData={weeklyData}
       />
     </div>
   );

@@ -5,9 +5,12 @@ import { RunRateComparisonPayload } from '@/lib/types/target.types';
 
 interface ClassicRunRateTablesProps {
   data: RunRateComparisonPayload;
+  curYear?: number;
+  compYear?: number;
+  isYoY?: boolean;
 }
 
-export function ClassicRunRateTables({ data }: ClassicRunRateTablesProps) {
+export function ClassicRunRateTables({ data, curYear = 2026, compYear = 2026, isYoY = false }: ClassicRunRateTablesProps) {
   const {
     current_month_label,
     comparison_month_label,
@@ -79,7 +82,7 @@ export function ClassicRunRateTables({ data }: ClassicRunRateTablesProps) {
                 <h3 className="text-sm font-black tracking-wide uppercase text-white">Monthly Run Rate</h3>
               </div>
               <p className="text-[11px] text-slate-300 font-medium mt-0.5">
-                Current MTD Run-Rate projected landing vs {comparison_month_label}&apos;26 Full Month
+                Current MTD Run-Rate projected landing vs {comparison_month_label}&apos;{String(compYear).slice(-2)} Full Month
               </p>
             </div>
 
@@ -107,11 +110,11 @@ export function ClassicRunRateTables({ data }: ClassicRunRateTablesProps) {
                 <tr className="bg-slate-50 border-b border-slate-200 text-slate-700 font-bold text-[11px]">
                   <th className="py-2.5 px-3 border-r border-slate-200 min-w-[140px]">Metric</th>
                   <th className="py-2.5 px-2 border-r border-slate-200 text-right">
-                    2026<br />
+                    {compYear}<br />
                     <span className="text-slate-900 font-black">{comparison_month_label} (Full)</span>
                   </th>
                   <th className="py-2.5 px-2 border-r border-slate-200 text-right bg-blue-50/40">
-                    2026<br />
+                    {curYear}<br />
                     <span className="text-[#0c4ca3] font-black">{current_month_label} (MTD)</span>
                   </th>
                   <th className="py-2.5 px-2 border-r border-slate-200 text-right bg-amber-50/40 font-black text-slate-900">
@@ -119,7 +122,7 @@ export function ClassicRunRateTables({ data }: ClassicRunRateTablesProps) {
                     <span className="text-amber-800 font-medium text-[9px]">Proj.</span>
                   </th>
                   <th className="py-2.5 px-2 border-r border-slate-200 text-right">Diff.</th>
-                  <th className="py-2.5 px-2 text-right">MoM</th>
+                  <th className="py-2.5 px-2 text-right">{isYoY ? 'YoY' : 'MoM'}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -205,11 +208,11 @@ export function ClassicRunRateTables({ data }: ClassicRunRateTablesProps) {
                 <tr className="bg-slate-50 border-b border-slate-200 text-slate-700 font-bold text-[11px]">
                   <th className="py-2.5 px-3 border-r border-slate-200 min-w-[140px]">Metric</th>
                   <th className="py-2.5 px-2 border-r border-slate-200 text-right">
-                    2026<br />
+                    {compYear}<br />
                     <span className="text-slate-900 font-black">{comparison_month_label} (1-{days_elapsed})</span>
                   </th>
                   <th className="py-2.5 px-2 border-r border-slate-200 text-right bg-blue-50/40">
-                    2026<br />
+                    {curYear}<br />
                     <span className="text-[#0c4ca3] font-black">{current_month_label} (1-{days_elapsed})</span>
                   </th>
                   <th className="py-2.5 px-2 border-r border-slate-200 text-right">Diff</th>
