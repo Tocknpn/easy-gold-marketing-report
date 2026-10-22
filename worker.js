@@ -226,7 +226,7 @@ export default {
         metrics: {
           buy_weight_g: {
             id: 'buy_weight_g',
-            label: 'Buy Weight (g)',
+            label: 'Buy Weight (baht)',
             icon_name: 'shopping-bag',
             current_mtd: 5091,
             comp_mtd: 4457,
@@ -237,7 +237,7 @@ export default {
           },
           buy_transactions: {
             id: 'buy_transactions',
-            label: 'Buy Transaction',
+            label: 'Buy Trx',
             icon_name: 'shopping-cart',
             current_mtd: 47948,
             comp_mtd: 40443,
@@ -248,7 +248,7 @@ export default {
           },
           sell_weight_g: {
             id: 'sell_weight_g',
-            label: 'Sell Weight (g)',
+            label: 'Sell Weight (Baht)',
             icon_name: 'tag',
             current_mtd: 1937,
             comp_mtd: 2847,
@@ -259,7 +259,7 @@ export default {
           },
           sell_transactions: {
             id: 'sell_transactions',
-            label: 'Sell Transaction',
+            label: 'Sell Trx',
             icon_name: 'scale',
             current_mtd: 17234,
             comp_mtd: 17016,
@@ -281,7 +281,7 @@ export default {
           },
           new_customers: {
             id: 'new_customers',
-            label: 'New Customer',
+            label: 'NC',
             icon_name: 'user-plus',
             current_mtd: 833,
             comp_mtd: 1255,
@@ -292,7 +292,7 @@ export default {
           },
           total_transactions: {
             id: 'total_transactions',
-            label: 'Total Transaction',
+            label: 'Total Trx',
             icon_name: 'arrow-left-right',
             current_mtd: 66652,
             comp_mtd: 59196,
@@ -317,8 +317,10 @@ export default {
           const rpcUrl = `${supabaseUrl}/rest/v1/rpc/get_mtd_forecast_report`;
           const asOfDate = url.searchParams.get('as_of_date') || null;
           const mode = url.searchParams.get('mode') || 'calendar_days';
-          const compMonth = parseInt(url.searchParams.get('comp_month') || '9', 10);
-          const compYear = parseInt(url.searchParams.get('comp_year') || '2026', 10);
+          const compMonthParam = url.searchParams.get('comp_month');
+          const compYearParam = url.searchParams.get('comp_year');
+          const compMonth = compMonthParam ? parseInt(compMonthParam, 10) : null;
+          const compYear = compYearParam ? parseInt(compYearParam, 10) : null;
 
           const res = await fetch(rpcUrl, {
             method: 'POST',

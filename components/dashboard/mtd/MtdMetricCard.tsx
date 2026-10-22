@@ -61,10 +61,10 @@ export function MtdMetricCard({
   const isForecastNegative = metric.forecast_variance_percent < 0;
 
   // Senior Data Analyst Pacing Calculations
-  const remainingDays = Math.max(1, totalDays - elapsedDays);
+  // Current daily velocity achieved in current month MTD
   const currentDailyRate = Math.round(metric.current_mtd / Math.max(1, elapsedDays));
-  const remainingTargetNeeded = Math.max(0, metric.full_comp_month - metric.current_mtd);
-  const requiredDailyRate = Math.round(remainingTargetNeeded / remainingDays);
+  // Required benchmark daily run-rate across the month to hit previous month total (e.g. 123,977 / 31 = 3,999/d)
+  const targetDailyRate = Math.round(metric.full_comp_month / Math.max(1, totalDays));
   
   // Pacing Health: % Target Achieved vs % Month Elapsed
   const targetAchievedPct = metric.full_comp_month > 0 
@@ -73,6 +73,30 @@ export function MtdMetricCard({
   const elapsedMonthPct = Math.round((elapsedDays / totalDays) * 100);
   const pacingDelta = targetAchievedPct - elapsedMonthPct;
   const isAheadOfPace = pacingDelta >= 0;
+
+  // Formatted compact card title
+  const cleanLabel = (() => {
+    switch (metric.id) {
+      case 'buy_weight_g':
+        return 'Buy Weight (baht)';
+      case 'sell_weight_g':
+        return 'Sell Weight (Baht)';
+      case 'buy_transactions':
+        return 'Buy Trx';
+      case 'sell_transactions':
+        return 'Sell Trx';
+      case 'new_customers':
+        return 'NC';
+      case 'total_transactions':
+        return 'Total Trx';
+      case 'withdraw_15g':
+        return 'Withdraw (15g)';
+      default:
+        return (metric.label || '')
+          .replace('Transaction', 'Trx')
+          .replace('New Customer', 'NC');
+    }
+  })();
 
   return (
     <div className="bg-white rounded-2xl border border-slate-200/90 p-3.5 sm:p-4 shadow-xs hover:shadow-md transition-all flex flex-col justify-between group relative overflow-hidden">
@@ -90,8 +114,8 @@ export function MtdMetricCard({
             <div className="p-1 rounded-lg bg-blue-50 text-[#0c4ca3] shrink-0">
               {renderIcon()}
             </div>
-            <h4 className="font-extrabold text-slate-800 text-xs sm:text-sm tracking-tight truncate">
-              {metric.label}
+            <h4 className="font-extrabold text-slate-800 text-xs sm:text-sm tracking-tight truncate" title={cleanLabel}>
+              {cleanLabel}
             </h4>
           </div>
 
@@ -224,18 +248,18 @@ export function MtdMetricCard({
           </div>
         )}
 
-        {/* Senior Analyst Required Daily Run-Rate Callout */}
-        <div className="p-2 rounded-xl bg-slate-50 border border-slate-200/80 text-[10.5px] flex items-center justify-between">
-          <div className="flex items-center gap-1 text-slate-600 font-semibold">
-            <Gauge className="w-3 h-3 text-[#0c4ca3]" />
+        {/* Senior Analyst Required Daily Run-Rate Callout (Guaranteed Single Row) */}
+        <div className="px-2 py-1.5 rounded-xl bg-slate-50 border border-slate-200/80 text-[10px] sm:text-[10.5px] flex items-center justify-between gap-1 flex-nowrap whitespace-nowrap overflow-hidden">
+          <div className="flex items-center gap-1 text-slate-500 font-semibold shrink-0">
+            <Gauge className="w-3 h-3 text-[#0c4ca3] shrink-0" />
             <span>Velocity:</span>
           </div>
-          <div className="text-right font-extrabold text-slate-800">
+          <div className="font-extrabold text-slate-800 shrink-0 flex items-center gap-1">
             <span>{currentDailyRate.toLocaleString()}</span>
-            <span className="text-slate-400 font-normal"> /day</span>
-            <span className="text-slate-300 mx-1">|</span>
-            <span className={requiredDailyRate > currentDailyRate ? 'text-amber-700' : 'text-emerald-700'}>
-              Need {requiredDailyRate.toLocaleString()}/d
+            <span className="text-slate-400 font-normal">/d</span>
+            <span className="text-slate-300">|</span>
+            <span className={targetDailyRate > currentDailyRate ? 'text-amber-700' : 'text-emerald-700'}>
+              Need {targetDailyRate.toLocaleString()}/d
             </span>
           </div>
         </div>

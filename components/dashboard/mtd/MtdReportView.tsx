@@ -1,24 +1,20 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
-import { MtdReportPayload, MtdCalculationMode, MtdQuery } from '@/lib/types/mtd.types';
+import React, { useState, useMemo, useEffect } from 'react';
+import { MtdReportPayload, MtdQuery } from '@/lib/types/mtd.types';
 import { MtdBuyActivitySection } from './MtdBuyActivitySection';
 import { MtdSellActivitySection } from './MtdSellActivitySection';
 import { MtdPlatformSection } from './MtdPlatformSection';
 import { 
   Calendar, 
   RefreshCw, 
-  Briefcase, 
   Info,
   Clock,
   Sparkles,
   Filter,
   FileSpreadsheet,
-  Building2,
-  Landmark,
   ChevronDown,
   ChevronUp,
-  RotateCcw,
   Loader2,
   AlertTriangle
 } from 'lucide-react';
@@ -31,33 +27,78 @@ interface MtdReportViewProps {
 }
 
 export function MtdReportView({ initialData, onRefresh, loading = false, error = null }: MtdReportViewProps) {
-  const [selectedCompMonth, setSelectedCompMonth] = useState<string>(initialData.comparison_month_label);
-  const [mode, setMode] = useState<MtdCalculationMode>(initialData.calculation_mode);
-  const [asOfDate, setAsOfDate] = useState<string>(initialData.as_of_date || '2026-10-18');
+  const [selectedReportMonth, setSelectedReportMonth] = useState<string>(
+    initialData.current_month_label || "Oct'26"
+  );
+  const [selectedCompMonth, setSelectedCompMonth] = useState<string>(
+    initialData.comparison_month_label || "Sep'26"
+  );
+  const [asOfDate, setAsOfDate] = useState<string>(initialData.as_of_date || '');
 
-  const [selectedBranch, setSelectedBranch] = useState<string>('all');
-  const [selectedBank, setSelectedBank] = useState<string>('all');
-  const [forecastScenario, setForecastScenario] = useState<'standard' | 'working_days' | 'conservative' | 'optimistic' | 'payday_surge'>('standard');
+  const [forecastScenario, setForecastScenario] = useState<'standard' | 'conservative' | 'optimistic' | 'payday_surge'>('standard');
   const [hasExecuted, setHasExecuted] = useState<boolean>(true);
   const [isExecuting, setIsExecuting] = useState<boolean>(false);
   const [isExporting, setIsExporting] = useState<boolean>(false);
   const [isSlicersExpanded, setIsSlicersExpanded] = useState<boolean>(false);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [showFormulaInfo, setShowFormulaInfo] = useState<boolean>(false);
-  const [showAnalystBrief, setShowAnalystBrief] = useState<boolean>(true);
   const [executionTimestamp, setExecutionTimestamp] = useState<string>(() => new Date().toLocaleTimeString());
 
-  const handleExecuteMtd = async (overrideCompMonth?: string, overrideMode?: MtdCalculationMode, overrideDate?: string) => {
+  // Dynamically compile all available months from payload
+  const allAvailableMonths = useMemo(() => {
+    const list: Array<{ label: string; year: number; month: number; isCurrent?: boolean }> = [];
+    if (initialData.current_month_label) {
+      list.push({
+        label: initialData.current_month_label,
+        year: initialData.current_month_year || 2026,
+        month: initialData.current_month_num || 10,
+        isCurrent: true,
+      });
+    }
+    (initialData.available_months || []).forEach((m) => {
+      if (!list.some((existing) => existing.label === m.label)) {
+        list.push({ ...m, isCurrent: false });
+      }
+    });
+    // Ensure default list is populated if empty
+    if (list.length === 0) {
+      list.push(
+        { label: "Oct'26", year: 2026, month: 10, isCurrent: true },
+        { label: "Sep'26", year: 2026, month: 9, isCurrent: false },
+        { label: "Aug'26", year: 2026, month: 8, isCurrent: false },
+        { label: "Jul'26", year: 2026, month: 7, isCurrent: false }
+      );
+    }
+    return list;
+  }, [initialData]);
+
+  // Keep state synchronized with incoming initialData (e.g. month rollover to November)
+  useEffect(() => {
+    if (initialData?.current_month_label) {
+      setSelectedReportMonth(initialData.current_month_label);
+    }
+    if (initialData?.comparison_month_label) {
+      setSelectedCompMonth(initialData.comparison_month_label);
+    }
+    if (initialData?.as_of_date) {
+      setAsOfDate(initialData.as_of_date);
+    }
+  }, [initialData?.current_month_label, initialData?.comparison_month_label, initialData?.as_of_date]);
+
+  const handleExecuteMtd = async (
+    overrideCompMonth?: string, 
+    overrideDate?: string
+  ) => {
     setIsExecuting(true);
     try {
       if (onRefresh) {
-        const targetMonthLabel = overrideCompMonth || selectedCompMonth;
-        const matchedMonth = displayedData.available_months?.find(m => m.label === targetMonthLabel);
+        const targetCompLabel = overrideCompMonth || selectedCompMonth;
+        const matchedComp = allAvailableMonths.find(m => m.label === targetCompLabel);
         await onRefresh({
           asOfDate: overrideDate || asOfDate,
-          compYear: matchedMonth?.year,
-          compMonth: matchedMonth?.month,
-          mode: overrideMode || mode,
+          compYear: matchedComp?.year,
+          compMonth: matchedComp?.month,
+          mode: 'calendar_days',
         });
       }
     } finally {
@@ -67,47 +108,52 @@ export function MtdReportView({ initialData, onRefresh, loading = false, error =
     }
   };
 
+  // Change MTD Target Month
+  const handleReportMonthChange = (newMonthLabel: string) => {
+    setSelectedReportMonth(newMonthLabel);
+    const targetMonth = allAvailableMonths.find((m) => m.label === newMonthLabel);
+    if (!targetMonth) return;
 
-  // Available Branches
-  const branches = [
-    { id: 'all', label: 'All Branches (ທຸກສາຂາ)' },
-    { id: 'hq', label: 'ສຳນັກງານໃຫຍ່ໂພນສີນວນ' },
-    { id: 'morning_market', label: 'ຮ້ານຄຳພູວົງ ສາຂາ ຕະຫຼາດເຊົ້າ' },
-    { id: 'vientiane_center', label: 'ຮ້ານຄຳພູວົງ ສາຂາ ວຽງຈັນເຊັນເຕີ້' },
-    { id: 'itecc', label: 'ຮ້ານຄຳພູວົງ ສາຂາ ໄອເຕັກມໍ' },
-    { id: 'wattay', label: 'ສາຂາຮ້ານຄຳພູວົງ ວັດໄຕ' },
-    { id: 'app', label: 'Digital App / Online' },
-  ];
+    let targetDate = initialData.as_of_date;
+    if (targetMonth.isCurrent) {
+      targetDate = initialData.as_of_date || `${targetMonth.year}-${String(targetMonth.month).padStart(2, '0')}-21`;
+    } else {
+      const lastDay = new Date(targetMonth.year, targetMonth.month, 0).getDate();
+      targetDate = `${targetMonth.year}-${String(targetMonth.month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+    }
+    setAsOfDate(targetDate);
 
-  // Available Banks
-  const banks = [
-    { id: 'all', label: 'All Banks (ທຸກທະນາຄານ)' },
-    { id: 'bcel', label: 'BCEL One (Banque Pour Le Commerce Exterieur)' },
-    { id: 'ldb', label: 'LDB Trust (Lao Development Bank)' },
-    { id: 'jdb', label: 'JDB Yes (Joint Development Bank)' },
-    { id: 'umoney', label: 'u-money (Unitel Star Fintech)' },
-    { id: 'mmoney', label: 'M-Money (Lao Telecom)' },
-  ];
+    // Auto-select comparison month (month preceding the target month)
+    const curIdx = allAvailableMonths.findIndex((m) => m.label === newMonthLabel);
+    const defaultComp = allAvailableMonths[curIdx + 1]?.label || (allAvailableMonths.find(m => m.label !== newMonthLabel)?.label);
+    const compToUse = defaultComp || selectedCompMonth;
+    if (compToUse && compToUse !== newMonthLabel) {
+      setSelectedCompMonth(compToUse);
+      handleExecuteMtd(compToUse, targetDate);
+    } else {
+      handleExecuteMtd(selectedCompMonth, targetDate);
+    }
+  };
+
+  // Change Comparison Month
+  const handleCompMonthChange = (newMonth: string) => {
+    setSelectedCompMonth(newMonth);
+    handleExecuteMtd(newMonth, asOfDate);
+  };
 
   // Apply filters and scale metrics dynamically
   const displayedData = useMemo(() => {
-    const parts = asOfDate.split('-');
+    const parts = (asOfDate || '').split('-');
     const currYear = parts.length === 3 ? (parseInt(parts[0], 10) || 2026) : (initialData.current_month_year || 2026);
     const currMonth = parts.length === 3 ? (parseInt(parts[1], 10) || 10) : (initialData.current_month_num || 10);
-    const day = parts.length === 3 ? (parseInt(parts[2], 10) || 18) : (initialData.elapsed_days || 18);
+    const day = parts.length === 3 ? (parseInt(parts[2], 10) || 1) : (initialData.elapsed_days || 1);
     const totalDays = initialData.total_days_current_month || new Date(currYear, currMonth, 0).getDate();
     
-    // 100% Real Consolidated Metrics (No synthetic branch/bank multipliers)
+    // 100% Real Consolidated Metrics
     let runRateMultiplier = totalDays / Math.max(1, day);
     if (forecastScenario === 'conservative') runRateMultiplier *= 0.90;
     if (forecastScenario === 'optimistic') runRateMultiplier *= 1.10;
     if (forecastScenario === 'payday_surge') runRateMultiplier *= 1.15; // Lao payday surge (25th-30th)
-    
-    const totalWd = initialData.total_working_days_current_month || Math.round(totalDays * (22 / 31));
-    const elapsedWd = initialData.elapsed_working_days || Math.max(1, Math.round(day * (totalWd / totalDays)));
-    if (mode === 'working_days') {
-      runRateMultiplier = totalWd / Math.max(1, elapsedWd);
-    }
 
     const updatedMetrics = { ...initialData.metrics };
     Object.keys(updatedMetrics).forEach((key) => {
@@ -133,56 +179,45 @@ export function MtdReportView({ initialData, onRefresh, loading = false, error =
       };
     });
 
-    const displayDateStr = parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : '11/10/2026';
+    const displayDateStr = parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : (initialData.display_as_of_date || asOfDate);
 
     return {
       ...initialData,
       as_of_date: asOfDate,
       display_as_of_date: displayDateStr,
       elapsed_days: day,
-      calculation_mode: mode,
+      total_days_current_month: totalDays,
       comparison_month_label: selectedCompMonth,
       metrics: updatedMetrics,
     };
-  }, [initialData, asOfDate, selectedCompMonth, mode, selectedBranch, selectedBank, forecastScenario]);
-
-  const handleModeChange = (newMode: MtdCalculationMode) => {
-    setMode(newMode);
-    handleExecuteMtd(selectedCompMonth, newMode, asOfDate);
-  };
-
-  const handleCompMonthChange = (newMonth: string) => {
-    setSelectedCompMonth(newMonth);
-    handleExecuteMtd(newMonth, mode, asOfDate);
-  };
-
-  const handleResetFilters = () => {
-    const defaultDate = initialData.as_of_date || '2026-10-18';
-    setAsOfDate(defaultDate);
-    setSelectedBranch('all');
-    setSelectedBank('all');
-    setForecastScenario('standard');
-    setMode('calendar_days');
-    setSelectedCompMonth("Sep'26");
-    handleExecuteMtd("Sep'26", 'calendar_days', defaultDate);
-  };
-
+  }, [initialData, asOfDate, selectedCompMonth, forecastScenario]);
 
   const handleExportCsv = () => {
     setIsExporting(true);
     try {
+      const metricLabelMap: Record<string, string> = {
+        buy_weight_g: 'Buy Weight (baht)',
+        sell_weight_g: 'Sell Weight (Baht)',
+        buy_transactions: 'Buy Trx',
+        sell_transactions: 'Sell Trx',
+        new_customers: 'NC',
+        total_transactions: 'Total Trx',
+        withdraw_15g: 'Withdraw (15g)',
+      };
+
       const rows = [
         `EASY GOLD - MTD AND FORECAST PERFORMANCE REPORT`,
-        `As Of Date: ${displayedData.display_as_of_date}, Comparison Month: ${displayedData.comparison_month_label}, Mode: ${mode}`,
+        `Report Month: ${selectedReportMonth}, As Of Date: ${displayedData.display_as_of_date}, Comparison Month: ${displayedData.comparison_month_label}`,
         `Elapsed Days: ${displayedData.elapsed_days} / ${displayedData.total_days_current_month} (${Math.round((displayedData.elapsed_days / displayedData.total_days_current_month) * 100)}%)`,
-        `Branch Filter: ${selectedBranch}, Bank Filter: ${selectedBank}, Scenario: ${forecastScenario}`,
+        `Scenario: ${forecastScenario}`,
         ``,
         `Metric Name,Current MTD,Comp MTD,MTD Variance %,Est. Month End,Full Comp Month,Forecast Variance %`,
       ];
 
       Object.values(displayedData.metrics).forEach((m) => {
+        const cleanName = metricLabelMap[m.id] || m.label;
         rows.push(
-          `"${m.label}",${m.current_mtd},${m.comp_mtd},${m.mtd_variance_percent}%,${m.est_month_end},${m.full_comp_month},${m.forecast_variance_percent}%`
+          `"${cleanName}",${m.current_mtd},${m.comp_mtd},${m.mtd_variance_percent}%,${m.est_month_end},${m.full_comp_month},${m.forecast_variance_percent}%`
         );
       });
 
@@ -191,7 +226,7 @@ export function MtdReportView({ initialData, onRefresh, loading = false, error =
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.setAttribute('href', url);
-      link.setAttribute('download', `easy_gold_mtd_forecast_${asOfDate}.csv`);
+      link.setAttribute('download', `easy_gold_mtd_forecast_${selectedReportMonth}_${asOfDate}.csv`);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -204,9 +239,7 @@ export function MtdReportView({ initialData, onRefresh, loading = false, error =
 
   // Active filters count
   const activeSlicersCount = [
-    asOfDate !== '2026-10-11' ? 1 : 0,
-    selectedBranch !== 'all' ? 1 : 0,
-    selectedBank !== 'all' ? 1 : 0,
+    asOfDate !== initialData.as_of_date ? 1 : 0,
     forecastScenario !== 'standard' ? 1 : 0,
   ].reduce((a, b) => a + b, 0);
 
@@ -218,7 +251,7 @@ export function MtdReportView({ initialData, onRefresh, loading = false, error =
           <div className="space-y-1">
             <div className="font-bold">Live Supabase Sync Notice</div>
             <p className="text-[11px] text-amber-800 leading-relaxed">
-              {error} Showing calibrated actual baseline data. To enable live RPC recalculation across all months, run <code className="bg-amber-100/80 px-1 py-0.5 rounded font-mono font-semibold">sql/36_mtd_daily_summary_and_rpc.sql</code> in your Supabase SQL Editor.
+              {error} Showing calibrated actual baseline data.
             </p>
           </div>
         </div>
@@ -229,7 +262,9 @@ export function MtdReportView({ initialData, onRefresh, loading = false, error =
         <div>
           {/* Main Title */}
           <h1 className="text-2xl sm:text-3xl lg:text-[34px] font-black text-brand-navy tracking-tight flex items-center gap-2 flex-wrap">
-            <span>Overall performance MTD and Forecast vs</span>
+            <span>
+              Overall performance MTD {selectedReportMonth !== initialData.current_month_label ? `(${selectedReportMonth})` : ''} and Forecast vs
+            </span>
             <span className="text-brand-navy underline decoration-brand-navy/30 underline-offset-4">
               {displayedData.comparison_month_label}
             </span>
@@ -262,59 +297,47 @@ export function MtdReportView({ initialData, onRefresh, loading = false, error =
 
         {/* Interactive Controls Bar */}
         <div className="flex items-center gap-2 flex-wrap">
-          {/* Calendar vs Working Days Toggle */}
-          <div className="bg-white p-1 rounded-xl border border-slate-300/80 shadow-xs flex items-center text-xs font-bold">
-            <button
-              onClick={() => handleModeChange('calendar_days')}
-              className={`px-2.5 py-1 rounded-lg transition-all ${
-                mode === 'calendar_days'
-                  ? 'bg-brand-navy text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-              title="Compare based on calendar days elapsed"
-            >
-              Calendar Days
-            </button>
-            <button
-              onClick={() => handleModeChange('working_days')}
-              className={`px-2.5 py-1 rounded-lg flex items-center gap-1 transition-all ${
-                mode === 'working_days'
-                  ? 'bg-brand-navy text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-              title="Compare based on same number of business working days"
-            >
-              <Briefcase className="w-3 h-3" />
-              Working Days
-            </button>
-          </div>
-
-          {/* Comparison Month Dropdown */}
+          {/* 1. MTD Target Month Dropdown */}
           <div className="relative flex items-center">
             <Calendar className="w-3.5 h-3.5 text-brand-navy absolute left-2.5 pointer-events-none" />
             <select
-              value={selectedCompMonth}
-              onChange={(e) => handleCompMonthChange(e.target.value)}
+              value={selectedReportMonth}
+              onChange={(e) => handleReportMonthChange(e.target.value)}
               className="text-xs font-black text-slate-800 bg-white border border-slate-300/80 rounded-xl pl-8 pr-3 py-1.5 shadow-xs cursor-pointer focus:ring-1 focus:ring-brand-navy"
-              title="Select comparison month"
+              title="Select month for MTD report"
             >
-              {(displayedData.available_months || [
-                { label: "Sep'26", year: 2026, month: 9 },
-                { label: "Aug'26", year: 2026, month: 8 },
-                { label: "Jul'26", year: 2026, month: 7 },
-              ]).map((m) => (
+              {allAvailableMonths.map((m) => (
                 <option key={m.label} value={m.label}>
-                  Compare vs {m.label}
+                  MTD: {m.label} {m.isCurrent ? '(Current)' : ''}
                 </option>
               ))}
+            </select>
+          </div>
+
+          {/* 2. Comparison Month Dropdown */}
+          <div className="relative flex items-center">
+            <span className="text-xs font-bold text-slate-500 hidden sm:inline mr-1">vs</span>
+            <select
+              value={selectedCompMonth}
+              onChange={(e) => handleCompMonthChange(e.target.value)}
+              className="text-xs font-black text-slate-800 bg-white border border-slate-300/80 rounded-xl px-3 py-1.5 shadow-xs cursor-pointer focus:ring-1 focus:ring-brand-navy"
+              title="Select comparison month"
+            >
+              {allAvailableMonths
+                .filter((m) => m.label !== selectedReportMonth)
+                .map((m) => (
+                  <option key={m.label} value={m.label}>
+                    Compare vs {m.label}
+                  </option>
+                ))}
             </select>
           </div>
 
           {/* Toggle Slicers Dropdown Button */}
           <button
             onClick={() => setIsSlicersExpanded(!isSlicersExpanded)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-slate-300/80 text-xs font-bold text-slate-700 hover:bg-slate-50 shadow-xs transition-all"
-            title="Filter by Date Cutoff, Branch & Channel"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-slate-300/80 text-xs font-bold text-slate-700 hover:bg-slate-50 shadow-xs transition-all cursor-pointer"
+            title="Filter by Cutoff Date & Forecast Scenario"
           >
             <Filter className="w-3.5 h-3.5 text-brand-navy" />
             <span>Filters</span>
@@ -331,7 +354,7 @@ export function MtdReportView({ initialData, onRefresh, loading = false, error =
             onClick={() => handleExecuteMtd()}
             disabled={isExecuting || loading}
             className="flex items-center gap-2 px-4 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-500 hover:to-teal-600 text-white text-xs font-black shadow-sm hover:shadow-md ring-1 ring-emerald-400/30 transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
-            title="Execute MTD report on Supabase"
+            title="Execute MTD report calculation"
           >
             {isExecuting || loading ? (
               <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />
@@ -345,7 +368,7 @@ export function MtdReportView({ initialData, onRefresh, loading = false, error =
           <button
             onClick={handleExportCsv}
             disabled={isExporting}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-brand-gold hover:bg-brand-goldDark text-slate-950 text-xs font-black shadow-xs transition-all"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-brand-gold hover:bg-brand-goldDark text-slate-950 text-xs font-black shadow-xs transition-all cursor-pointer"
             title="Export MTD report to Excel/CSV"
           >
             <FileSpreadsheet className="w-3.5 h-3.5 text-slate-950" />
@@ -358,7 +381,7 @@ export function MtdReportView({ initialData, onRefresh, loading = false, error =
               if (onRefresh) onRefresh();
             }}
             disabled={loading || isRefreshing}
-            className="p-1.5 rounded-xl bg-white border border-slate-300/80 text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-colors disabled:opacity-50 shadow-xs"
+            className="p-1.5 rounded-xl bg-white border border-slate-300/80 text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-colors disabled:opacity-50 shadow-xs cursor-pointer"
             title="Refresh MTD & Forecast"
           >
             <RefreshCw className={`w-4 h-4 ${loading || isRefreshing ? 'animate-spin' : ''}`} />
@@ -366,28 +389,19 @@ export function MtdReportView({ initialData, onRefresh, loading = false, error =
         </div>
       </div>
 
-      {/* Collapsible Advanced Filters Bar (Date Cutoff, Branch, Bank Channel, Forecast Scenario) */}
+      {/* Collapsible Advanced Filters Bar (Date Cutoff & Forecast Scenario) */}
       {isSlicersExpanded && (
         <div className="bg-white rounded-2xl p-4 border border-slate-200/90 shadow-sm space-y-3 animate-in fade-in duration-200">
           <div className="flex items-center justify-between pb-2 border-b border-slate-100 flex-wrap gap-2">
             <div className="flex items-center gap-2">
               <Filter className="w-4 h-4 text-brand-navy" />
               <span className="text-xs font-black uppercase tracking-wider text-slate-800">
-                MTD Multi-Dimensional Slicers &amp; Forecast Scenarios
+                MTD Slicers &amp; Forecast Scenarios
               </span>
             </div>
-            {activeSlicersCount > 0 && (
-              <button
-                onClick={handleResetFilters}
-                className="flex items-center gap-1 text-[11px] font-bold text-red-600 hover:text-red-700 transition-colors"
-              >
-                <RotateCcw className="w-3 h-3" />
-                <span>Reset to Oct 11 Baseline</span>
-              </button>
-            )}
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl">
             {/* 1. As-Of Cutoff Date Picker */}
             <div className="flex flex-col gap-1">
               <label className="text-[11px] font-bold text-slate-600 flex items-center gap-1.5">
@@ -404,21 +418,7 @@ export function MtdReportView({ initialData, onRefresh, loading = false, error =
               />
             </div>
 
-            {/* 2. Consolidated Scope Indicator */}
-            <div className="flex flex-col gap-1 sm:col-span-2">
-              <label className="text-[11px] font-bold text-slate-600 flex items-center gap-1.5">
-                <Building2 className="w-3.5 h-3.5 text-brand-navy" />
-                <span>Reporting Scope</span>
-              </label>
-              <div className="text-xs font-bold bg-slate-100/80 border border-slate-300 text-slate-800 rounded-xl px-3 py-1.5 flex items-center justify-between">
-                <span>Company-Wide Consolidated (All Branches &amp; Banks)</span>
-                <span className="text-[10px] font-mono text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
-                  100% Real Parity
-                </span>
-              </div>
-            </div>
-
-            {/* 3. Forecast Model Scenario */}
+            {/* 2. Forecast Model Scenario */}
             <div className="flex flex-col gap-1">
               <label className="text-[11px] font-bold text-slate-600 flex items-center gap-1.5">
                 <Sparkles className="w-3.5 h-3.5 text-brand-navy" />
@@ -430,13 +430,13 @@ export function MtdReportView({ initialData, onRefresh, loading = false, error =
                 className="text-xs font-semibold bg-blue-50/60 border border-blue-200 text-brand-navy rounded-xl px-2.5 py-1.5 focus:ring-2 focus:ring-brand-navy focus:outline-hidden"
               >
                 <option value="standard">Linear Run-Rate (Standard)</option>
-                <option value="working_days">Working-Days Velocity (Mon-Sat)</option>
                 <option value="payday_surge">Payday Surge (+15% Month-End Payroll Rally)</option>
                 <option value="conservative">Conservative (-10% Outliers Excluded)</option>
                 <option value="optimistic">Optimistic (+10% Month-End Rally)</option>
               </select>
             </div>
           </div>
+
           <div className="bg-slate-50 border border-slate-200 text-slate-600 text-[11px] rounded-xl px-3 py-1.5 flex items-center gap-2">
             <Info className="w-3.5 h-3.5 text-brand-navy shrink-0" />
             <span>
@@ -461,7 +461,7 @@ export function MtdReportView({ initialData, onRefresh, loading = false, error =
                     <span className="font-semibold text-slate-800">&bull; MTD State:</span> Actual accumulated metrics from Day 1 to Day {displayedData.elapsed_days} ({displayedData.display_as_of_date}).
                   </div>
                   <div>
-                    <span className="font-semibold text-slate-800">&bull; vs. {displayedData.comparison_month_label}:</span> Compared to the exact same {mode === 'working_days' ? 'working days' : 'period'} (Day 1 to {displayedData.elapsed_days}) of {displayedData.comparison_month_label}.
+                    <span className="font-semibold text-slate-800">&bull; vs. {displayedData.comparison_month_label}:</span> Compared to the exact same period (Day 1 to {displayedData.elapsed_days}) of {displayedData.comparison_month_label}.
                   </div>
                   <div>
                     <span className="font-semibold text-slate-800">&bull; Est. Month End:</span> Projected landing via linear run rate: <code className="bg-white/80 px-1 py-0.5 rounded border border-slate-200 font-mono text-[11px]">(MTD / {displayedData.elapsed_days}) &times; {displayedData.total_days_current_month} days</code>.
@@ -474,7 +474,7 @@ export function MtdReportView({ initialData, onRefresh, loading = false, error =
             </div>
             <button
               onClick={() => setShowFormulaInfo(false)}
-              className="text-slate-400 hover:text-slate-600 font-bold px-1"
+              className="text-slate-400 hover:text-slate-600 font-bold px-1 cursor-pointer"
             >
               ✕
             </button>
@@ -497,7 +497,7 @@ export function MtdReportView({ initialData, onRefresh, loading = false, error =
               Ready to Calculate MTD &amp; Forecast Landing
             </h3>
             <p className="text-xs text-slate-500 font-medium leading-relaxed">
-              No numbers are pre-rendered to ensure exact alignment with Supabase. Set your cutoff date and comparison month above, then click <strong className="text-slate-800">Calculate</strong> to run.
+              Set your cutoff date and comparison month above, then click <strong className="text-slate-800">Calculate</strong> to run.
             </p>
           </div>
         </div>
@@ -508,7 +508,7 @@ export function MtdReportView({ initialData, onRefresh, loading = false, error =
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
               <span>
-                <strong>Live MTD Calculation:</strong> Cutoff: <strong>Day {displayedData.elapsed_days} ({displayedData.display_as_of_date})</strong> | Comp: <strong>vs {displayedData.comparison_month_label}</strong> ({mode}) | Model: <strong className="capitalize">{forecastScenario.replace('_', ' ')}</strong>
+                <strong>Live MTD Calculation:</strong> Cutoff: <strong>Day {displayedData.elapsed_days} ({displayedData.display_as_of_date})</strong> | Comp: <strong>vs {displayedData.comparison_month_label}</strong> | Model: <strong className="capitalize">{forecastScenario.replace('_', ' ')}</strong>
               </span>
             </div>
             <div className="flex items-center gap-3">
@@ -522,8 +522,6 @@ export function MtdReportView({ initialData, onRefresh, loading = false, error =
               </button>
             </div>
           </div>
-
-
 
           {/* 7 Cards across 3 Themed Containers with Pacing Props */}
           <div className="grid grid-cols-1 xl:grid-cols-7 gap-3 sm:gap-3.5 items-stretch">

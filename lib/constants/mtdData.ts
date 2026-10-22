@@ -17,7 +17,7 @@ export const DEFAULT_MTD_PAYLOAD: MtdReportPayload = {
   metrics: {
     buy_weight_g: {
       id: 'buy_weight_g',
-      label: 'Buy Weight (g)',
+      label: 'Buy Weight (baht)',
       icon_name: 'shopping-bag',
       current_mtd: 7696,
       comp_mtd: 7563,
@@ -31,7 +31,7 @@ export const DEFAULT_MTD_PAYLOAD: MtdReportPayload = {
     },
     buy_transactions: {
       id: 'buy_transactions',
-      label: 'Buy Transaction',
+      label: 'Buy Trx',
       icon_name: 'shopping-cart',
       current_mtd: 77539,
       comp_mtd: 68963,
@@ -45,7 +45,7 @@ export const DEFAULT_MTD_PAYLOAD: MtdReportPayload = {
     },
     sell_weight_g: {
       id: 'sell_weight_g',
-      label: 'Sell Weight (g)',
+      label: 'Sell Weight (Baht)',
       icon_name: 'tag',
       current_mtd: 3292,
       comp_mtd: 4667,
@@ -59,7 +59,7 @@ export const DEFAULT_MTD_PAYLOAD: MtdReportPayload = {
     },
     sell_transactions: {
       id: 'sell_transactions',
-      label: 'Sell Transaction',
+      label: 'Sell Trx',
       icon_name: 'scale',
       current_mtd: 31338,
       comp_mtd: 30117,
@@ -87,7 +87,7 @@ export const DEFAULT_MTD_PAYLOAD: MtdReportPayload = {
     },
     new_customers: {
       id: 'new_customers',
-      label: 'New Customer',
+      label: 'NC',
       icon_name: 'user-plus',
       current_mtd: 1372,
       comp_mtd: 2018,
@@ -101,7 +101,7 @@ export const DEFAULT_MTD_PAYLOAD: MtdReportPayload = {
     },
     total_transactions: {
       id: 'total_transactions',
-      label: 'Total Transaction',
+      label: 'Total Trx',
       icon_name: 'arrow-left-right',
       current_mtd: 111295,
       comp_mtd: 101891,
