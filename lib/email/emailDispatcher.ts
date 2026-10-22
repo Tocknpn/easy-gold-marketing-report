@@ -1,4 +1,6 @@
+import crypto from 'crypto';
 import nodemailer from 'nodemailer';
+import { getGoogleServiceAccountCredentials } from './googleCredentials';
 
 export interface DispatchEmailOptions {
   to: string | string[];
@@ -10,10 +12,76 @@ export interface DispatchEmailOptions {
 
 export interface DispatchResult {
   sent: boolean;
-  provider: 'gmail_smtp' | 'custom_smtp' | 'resend' | 'simulated';
+  provider: 'google_service_account' | 'gmail_smtp' | 'custom_smtp' | 'resend' | 'simulated';
   messageId?: string;
   message: string;
   error?: string;
+}
+
+function signJwtRs256(header: any, claim: any, privateKeyPem: string): string {
+  const encHeader = Buffer.from(JSON.stringify(header)).toString('base64url');
+  const encClaim = Buffer.from(JSON.stringify(claim)).toString('base64url');
+  const unsigned = `${encHeader}.${encClaim}`;
+  const signer = crypto.createSign('RSA-SHA256');
+  signer.update(unsigned);
+  const signature = signer.sign(privateKeyPem, 'base64url');
+  return `${unsigned}.${signature}`;
+}
+
+async function getGoogleAccessToken(clientEmail: string, privateKey: string, impersonateUser?: string | null): Promise<string> {
+  const now = Math.floor(Date.now() / 1000);
+  const header = { alg: 'RS256', typ: 'JWT' };
+  const claim: any = {
+    iss: clientEmail,
+    scope: 'https://www.googleapis.com/auth/gmail.send',
+    aud: 'https://oauth2.googleapis.com/token',
+    exp: now + 3600,
+    iat: now,
+  };
+  if (impersonateUser) {
+    claim.sub = impersonateUser;
+  }
+  const assertion = signJwtRs256(header, claim, privateKey);
+  const res = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+      assertion,
+    }),
+  });
+  const data = await res.json();
+  if (!res.ok || !data.access_token) {
+    throw new Error(data.error_description || data.error || 'Failed to exchange JWT for Google access token');
+  }
+  return data.access_token;
+}
+
+async function sendGmailApi(accessToken: string, fromEmail: string, toList: string[], subject: string, htmlBody: string) {
+  const rawEmail = [
+    `From: ${fromEmail}`,
+    `To: ${toList.join(', ')}`,
+    `Subject: =?utf-8?B?${Buffer.from(subject).toString('base64')}?=`,
+    'MIME-Version: 1.0',
+    'Content-Type: text/html; charset=utf-8',
+    '',
+    htmlBody,
+  ].join('\r\n');
+
+  const raw = Buffer.from(rawEmail).toString('base64url');
+  const res = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ raw }),
+  });
+  const data = await res.json();
+  if (!res.ok || !data.id) {
+    throw new Error(data.error?.message || JSON.stringify(data));
+  }
+  return data;
 }
 
 /**
@@ -98,8 +166,32 @@ export function buildReportEmailHtml(reportDate: string, summaryData?: any): str
 export async function sendExecutiveReportEmail(options: DispatchEmailOptions): Promise<DispatchResult> {
   const recipientList = Array.isArray(options.to) ? options.to : options.to.split(',').map((e) => e.trim());
   const recipientString = recipientList.join(', ');
+  // 1. Check for Google Service Account Gmail API
+  const googleCreds = getGoogleServiceAccountCredentials();
+  if (googleCreds.configured && googleCreds.clientEmail && googleCreds.privateKey) {
+    try {
+      const impersonateUser = process.env.GMAIL_IMPERSONATE_USER || process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || null;
+      const accessToken = await getGoogleAccessToken(googleCreds.clientEmail, googleCreds.privateKey, impersonateUser);
+      const sender = impersonateUser || googleCreds.clientEmail;
+      const result = await sendGmailApi(
+        accessToken,
+        sender,
+        recipientList,
+        options.subject,
+        buildReportEmailHtml(options.reportDate, options.summaryData)
+      );
+      return {
+        sent: true,
+        provider: 'google_service_account',
+        messageId: result.id,
+        message: `Email successfully delivered to ${recipientString} via Google Service Account Gmail API`,
+      };
+    } catch (err: any) {
+      console.warn('Google Service Account Gmail API dispatch error, falling back to other transports:', err?.message || err);
+    }
+  }
 
-  // 1. Check for Resend API
+  // 2. Check for Resend API
   const resendApiKey = process.env.RESEND_API_KEY;
   if (resendApiKey) {
     try {
