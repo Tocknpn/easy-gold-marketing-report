@@ -40,6 +40,7 @@ CREATE TABLE IF NOT EXISTS public.summary_daily_metrics (
 );
 
 ALTER TABLE public.summary_daily_metrics ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow select for all" ON public.summary_daily_metrics;
 CREATE POLICY "Allow select for all" ON public.summary_daily_metrics FOR SELECT USING (true);
 GRANT SELECT ON public.summary_daily_metrics TO anon, authenticated, service_role;
 
