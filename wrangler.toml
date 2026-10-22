@@ -13,6 +13,7 @@ not_found_handling = "single-page-application"
 NEXT_PUBLIC_SUPABASE_URL = "https://wlufvvawlbyvpyaubzph.supabase.co"
 NEXT_PUBLIC_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndsdWZ2dmF3bGJ5dnB5YXVienBoIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MTg1MDY0MSwiZXhwIjoyMTA3NDI2NjQxfQ.CN2Omnb-aAuxAW80EqFZubEZhilRdOlwHg8VzPn2AHk"
 # Encrypted secrets (Set via Cloudflare dashboard or wrangler secret put):
+# GOOGLE_APPS_SCRIPT_URL (or GMAIL_PROXY_URL: https://script.google.com/macros/s/.../exec)
 # GOOGLE_SERVICE_ACCOUNT_KEY
 # RESEND_API_KEY
 # GMAIL_IMPERSONATE_USER

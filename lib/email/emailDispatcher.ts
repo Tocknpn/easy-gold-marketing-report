@@ -12,7 +12,7 @@ export interface DispatchEmailOptions {
 
 export interface DispatchResult {
   sent: boolean;
-  provider: 'google_service_account' | 'gmail_smtp' | 'custom_smtp' | 'resend' | 'simulated';
+  provider: 'google_apps_script' | 'google_service_account' | 'gmail_smtp' | 'custom_smtp' | 'resend' | 'simulated';
   messageId?: string;
   message: string;
   error?: string;
@@ -166,6 +166,38 @@ export function buildReportEmailHtml(reportDate: string, summaryData?: any): str
 export async function sendExecutiveReportEmail(options: DispatchEmailOptions): Promise<DispatchResult> {
   const recipientList = Array.isArray(options.to) ? options.to : options.to.split(',').map((e) => e.trim());
   const recipientString = recipientList.join(', ');
+
+  // 0. Check for Google Apps Script Web App Gateway (Sends natively from your Gmail with mailed-by: gmail.com)
+  const appsScriptUrl = process.env.GOOGLE_APPS_SCRIPT_URL || process.env.GMAIL_PROXY_URL;
+  if (appsScriptUrl) {
+    try {
+      const res = await fetch(appsScriptUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: recipientList.join(', '),
+          subject: options.subject,
+          html: buildReportEmailHtml(options.reportDate, options.summaryData),
+          body: `Easy Gold Executive Daily BI Report for ${options.reportDate}`,
+        }),
+      });
+
+      const data = await res.json().catch(() => ({ success: res.ok }));
+      if (res.ok && data.success !== false) {
+        return {
+          sent: true,
+          provider: 'google_apps_script',
+          messageId: data.messageId || `gas_${Date.now()}`,
+          message: `Email successfully delivered to ${recipientString} via Google Apps Script (from your Gmail)`,
+        };
+      } else {
+        throw new Error(data.error || `HTTP ${res.status}: Failed to dispatch via Google Apps Script`);
+      }
+    } catch (err: any) {
+      console.warn('Google Apps Script gateway dispatch failed, falling back:', err?.message || err);
+    }
+  }
+
   // 1. Check for Google Service Account Gmail API
   const googleCreds = getGoogleServiceAccountCredentials();
   if (googleCreds.configured && googleCreds.clientEmail && googleCreds.privateKey) {

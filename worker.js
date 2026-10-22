@@ -1535,6 +1535,7 @@ WHERE created_at >= '${bwdStart}'
         settings,
         logs,
         googleServiceAccountConfigured: true,
+        hasGoogleAppsScript: Boolean(env.GOOGLE_APPS_SCRIPT_URL || env.GMAIL_PROXY_URL),
       }), {
         headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
       });
@@ -1584,9 +1585,38 @@ WHERE created_at >= '${bwdStart}'
 </body>
 </html>`;
 
+        // 0. Attempt Google Apps Script Web App Gateway (Direct native Gmail dispatch)
+        const appsScriptUrl = env.GOOGLE_APPS_SCRIPT_URL || env.GMAIL_PROXY_URL;
+        if (appsScriptUrl) {
+          try {
+            const gasRes = await fetch(appsScriptUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                to: recipientList.join(', '),
+                subject: `Easy Gold Executive Daily BI Report - ${reportDate}`,
+                html: emailHtml,
+                body: `Easy Gold Executive Daily BI Report for ${reportDate}`,
+              }),
+            });
+
+            const gasData = await gasRes.json().catch(() => ({ success: gasRes.ok }));
+            if (gasRes.ok && gasData.success !== false) {
+              emailSent = true;
+              provider = 'google_apps_script';
+              emailError = null;
+            } else {
+              throw new Error(gasData.error || `Apps Script returned HTTP status ${gasRes.status}`);
+            }
+          } catch (gasErr) {
+            console.warn('Google Apps Script gateway dispatch error:', gasErr);
+            emailError = `Google Apps Script: ${gasErr.message || String(gasErr)}`;
+          }
+        }
+
         // 1. Attempt Google Service Account Gmail API delivery
         const rawGoogleKey = env.GOOGLE_SERVICE_ACCOUNT_KEY;
-        if (rawGoogleKey) {
+        if (!emailSent && rawGoogleKey) {
           try {
             let serviceAccountObj = null;
             if (typeof rawGoogleKey === 'object') {
@@ -1662,7 +1692,7 @@ WHERE created_at >= '${bwdStart}'
                 report_date: reportDate,
                 sent_at: new Date().toISOString(),
                 recipient: recipient,
-                status: emailSent || (!env.GOOGLE_SERVICE_ACCOUNT_KEY && !env.RESEND_API_KEY) ? 'success' : 'failed',
+                status: emailSent || (!env.GOOGLE_APPS_SCRIPT_URL && !env.GOOGLE_SERVICE_ACCOUNT_KEY && !env.RESEND_API_KEY) ? 'success' : 'failed',
                 trigger_type: body.trigger_type || 'manual_test',
                 subject: `Easy Gold Executive Daily BI Report - ${reportDate}`,
                 error_message: emailError || (!emailSent ? 'Simulated dispatch (No live credentials configured in Cloudflare)' : null),
@@ -1674,20 +1704,29 @@ WHERE created_at >= '${bwdStart}'
           }
         }
 
+        const providerLabel = provider === 'google_apps_script'
+          ? 'Google Apps Script (from your Gmail)'
+          : provider === 'google_service_account'
+          ? 'Google Service Account Gmail API'
+          : provider === 'resend'
+          ? 'Resend'
+          : 'Simulation';
+
         const successMessage = emailSent
-          ? `Daily report delivered to ${recipient} via ${provider === 'google_service_account' ? 'Google Service Account Gmail API' : 'Resend'}`
+          ? `Daily report delivered to ${recipient} via ${providerLabel}`
           : emailError
           ? `Delivery attempt failed: ${emailError}`
-          : `Simulated dispatch logged. Set GOOGLE_SERVICE_ACCOUNT_KEY or RESEND_API_KEY in Cloudflare Worker environment to send real emails.`;
+          : `Simulated dispatch logged. Set GOOGLE_APPS_SCRIPT_URL in Cloudflare Worker environment to send real emails directly from Gmail.`;
 
         return new Response(JSON.stringify({
-          success: emailSent || (!env.GOOGLE_SERVICE_ACCOUNT_KEY && !env.RESEND_API_KEY),
+          success: emailSent || (!env.GOOGLE_APPS_SCRIPT_URL && !env.GOOGLE_SERVICE_ACCOUNT_KEY && !env.RESEND_API_KEY),
           status: emailSent ? 'success' : (emailError ? 'failed' : 'simulated'),
           sent: emailSent,
           provider,
           recipient,
           reportDate,
           hasServiceAccount: Boolean(env.GOOGLE_SERVICE_ACCOUNT_KEY),
+          hasGoogleAppsScript: Boolean(env.GOOGLE_APPS_SCRIPT_URL || env.GMAIL_PROXY_URL),
           message: successMessage,
           error: emailError || (!emailSent ? successMessage : null),
         }), {

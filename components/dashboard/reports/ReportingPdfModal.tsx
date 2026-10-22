@@ -68,6 +68,7 @@ export function ReportingPdfModal({
   const [isSavingSettings, setIsSavingSettings] = useState<boolean>(false);
   const [settingsSaveMsg, setSettingsSaveMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [hasGoogleServiceAccount, setHasGoogleServiceAccount] = useState<boolean>(false);
+  const [hasGoogleAppsScript, setHasGoogleAppsScript] = useState<boolean>(false);
 
   // Send Test Email State
   const [isSendingTest, setIsSendingTest] = useState<boolean>(false);
@@ -111,6 +112,7 @@ export function ReportingPdfModal({
           setDeliveryLogs(data.logs);
         }
         setHasGoogleServiceAccount(Boolean(data.googleServiceAccountConfigured));
+        setHasGoogleAppsScript(Boolean(data.hasGoogleAppsScript));
       }
     } catch (e) {
       console.warn('Failed to load schedule settings:', e);
@@ -685,19 +687,21 @@ export function ReportingPdfModal({
                   </div>
                 </div>
 
-                {/* Google Service Account Status Banner */}
+                {/* Google Gateway Status Banner */}
                 <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50 text-xs flex items-start gap-3">
                   <div className="p-1 rounded bg-white border border-slate-200 text-slate-600 shrink-0">
                     <ShieldCheck className="w-4 h-4 text-emerald-600" />
                   </div>
                   <div>
                     <span className="font-bold text-slate-900 block">
-                      Google Service Account Gmail Gateway
+                      Google Gmail Gateway {hasGoogleAppsScript ? '(Connected via Apps Script)' : '(Google Cloud & Gmail)'}
                     </span>
                     <span className="text-slate-600 text-[11px]">
-                      {hasGoogleServiceAccount
-                        ? 'Google Service Account Gmail API is connected and verified in environment.'
-                        : 'Google Service Account credentials can be provided in .env (GOOGLE_SERVICE_ACCOUNT_EMAIL). The dispatcher will use certified server-side routing.'}
+                      {hasGoogleAppsScript
+                        ? 'Google Apps Script Gateway is active. Emails will be dispatched natively from your Gmail account.'
+                        : hasGoogleServiceAccount
+                        ? 'Google Gateway is configured in environment. Provide GOOGLE_APPS_SCRIPT_URL to dispatch directly from your personal Gmail.'
+                        : 'Set GOOGLE_APPS_SCRIPT_URL in Cloudflare or .env to dispatch directly from your Gmail.'}
                     </span>
                   </div>
                 </div>
