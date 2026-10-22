@@ -1408,6 +1408,7 @@ WHERE created_at >= '${bwdStart}'
           reportDate,
           hasServiceAccount: Boolean(env.GOOGLE_SERVICE_ACCOUNT_KEY),
           message: successMessage,
+          error: emailError || (!emailSent ? successMessage : null),
         }), {
           headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
         });

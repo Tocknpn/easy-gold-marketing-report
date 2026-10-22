@@ -266,7 +266,7 @@ export function ReportingPdfModal({
       } else {
         setTestResult({
           status: 'failed',
-          message: data?.error || (res.status !== 200 ? `Dispatch failed with status ${res.status}` : 'Failed to dispatch test email'),
+          message: data?.error || data?.message || (res.status !== 200 ? `Dispatch failed with status ${res.status}` : 'Failed to dispatch test email'),
         });
       }
     } catch (err: any) {
