@@ -11,18 +11,18 @@ const DEFAULT_FALLBACK_DATA = {
     year: 2026,
     start_date: '2026-10-18',
     end_date: '2026-10-24',
-    all_transactions: 18639,
-    active_users: 10686,
-    new_registers: 201,
-    withdraw_gold_grams: 5792.44,
-    buy_weight_15g: 1301.16,
-    buy_transactions: 13005,
-    buy_ticket_size_g: 1.5,
-    buy_value_mil_lak: 59686.2,
-    sell_weight_15g: 582.57,
-    sell_transactions: 5277,
+    all_transactions: 25920,
+    active_users: 13599,
+    new_registers: 316,
+    withdraw_gold_grams: 7310.39,
+    buy_weight_15g: 1912.0,
+    buy_transactions: 18281,
+    buy_ticket_size_g: 1.57,
+    buy_value_mil_lak: 87492.7,
+    sell_weight_15g: 790.23,
+    sell_transactions: 7128,
     sell_ticket_size_g: 1.66,
-    sell_value_mil_lak: 26706.1,
+    sell_value_mil_lak: 35991.5,
   },
   previous_week: {
     year_week: '2026-W42',
@@ -74,7 +74,7 @@ const DEFAULT_FALLBACK_DATA = {
     { year_week: '2026-W40', week_label: 'W40', week_number: 40, year: 2026, start_date: '2026-09-29', end_date: '2026-10-05', all_transactions: 60431, active_users: 24122, new_registers: 699, withdraw_gold_grams: 12298.65, buy_weight_15g: 7031, buy_transactions: 47745, buy_ticket_size_g: 2.2, sell_weight_15g: 1259, sell_transactions: 11007, sell_ticket_size_g: 1.7 },
     { year_week: '2026-W41', week_label: 'W41', week_number: 41, year: 2026, start_date: '2026-10-06', end_date: '2026-10-12', all_transactions: 39744, active_users: 17527, new_registers: 484, withdraw_gold_grams: 9458.41, buy_weight_15g: 2851, buy_transactions: 28475, buy_ticket_size_g: 1.5, sell_weight_15g: 1263, sell_transactions: 11310, sell_ticket_size_g: 1.7 },
     { year_week: '2026-W42', week_label: 'W42', week_number: 42, year: 2026, start_date: '2026-10-11', end_date: '2026-10-17', all_transactions: 38605, active_users: 17100, new_registers: 451, withdraw_gold_grams: 8362.19, buy_weight_15g: 2597.2, buy_transactions: 25834, buy_ticket_size_g: 1.5, buy_value_mil_lak: 119236.5, sell_weight_15g: 1308.6, sell_transactions: 11987, sell_ticket_size_g: 1.6, sell_value_mil_lak: 59760.0 },
-    { year_week: '2026-W43', week_label: 'W43', week_number: 43, year: 2026, start_date: '2026-10-18', end_date: '2026-10-24', all_transactions: 9258, active_users: 5978, new_registers: 117, withdraw_gold_grams: 1284.89, buy_weight_15g: 91.5, buy_transactions: 5567, buy_ticket_size_g: 0.2, buy_value_mil_lak: 4214.9, sell_weight_15g: 132.1, sell_transactions: 3467, sell_ticket_size_g: 0.6, sell_value_mil_lak: 6013.2 },
+    { year_week: '2026-W43', week_label: 'W43', week_number: 43, year: 2026, start_date: '2026-10-18', end_date: '2026-10-24', all_transactions: 25920, active_users: 13599, new_registers: 316, withdraw_gold_grams: 7310.39, buy_weight_15g: 1912.0, buy_transactions: 18281, buy_ticket_size_g: 1.57, buy_value_mil_lak: 87492.7, sell_weight_15g: 790.23, sell_transactions: 7128, sell_ticket_size_g: 1.66, sell_value_mil_lak: 35991.5 },
   ],
   variances: {
     all_transactions: -91,
@@ -132,6 +132,47 @@ export default {
           if (res.ok) {
             const data = await res.json();
             if (data && data.current_week) {
+              // Also enrich weekly metrics with buy_value_mil_lak and sell_value_mil_lak from summary_daily_metrics
+              try {
+                const dailyRes = await fetch(`${supabaseUrl}/rest/v1/summary_daily_metrics?select=date_id,buy_value_mil_lak,sell_value_mil_lak&order=date_id.asc`, {
+                  headers: {
+                    apikey: supabaseKey,
+                    Authorization: `Bearer ${supabaseKey}`,
+                  },
+                });
+                if (dailyRes.ok) {
+                  const dailyMetrics = await dailyRes.json();
+                  const enrichWeek = (w) => {
+                    if (!w || !w.start_date || !w.end_date) return;
+                    const days = dailyMetrics.filter((d) => d.date_id >= w.start_date && d.date_id <= w.end_date);
+                    if (days.length > 0) {
+                      const sumBuy = days.reduce((acc, d) => acc + (Number(d.buy_value_mil_lak) || 0), 0);
+                      const sumSell = days.reduce((acc, d) => acc + (Number(d.sell_value_mil_lak) || 0), 0);
+                      w.buy_value_mil_lak = Math.round(sumBuy * 10) / 10;
+                      w.sell_value_mil_lak = Math.round(sumSell * 10) / 10;
+                    }
+                  };
+                  enrichWeek(data.current_week);
+                  if (data.previous_week) enrichWeek(data.previous_week);
+                  if (Array.isArray(data.history)) {
+                    data.history.forEach(enrichWeek);
+                  }
+                  if (data.current_week && data.previous_week && data.variances) {
+                    const prevBuy = data.previous_week.buy_value_mil_lak;
+                    const curBuy = data.current_week.buy_value_mil_lak;
+                    if (prevBuy && prevBuy > 0 && curBuy !== undefined) {
+                      data.variances.buy_value_mil_lak = Math.round(((curBuy - prevBuy) / prevBuy) * 100);
+                    }
+                    const prevSell = data.previous_week.sell_value_mil_lak;
+                    const curSell = data.current_week.sell_value_mil_lak;
+                    if (prevSell && prevSell > 0 && curSell !== undefined) {
+                      data.variances.sell_value_mil_lak = Math.round(((curSell - prevSell) / prevSell) * 100);
+                    }
+                  }
+                }
+              } catch (dailyErr) {
+                console.warn('Worker daily enrichment error:', dailyErr);
+              }
               payload = data;
             }
           }
