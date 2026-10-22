@@ -6,13 +6,11 @@ import { MtdReportPayload } from '@/lib/types/mtd.types';
 import { WeeklyMetricRow, MetricVariances } from '@/lib/types/dashboard.types';
 import { VisualTargetTrackingCockpit } from '@/components/dashboard/targets/VisualTargetTrackingCockpit';
 import { ClassicRunRateTables } from '@/components/dashboard/targets/ClassicRunRateTables';
-import { MtdBuyActivitySection } from '@/components/dashboard/mtd/MtdBuyActivitySection';
-import { MtdSellActivitySection } from '@/components/dashboard/mtd/MtdSellActivitySection';
-import { MtdPlatformSection } from '@/components/dashboard/mtd/MtdPlatformSection';
 import { PlatformOverviewSection } from '@/components/dashboard/PlatformOverviewSection';
 import { BuyActivitySection } from '@/components/dashboard/BuyActivitySection';
 import { SellActivitySection } from '@/components/dashboard/SellActivitySection';
 import { ExecutivePulseBanner } from '@/components/dashboard/ExecutivePulseBanner';
+import { PdfMtdMetricCard } from './PdfMtdMetricCard';
 import { DEFAULT_2026_TARGETS } from '@/lib/constants/targetData';
 
 export interface ExecutivePdfReportDocumentProps {
@@ -206,39 +204,74 @@ export function ExecutivePdfReportDocument({
         </div>
 
         {/* 7 Cards across 3 Themed Containers in comfortable horizontal spacing */}
-        <div className="grid grid-cols-1 xl:grid-cols-7 gap-3.5 items-stretch w-full">
+        <div className="grid grid-cols-1 xl:grid-cols-7 gap-2 items-stretch w-full">
           {/* BUY ACTIVITY: 2 Cards (xl:col-span-2) */}
-          <div className="xl:col-span-2 flex flex-col min-w-[280px]">
-            <MtdBuyActivitySection
-              buyWeight={momMtdData.metrics.buy_weight_g}
-              buyTransactions={momMtdData.metrics.buy_transactions}
-              comparisonMonthLabel={momMtdData.comparison_month_label}
-              elapsedDays={momMtdData.elapsed_days}
-              totalDays={momMtdData.total_days_current_month}
-            />
+          <div className="xl:col-span-2 border-[2px] border-dotted border-[#2e7d32] rounded-xl p-1.5 bg-[#f5f9f5] flex flex-col justify-between shadow-2xs">
+            <div className="bg-[#2e7d32] text-white font-black text-xs tracking-wider px-2.5 py-1 rounded-md uppercase mb-1.5 shadow-xs">
+              BUY ACTIVITY
+            </div>
+            <div className="grid grid-cols-2 gap-1.5 flex-1 items-stretch">
+              <PdfMtdMetricCard
+                metric={momMtdData.metrics.buy_weight_g}
+                comparisonMonthLabel={momMtdData.comparison_month_label}
+                elapsedDays={momMtdData.elapsed_days}
+                totalDays={momMtdData.total_days_current_month}
+              />
+              <PdfMtdMetricCard
+                metric={momMtdData.metrics.buy_transactions}
+                comparisonMonthLabel={momMtdData.comparison_month_label}
+                elapsedDays={momMtdData.elapsed_days}
+                totalDays={momMtdData.total_days_current_month}
+              />
+            </div>
           </div>
 
           {/* SELL ACTIVITY: 3 Cards (xl:col-span-3) */}
-          <div className="xl:col-span-3 flex flex-col min-w-[420px]">
-            <MtdSellActivitySection
-              sellWeight={momMtdData.metrics.sell_weight_g}
-              sellTransactions={momMtdData.metrics.sell_transactions}
-              withdraw15g={momMtdData.metrics.withdraw_15g}
-              comparisonMonthLabel={momMtdData.comparison_month_label}
-              elapsedDays={momMtdData.elapsed_days}
-              totalDays={momMtdData.total_days_current_month}
-            />
+          <div className="xl:col-span-3 border-[2px] border-dotted border-[#b71c1c] rounded-xl p-1.5 bg-[#fff8f8] flex flex-col justify-between shadow-2xs">
+            <div className="bg-[#b71c1c] text-white font-black text-xs tracking-wider px-2.5 py-1 rounded-md uppercase mb-1.5 shadow-xs">
+              SELL ACTIVITY
+            </div>
+            <div className="grid grid-cols-3 gap-1.5 flex-1 items-stretch">
+              <PdfMtdMetricCard
+                metric={momMtdData.metrics.sell_weight_g}
+                comparisonMonthLabel={momMtdData.comparison_month_label}
+                elapsedDays={momMtdData.elapsed_days}
+                totalDays={momMtdData.total_days_current_month}
+              />
+              <PdfMtdMetricCard
+                metric={momMtdData.metrics.sell_transactions}
+                comparisonMonthLabel={momMtdData.comparison_month_label}
+                elapsedDays={momMtdData.elapsed_days}
+                totalDays={momMtdData.total_days_current_month}
+              />
+              <PdfMtdMetricCard
+                metric={momMtdData.metrics.withdraw_15g}
+                comparisonMonthLabel={momMtdData.comparison_month_label}
+                elapsedDays={momMtdData.elapsed_days}
+                totalDays={momMtdData.total_days_current_month}
+              />
+            </div>
           </div>
 
           {/* PLATFORM OVERVIEW: 2 Cards (xl:col-span-2) */}
-          <div className="xl:col-span-2 flex flex-col min-w-[280px]">
-            <MtdPlatformSection
-              newCustomers={momMtdData.metrics.new_customers}
-              totalTransactions={momMtdData.metrics.total_transactions}
-              comparisonMonthLabel={momMtdData.comparison_month_label}
-              elapsedDays={momMtdData.elapsed_days}
-              totalDays={momMtdData.total_days_current_month}
-            />
+          <div className="xl:col-span-2 border-[2px] border-dotted border-[#0c4ca3] rounded-xl p-1.5 bg-[#f5f8ff] flex flex-col justify-between shadow-2xs">
+            <div className="bg-[#0c4ca3] text-white font-black text-xs tracking-wider px-2.5 py-1 rounded-md uppercase mb-1.5 shadow-xs">
+              PLATFORM OVERVIEW
+            </div>
+            <div className="grid grid-cols-2 gap-1.5 flex-1 items-stretch">
+              <PdfMtdMetricCard
+                metric={momMtdData.metrics.new_customers}
+                comparisonMonthLabel={momMtdData.comparison_month_label}
+                elapsedDays={momMtdData.elapsed_days}
+                totalDays={momMtdData.total_days_current_month}
+              />
+              <PdfMtdMetricCard
+                metric={momMtdData.metrics.total_transactions}
+                comparisonMonthLabel={momMtdData.comparison_month_label}
+                elapsedDays={momMtdData.elapsed_days}
+                totalDays={momMtdData.total_days_current_month}
+              />
+            </div>
           </div>
         </div>
       </section>
@@ -264,36 +297,71 @@ export function ExecutivePdfReportDocument({
         </div>
 
         {/* 7 Cards across 3 Themed Containers in comfortable horizontal spacing */}
-        <div className="grid grid-cols-1 xl:grid-cols-7 gap-3.5 items-stretch w-full">
-          <div className="xl:col-span-2 flex flex-col min-w-[280px]">
-            <MtdBuyActivitySection
-              buyWeight={yoyMtdData.metrics.buy_weight_g}
-              buyTransactions={yoyMtdData.metrics.buy_transactions}
-              comparisonMonthLabel={yoyMtdData.comparison_month_label}
-              elapsedDays={yoyMtdData.elapsed_days}
-              totalDays={yoyMtdData.total_days_current_month}
-            />
+        <div className="grid grid-cols-1 xl:grid-cols-7 gap-2 items-stretch w-full">
+          <div className="xl:col-span-2 border-[2px] border-dotted border-[#2e7d32] rounded-xl p-1.5 bg-[#f5f9f5] flex flex-col justify-between shadow-2xs">
+            <div className="bg-[#2e7d32] text-white font-black text-xs tracking-wider px-2.5 py-1 rounded-md uppercase mb-1.5 shadow-xs">
+              BUY ACTIVITY
+            </div>
+            <div className="grid grid-cols-2 gap-1.5 flex-1 items-stretch">
+              <PdfMtdMetricCard
+                metric={yoyMtdData.metrics.buy_weight_g}
+                comparisonMonthLabel={yoyMtdData.comparison_month_label}
+                elapsedDays={yoyMtdData.elapsed_days}
+                totalDays={yoyMtdData.total_days_current_month}
+              />
+              <PdfMtdMetricCard
+                metric={yoyMtdData.metrics.buy_transactions}
+                comparisonMonthLabel={yoyMtdData.comparison_month_label}
+                elapsedDays={yoyMtdData.elapsed_days}
+                totalDays={yoyMtdData.total_days_current_month}
+              />
+            </div>
           </div>
 
-          <div className="xl:col-span-3 flex flex-col min-w-[420px]">
-            <MtdSellActivitySection
-              sellWeight={yoyMtdData.metrics.sell_weight_g}
-              sellTransactions={yoyMtdData.metrics.sell_transactions}
-              withdraw15g={yoyMtdData.metrics.withdraw_15g}
-              comparisonMonthLabel={yoyMtdData.comparison_month_label}
-              elapsedDays={yoyMtdData.elapsed_days}
-              totalDays={yoyMtdData.total_days_current_month}
-            />
+          <div className="xl:col-span-3 border-[2px] border-dotted border-[#b71c1c] rounded-xl p-1.5 bg-[#fff8f8] flex flex-col justify-between shadow-2xs">
+            <div className="bg-[#b71c1c] text-white font-black text-xs tracking-wider px-2.5 py-1 rounded-md uppercase mb-1.5 shadow-xs">
+              SELL ACTIVITY
+            </div>
+            <div className="grid grid-cols-3 gap-1.5 flex-1 items-stretch">
+              <PdfMtdMetricCard
+                metric={yoyMtdData.metrics.sell_weight_g}
+                comparisonMonthLabel={yoyMtdData.comparison_month_label}
+                elapsedDays={yoyMtdData.elapsed_days}
+                totalDays={yoyMtdData.total_days_current_month}
+              />
+              <PdfMtdMetricCard
+                metric={yoyMtdData.metrics.sell_transactions}
+                comparisonMonthLabel={yoyMtdData.comparison_month_label}
+                elapsedDays={yoyMtdData.elapsed_days}
+                totalDays={yoyMtdData.total_days_current_month}
+              />
+              <PdfMtdMetricCard
+                metric={yoyMtdData.metrics.withdraw_15g}
+                comparisonMonthLabel={yoyMtdData.comparison_month_label}
+                elapsedDays={yoyMtdData.elapsed_days}
+                totalDays={yoyMtdData.total_days_current_month}
+              />
+            </div>
           </div>
 
-          <div className="xl:col-span-2 flex flex-col min-w-[280px]">
-            <MtdPlatformSection
-              newCustomers={yoyMtdData.metrics.new_customers}
-              totalTransactions={yoyMtdData.metrics.total_transactions}
-              comparisonMonthLabel={yoyMtdData.comparison_month_label}
-              elapsedDays={yoyMtdData.elapsed_days}
-              totalDays={yoyMtdData.total_days_current_month}
-            />
+          <div className="xl:col-span-2 border-[2px] border-dotted border-[#0c4ca3] rounded-xl p-1.5 bg-[#f5f8ff] flex flex-col justify-between shadow-2xs">
+            <div className="bg-[#0c4ca3] text-white font-black text-xs tracking-wider px-2.5 py-1 rounded-md uppercase mb-1.5 shadow-xs">
+              PLATFORM OVERVIEW
+            </div>
+            <div className="grid grid-cols-2 gap-1.5 flex-1 items-stretch">
+              <PdfMtdMetricCard
+                metric={yoyMtdData.metrics.new_customers}
+                comparisonMonthLabel={yoyMtdData.comparison_month_label}
+                elapsedDays={yoyMtdData.elapsed_days}
+                totalDays={yoyMtdData.total_days_current_month}
+              />
+              <PdfMtdMetricCard
+                metric={yoyMtdData.metrics.total_transactions}
+                comparisonMonthLabel={yoyMtdData.comparison_month_label}
+                elapsedDays={yoyMtdData.elapsed_days}
+                totalDays={yoyMtdData.total_days_current_month}
+              />
+            </div>
           </div>
         </div>
       </section>

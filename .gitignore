@@ -21,6 +21,9 @@
 # Local env files (NEVER commit secrets!)
 .env*.local
 .env
+google-service-account*.json
+*service-account*.json
+*-key.json
 
 # Vercel
 .vercel
