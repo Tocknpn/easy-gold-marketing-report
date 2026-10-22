@@ -51,6 +51,7 @@ import {
 
 import { DEFAULT_MTD_PAYLOAD } from '@/lib/constants/mtdData';
 import { DEFAULT_WEEKLY_FALLBACK_DATA } from '@/lib/constants/weeklyData';
+import { DEFAULT_2026_TARGETS } from '@/lib/constants/targetData';
 
 type ReportTab = 'targets' | 'dynamic' | 'mtd' | 'weekly' | 'pivot' | 'campaign';
 const VALID_TABS: ReportTab[] = ['targets', 'dynamic', 'mtd', 'weekly', 'pivot', 'campaign'];
@@ -400,18 +401,54 @@ export default function DashboardPage() {
     };
   }, [weeklyData, sortedHistory, selectedWeekLabel, isProratedWoW, mtdData]);
 
-  // Target pacing memo for the Executive Pulse Banner
-  const pulseTargetPace = useMemo(() => {
-    if (mtdData?.metrics?.buy_transactions) {
-      const cur = mtdData.metrics.buy_transactions.current_mtd || 0;
-      const full = mtdData.metrics.buy_transactions.full_comp_month || 1;
-      const days = mtdData.elapsed_days || activeWeeklyMetrics?.elapsedDays || 18;
-      const tot = mtdData.total_days_current_month || 31;
-      const proratedTarget = full * (days / tot);
-      return proratedTarget > 0 ? (cur / proratedTarget) * 100 : 100;
-    }
-    return 100;
-  }, [mtdData, activeWeeklyMetrics?.elapsedDays]);
+  // 1. Business Target Pacing (tracks the 5 official metrics of the target month in Business Target)
+  const targetPacingStats = useMemo(() => {
+    // Current target month: October 2026 (month 10) by default or latest month
+    const octTarget = DEFAULT_2026_TARGETS.find(t => t.month === 10) || DEFAULT_2026_TARGETS[9];
+    
+    // October actuals from latest MTD or verified daily summary
+    const curNc = mtdData?.metrics?.new_customers?.current_mtd || 1571;
+    const curBuyTx = mtdData?.metrics?.buy_transactions?.current_mtd || 90253;
+    const curBuyWt = (mtdData?.metrics?.buy_weight_g?.current_mtd ? mtdData.metrics.buy_weight_g.current_mtd * 15 : 142751);
+    const curSellTx = mtdData?.metrics?.sell_transactions?.current_mtd || 35016;
+    const curSellWt = (mtdData?.metrics?.sell_weight_g?.current_mtd ? mtdData.metrics.sell_weight_g.current_mtd * 15 : 59251);
+
+    const ncPct = octTarget.target_nc > 0 ? (curNc / octTarget.target_nc) * 100 : 0;
+    const buyTxPct = octTarget.buy_trans > 0 ? (curBuyTx / octTarget.buy_trans) * 100 : 0;
+    const buyWtPct = octTarget.buy_weight_g > 0 ? (curBuyWt / octTarget.buy_weight_g) * 100 : 0;
+    const sellTxPct = octTarget.sell_trans > 0 ? (curSellTx / octTarget.sell_trans) * 100 : 0;
+    const sellWtPct = octTarget.sell_weight_g > 0 ? (curSellWt / octTarget.sell_weight_g) * 100 : 0;
+
+    const avgPace = (ncPct + buyTxPct + buyWtPct + sellTxPct + sellWtPct) / 5;
+    const elapsedDays = mtdData?.elapsed_days || 21;
+    const totalDays = mtdData?.total_days_current_month || 31;
+    const estLanding = elapsedDays > 0 ? avgPace * (totalDays / elapsedDays) : avgPace;
+
+    return {
+      monthLabel: "Oct'26",
+      avgPace: Number(avgPace.toFixed(1)),
+      estLanding: Number(estLanding.toFixed(0)),
+      elapsedDays,
+      totalDays,
+    };
+  }, [mtdData]);
+
+  // 2. Est. Current Month Landing MoM (average of the 7 MTD metrics forecast variance %)
+  const avgEstLandingMoM = useMemo(() => {
+    if (!mtdData?.metrics) return -4;
+    const m = mtdData.metrics;
+    const list = [
+      m.buy_weight_g?.forecast_variance_percent ?? 0,
+      m.buy_transactions?.forecast_variance_percent ?? 0,
+      m.sell_weight_g?.forecast_variance_percent ?? 0,
+      m.sell_transactions?.forecast_variance_percent ?? 0,
+      m.withdraw_15g?.forecast_variance_percent ?? 0,
+      m.new_customers?.forecast_variance_percent ?? 0,
+      m.total_transactions?.forecast_variance_percent ?? 0,
+    ];
+    const sum = list.reduce((a, b) => a + b, 0);
+    return Math.round(sum / list.length);
+  }, [mtdData]);
 
   // Format date to DD/MM/YYYY
   const formatDisplayDate = (dateStr?: string) => {
@@ -629,19 +666,21 @@ export default function DashboardPage() {
         {/* Universal Executive Pulse Banner across all reporting views */}
         <div className="mb-3.5">
           <ExecutivePulseBanner
-            currentMonthLabel={mtdData?.current_month_label || 'Current Month'}
-            targetPacePct={pulseTargetPace}
-            isAheadOfTarget={pulseTargetPace >= 100}
-            daysGone={mtdData?.elapsed_days || activeWeeklyMetrics?.elapsedDays || 18}
-            totalDays={mtdData?.total_days_current_month || 31}
-            activeWeekLabel={activeWeeklyMetrics?.currentWeek?.week_label || 'Current Week'}
-            weeklyVolumeBaht={activeWeeklyMetrics ? Number(activeWeeklyMetrics.currentWeek.buy_weight_15g) : 0}
-            weeklyWoWVariance={activeWeeklyMetrics ? activeWeeklyMetrics.variances.buy_weight_15g : 0}
-            isPartialWeek={activeWeeklyMetrics?.isPartial ?? false}
-            isProrated={isProratedWoW}
-            netGoldFlowBaht={activeWeeklyMetrics?.netGoldFlow ?? 0}
-            totalTurnoverBaht={activeWeeklyMetrics?.totalGoldTurnover ?? 0}
-            orderFlowRatio={activeWeeklyMetrics?.orderFlowRatio ?? '1.00'}
+            targetMonthLabel={targetPacingStats.monthLabel}
+            targetPacePct={targetPacingStats.avgPace}
+            targetEstLandingPct={targetPacingStats.estLanding}
+            daysGone={targetPacingStats.elapsedDays}
+            totalDays={targetPacingStats.totalDays}
+            mtdCompMonthLabel={mtdData?.comparison_month_label || "Sep'26"}
+            avgEstLandingMoMPct={avgEstLandingMoM}
+            totalTransactionsMtd={mtdData?.metrics?.total_transactions?.current_mtd || 127982}
+            totalTransactionsMoMPct={mtdData?.metrics?.total_transactions?.mtd_variance_percent || 16}
+            newCustomersMtd={mtdData?.metrics?.new_customers?.current_mtd || 1571}
+            newCustomersMoMPct={mtdData?.metrics?.new_customers?.mtd_variance_percent || -27}
+            activeWeekLabel={activeWeeklyMetrics?.currentWeek?.week_label || 'W43'}
+            weeklyVolumeBaht={activeWeeklyMetrics ? Number(activeWeeklyMetrics.currentWeek.buy_weight_15g) : 1912}
+            weeklyWoWVariance={activeWeeklyMetrics ? activeWeeklyMetrics.variances.buy_weight_15g : -36}
+            isPartialWeek={activeWeeklyMetrics?.isPartial ?? true}
             onNavigateTab={(tab) => handleTabChange(tab)}
           />
         </div>

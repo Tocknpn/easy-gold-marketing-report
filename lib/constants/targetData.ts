@@ -392,6 +392,7 @@ export function calculateRunRateComparison(
     label: string;
     indent?: boolean;
     format?: 'number' | 'decimal' | 'lak';
+    section?: 'buy' | 'sell' | 'neutral';
     comp_full: number;
     cur_mtd: number;
     comp_same: number;
@@ -399,17 +400,9 @@ export function calculateRunRateComparison(
     target_for_same?: number;
   }> = [
     {
-      id: 'buy_value_lak',
-      label: 'Buy Value (mil LAK)',
-      format: 'lak',
-      comp_full: comp_full_buy_val,
-      cur_mtd: cur_buy_val,
-      comp_same: comp_same_buy_val,
-      target_val: undefined,
-    },
-    {
       id: 'buy_weight_g',
       label: 'Buy Weight (g)',
+      section: 'buy',
       format: 'number',
       comp_full: comp_full_buy_wt,
       cur_mtd: cur_buy_wt,
@@ -418,37 +411,9 @@ export function calculateRunRateComparison(
       target_for_same: compTarget.buy_weight_g,
     },
     {
-      id: 'sell_value_lak',
-      label: 'Sell Value (mil LAK)',
-      format: 'lak',
-      comp_full: comp_full_sell_val,
-      cur_mtd: cur_sell_val,
-      comp_same: comp_same_sell_val,
-      target_val: undefined,
-    },
-    {
-      id: 'sell_weight_g',
-      label: 'Sell Weight (g)',
-      format: 'number',
-      comp_full: comp_full_sell_wt,
-      cur_mtd: cur_sell_wt,
-      comp_same: comp_same_sell_wt,
-      target_val: currTarget.sell_weight_g,
-      target_for_same: compTarget.sell_weight_g,
-    },
-    {
-      id: 'total_transactions',
-      label: 'Transaction',
-      format: 'number',
-      comp_full: comp_full_tot_tx,
-      cur_mtd: cur_tot_tx,
-      comp_same: comp_same_tot_tx,
-      target_val: undefined,
-    },
-    {
       id: 'buy_transactions',
-      label: 'Buy Transaction',
-      indent: true,
+      label: 'Buy Trnx',
+      section: 'buy',
       format: 'number',
       comp_full: comp_full_buy_tx,
       cur_mtd: cur_buy_tx,
@@ -457,9 +422,30 @@ export function calculateRunRateComparison(
       target_for_same: compTarget.buy_trans,
     },
     {
+      id: 'buy_value_lak',
+      label: 'Buy Value (mil LAK)',
+      section: 'buy',
+      format: 'lak',
+      comp_full: comp_full_buy_val,
+      cur_mtd: cur_buy_val,
+      comp_same: comp_same_buy_val,
+      target_val: undefined,
+    },
+    {
+      id: 'sell_weight_g',
+      label: 'Sell Weight (g)',
+      section: 'sell',
+      format: 'number',
+      comp_full: comp_full_sell_wt,
+      cur_mtd: cur_sell_wt,
+      comp_same: comp_same_sell_wt,
+      target_val: currTarget.sell_weight_g,
+      target_for_same: compTarget.sell_weight_g,
+    },
+    {
       id: 'sell_transactions',
-      label: 'Sell Transaction',
-      indent: true,
+      label: 'Sell trnx',
+      section: 'sell',
       format: 'number',
       comp_full: comp_full_sell_tx,
       cur_mtd: cur_sell_tx,
@@ -468,24 +454,45 @@ export function calculateRunRateComparison(
       target_for_same: compTarget.sell_trans,
     },
     {
-      id: 'withdraw_refund',
-      label: 'Withdraw + Refund',
-      indent: true,
+      id: 'sell_value_lak',
+      label: 'Sell Value (mil LAK)',
+      section: 'sell',
+      format: 'lak',
+      comp_full: comp_full_sell_val,
+      cur_mtd: cur_sell_val,
+      comp_same: comp_same_sell_val,
+      target_val: undefined,
+    },
+    {
+      id: 'total_transactions',
+      label: 'Total trnx',
+      section: 'neutral',
       format: 'number',
-      comp_full: comp_full_with_ref,
-      cur_mtd: cur_with_ref,
-      comp_same: comp_same_with_ref,
+      comp_full: comp_full_tot_tx,
+      cur_mtd: cur_tot_tx,
+      comp_same: comp_same_tot_tx,
       target_val: undefined,
     },
     {
       id: 'new_customer',
-      label: 'NC - New Customer',
+      label: 'NC',
+      section: 'neutral',
       format: 'number',
       comp_full: comp_full_nc,
       cur_mtd: cur_nc,
       comp_same: comp_same_nc,
       target_val: currTarget.target_nc,
       target_for_same: compTarget.target_nc,
+    },
+    {
+      id: 'withdraw_refund',
+      label: 'Withdraw + Refund',
+      section: 'neutral',
+      format: 'number',
+      comp_full: comp_full_with_ref,
+      cur_mtd: cur_with_ref,
+      comp_same: comp_same_with_ref,
+      target_val: undefined,
     },
   ];
 
@@ -514,17 +521,16 @@ export function calculateRunRateComparison(
       ? Math.round((m.cur_mtd / targetBaseForSame) * 100)
       : undefined;
 
-    // Accumulate average excluding sub-items or total to match Excel
-    if (m.id !== 'total_transactions') {
-      momFullSum += mom_full_pct;
-      momSameSum += mom_same_pct;
-      rowCount++;
-    }
+    // Accumulate average across all key metrics
+    momFullSum += mom_full_pct;
+    momSameSum += mom_same_pct;
+    rowCount++;
 
     return {
       id: m.id,
       label: m.label,
       indent: m.indent,
+      section: m.section,
       format: m.format,
       comp_full_month: m.comp_full,
       cur_mtd: m.cur_mtd,

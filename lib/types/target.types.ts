@@ -18,6 +18,7 @@ export interface RunRateRowData {
   id: string;
   label: string;
   indent?: boolean;
+  section?: 'buy' | 'sell' | 'neutral';
   unit?: string;
   format?: 'number' | 'decimal' | 'lak';
   

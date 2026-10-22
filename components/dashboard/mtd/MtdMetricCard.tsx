@@ -109,19 +109,19 @@ export function MtdMetricCard({
 
       {/* 1. Header with Icon, Label and Pacing Pill */}
       <div>
-        <div className="flex items-center justify-between gap-1.5 mb-2 pt-0.5">
-          <div className="flex items-center gap-1.5 min-w-0">
+        <div className="flex items-center justify-between gap-1 mb-2 pt-0.5">
+          <div className="flex items-center gap-1 min-w-0">
             <div className="p-1 rounded-lg bg-blue-50 text-[#0c4ca3] shrink-0">
               {renderIcon()}
             </div>
-            <h4 className="font-extrabold text-slate-800 text-xs sm:text-sm tracking-tight truncate" title={cleanLabel}>
+            <h4 className="font-black text-slate-800 text-[11px] sm:text-xs tracking-tight whitespace-nowrap" title={cleanLabel}>
               {cleanLabel}
             </h4>
           </div>
 
           {/* Ahead / Behind Pace Badge */}
           <span 
-            className={`text-[9.5px] font-black px-1.5 py-0.5 rounded-md flex items-center gap-0.5 shrink-0 uppercase tracking-tighter ${
+            className={`text-[9px] font-black px-1.5 py-0.5 rounded-md flex items-center gap-0.5 shrink-0 uppercase tracking-tighter ${
               isAheadOfPace 
                 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
                 : 'bg-rose-50 text-rose-700 border border-rose-200'

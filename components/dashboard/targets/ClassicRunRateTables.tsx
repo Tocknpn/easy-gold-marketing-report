@@ -25,7 +25,7 @@ export function ClassicRunRateTables({ data }: ClassicRunRateTablesProps) {
     return val.toLocaleString();
   };
 
-  // Modern institutional financial variance badge styling
+  // Modern institutional financial variance badge styling with comma formatting for Diff
   const renderVarianceCell = (val: number, isPercent = false) => {
     const isPositive = val > 0;
     const isNegative = val < 0;
@@ -37,38 +37,40 @@ export function ClassicRunRateTables({ data }: ClassicRunRateTablesProps) {
       badgeClass = 'bg-rose-50 text-rose-700 border border-rose-200/80';
     }
 
+    const formatted = isPercent
+      ? (isPositive ? `+${val}%` : `${val}%`)
+      : (isPositive ? `+${val.toLocaleString()}` : val.toLocaleString());
+
     return (
       <span className={`inline-block px-1.5 py-0.5 rounded font-mono font-bold text-[11px] tabular-nums ${badgeClass}`}>
-        {isPositive ? `+${val}` : val}
-        {isPercent ? '%' : ''}
+        {formatted}
       </span>
     );
   };
 
-  // Target Achievement Badge
-  const renderVsTargetCell = (pct: number | undefined, benchmarkPct: number) => {
-    if (pct === undefined) return <span className="text-slate-400 font-mono">-</span>;
-
-    const isAhead = pct >= benchmarkPct;
-    const badgeClass = isAhead
-      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/80'
-      : 'bg-rose-50 text-rose-700 border border-rose-200/80';
-
-    return (
-      <span className={`inline-block px-2 py-0.5 rounded font-mono font-bold text-[11px] tabular-nums ${badgeClass}`}>
-        {pct}%
-      </span>
-    );
+  // Row background color per section (light bright green for Buy, light bright red for Sell)
+  const getRowStyle = (section?: string, id?: string) => {
+    if (section === 'buy') {
+      return 'bg-emerald-50/40 hover:bg-emerald-100/50 border-l-[3px] border-l-emerald-500';
+    }
+    if (section === 'sell') {
+      return 'bg-rose-50/40 hover:bg-rose-100/50 border-l-[3px] border-l-rose-500';
+    }
+    if (id === 'total_transactions') {
+      return 'bg-slate-100/70 hover:bg-slate-200/60 font-black border-l-[3px] border-l-slate-400';
+    }
+    return 'bg-white hover:bg-slate-50 border-l-[3px] border-l-transparent';
   };
 
   return (
     <div className="w-full space-y-6">
       {/* Dual Table Container: Responsive Grid */}
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 items-start">
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-5 items-start">
+        
         {/* ==================================================================== */}
-        {/* TABLE 1: MONTHLY RUN RATE (Full Month Compare + Monthly Target)       */}
+        {/* TABLE 1: MONTHLY RUN RATE (Full Month Compare)                        */}
         {/* ==================================================================== */}
-        <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm overflow-hidden flex flex-col">
+        <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden flex flex-col">
           {/* Header Bar */}
           <div className="bg-[#0b192c] text-white p-3 px-4 flex items-center justify-between border-b border-slate-800">
             <div>
@@ -77,21 +79,21 @@ export function ClassicRunRateTables({ data }: ClassicRunRateTablesProps) {
                 <h3 className="text-sm font-black tracking-wide uppercase text-white">Monthly Run Rate</h3>
               </div>
               <p className="text-[11px] text-slate-300 font-medium mt-0.5">
-                Current MTD Run-Rate projected landing vs {comparison_month_label}&apos;26 Full Month &amp; Targets
+                Current MTD Run-Rate projected landing vs {comparison_month_label}&apos;26 Full Month
               </p>
             </div>
 
             {/* Time Elapsed Slices */}
-            <div className="flex items-center divide-x divide-slate-700 bg-slate-900/90 rounded-xl px-3 py-1 border border-slate-700 text-center">
-              <div className="px-2">
+            <div className="flex items-center divide-x divide-slate-700 bg-slate-900/90 rounded-xl px-2.5 py-1 border border-slate-700 text-center">
+              <div className="px-1.5">
                 <span className="block text-[9px] uppercase font-bold text-slate-400">Days</span>
                 <span className="font-mono font-black text-xs text-white">{days_elapsed}</span>
               </div>
-              <div className="px-2">
+              <div className="px-1.5">
                 <span className="block text-[9px] uppercase font-bold text-slate-400">Total</span>
                 <span className="font-mono font-black text-xs text-white">{total_days_in_month}</span>
               </div>
-              <div className="px-2">
+              <div className="px-1.5">
                 <span className="block text-[9px] uppercase font-bold text-[#d4a017]">Time Gone</span>
                 <span className="font-mono font-black text-xs text-[#d4a017]">{time_gone_pct}%</span>
               </div>
@@ -103,7 +105,7 @@ export function ClassicRunRateTables({ data }: ClassicRunRateTablesProps) {
             <table className="w-full text-xs text-left border-collapse select-text">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200 text-slate-700 font-bold text-[11px]">
-                  <th className="py-2.5 px-3 border-r border-slate-200 min-w-[170px]">Metric</th>
+                  <th className="py-2.5 px-3 border-r border-slate-200 min-w-[140px]">Metric</th>
                   <th className="py-2.5 px-2 border-r border-slate-200 text-right">
                     2026<br />
                     <span className="text-slate-900 font-black">{comparison_month_label} (Full)</span>
@@ -117,21 +119,17 @@ export function ClassicRunRateTables({ data }: ClassicRunRateTablesProps) {
                     <span className="text-amber-800 font-medium text-[9px]">Proj.</span>
                   </th>
                   <th className="py-2.5 px-2 border-r border-slate-200 text-right">Diff.</th>
-                  <th className="py-2.5 px-2 border-r border-slate-200 text-right">MoM</th>
-                  <th className="py-2.5 px-2 border-r border-slate-200 text-right bg-slate-50/60">Target</th>
-                  <th className="py-2.5 px-2 text-right bg-slate-50/60">Vs Target</th>
+                  <th className="py-2.5 px-2 text-right">MoM</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {rows.map((row) => (
                   <tr 
                     key={`t1-${row.id}`} 
-                    className={`hover:bg-slate-50/80 transition-colors ${
-                      row.id === 'total_transactions' ? 'bg-slate-50/60 font-black' : ''
-                    }`}
+                    className={`transition-colors ${getRowStyle(row.section, row.id)}`}
                   >
                     <td className={`py-2 px-3 border-r border-slate-200 text-slate-900 ${
-                      row.indent ? 'pl-6 italic text-slate-600' : 'font-bold'
+                      row.indent ? 'pl-5 text-slate-700' : 'font-extrabold'
                     }`}>
                       {row.label}
                     </td>
@@ -147,14 +145,8 @@ export function ClassicRunRateTables({ data }: ClassicRunRateTablesProps) {
                     <td className="py-2 px-2 border-r border-slate-200 text-right">
                       {renderVarianceCell(row.diff_full, false)}
                     </td>
-                    <td className="py-2 px-2 border-r border-slate-200 text-right">
+                    <td className="py-2 px-2 text-right">
                       {renderVarianceCell(row.mom_full_pct, true)}
-                    </td>
-                    <td className="py-2 px-2 border-r border-slate-200 text-right font-mono font-bold text-slate-800 bg-slate-50/40 tabular-nums">
-                      {formatCell(row.target_val, row.format)}
-                    </td>
-                    <td className="py-2 px-2 text-right bg-slate-50/40">
-                      {renderVsTargetCell(row.vs_target_pct, 100)}
                     </td>
                   </tr>
                 ))}
@@ -164,11 +156,8 @@ export function ClassicRunRateTables({ data }: ClassicRunRateTablesProps) {
                   <td colSpan={5} className="py-2 px-3 border-r border-slate-200 text-right uppercase tracking-wider text-[11px] text-slate-700">
                     Avg. %MoM
                   </td>
-                  <td className="py-2 px-2 border-r border-slate-200 text-right">
+                  <td className="py-2 px-2 text-right">
                     {renderVarianceCell(table1_avg_mom, true)}
-                  </td>
-                  <td colSpan={2} className="py-2 px-3 text-slate-500 font-normal italic text-[10px]">
-                    Projected month-end achievement vs targets
                   </td>
                 </tr>
               </tfoot>
@@ -179,7 +168,7 @@ export function ClassicRunRateTables({ data }: ClassicRunRateTablesProps) {
         {/* ==================================================================== */}
         {/* TABLE 2: MONTHLY RUN RATE (Same Period Compare - 1 to N Days)         */}
         {/* ==================================================================== */}
-        <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm overflow-hidden flex flex-col">
+        <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden flex flex-col">
           {/* Header Bar */}
           <div className="bg-[#0b192c] text-white p-3 px-4 flex items-center justify-between border-b border-slate-800">
             <div>
@@ -188,21 +177,21 @@ export function ClassicRunRateTables({ data }: ClassicRunRateTablesProps) {
                 <h3 className="text-sm font-black tracking-wide uppercase text-white">Monthly Run Rate</h3>
               </div>
               <p className="text-[11px] text-slate-300 font-medium mt-0.5">
-                (Same Period Compare) — Day 1 to {days_elapsed} pace comparison &amp; Target Progress
+                (Same Period Compare) — Day 1 to {days_elapsed} pace comparison
               </p>
             </div>
 
             {/* Time Elapsed Slices */}
-            <div className="flex items-center divide-x divide-slate-700 bg-slate-900/90 rounded-xl px-3 py-1 border border-slate-700 text-center">
-              <div className="px-2">
+            <div className="flex items-center divide-x divide-slate-700 bg-slate-900/90 rounded-xl px-2.5 py-1 border border-slate-700 text-center">
+              <div className="px-1.5">
                 <span className="block text-[9px] uppercase font-bold text-slate-400">Days</span>
                 <span className="font-mono font-black text-xs text-white">{days_elapsed}</span>
               </div>
-              <div className="px-2">
+              <div className="px-1.5">
                 <span className="block text-[9px] uppercase font-bold text-slate-400">Total</span>
                 <span className="font-mono font-black text-xs text-white">{total_days_in_month}</span>
               </div>
-              <div className="px-2">
+              <div className="px-1.5">
                 <span className="block text-[9px] uppercase font-bold text-[#d4a017]">Time Gone</span>
                 <span className="font-mono font-black text-xs text-[#d4a017]">{time_gone_pct}%</span>
               </div>
@@ -214,7 +203,7 @@ export function ClassicRunRateTables({ data }: ClassicRunRateTablesProps) {
             <table className="w-full text-xs text-left border-collapse select-text">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200 text-slate-700 font-bold text-[11px]">
-                  <th className="py-2.5 px-3 border-r border-slate-200 min-w-[170px]">Metric</th>
+                  <th className="py-2.5 px-3 border-r border-slate-200 min-w-[140px]">Metric</th>
                   <th className="py-2.5 px-2 border-r border-slate-200 text-right">
                     2026<br />
                     <span className="text-slate-900 font-black">{comparison_month_label} (1-{days_elapsed})</span>
@@ -224,21 +213,17 @@ export function ClassicRunRateTables({ data }: ClassicRunRateTablesProps) {
                     <span className="text-[#0c4ca3] font-black">{current_month_label} (1-{days_elapsed})</span>
                   </th>
                   <th className="py-2.5 px-2 border-r border-slate-200 text-right">Diff</th>
-                  <th className="py-2.5 px-2 border-r border-slate-200 text-right">%Change</th>
-                  <th className="py-2.5 px-2 border-r border-slate-200 text-right bg-slate-50/60">Target</th>
-                  <th className="py-2.5 px-2 text-right bg-slate-50/60">Vs Target</th>
+                  <th className="py-2.5 px-2 text-right">%Change</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {rows.map((row) => (
                   <tr 
                     key={`t2-${row.id}`} 
-                    className={`hover:bg-slate-50/80 transition-colors ${
-                      row.id === 'total_transactions' ? 'bg-slate-50/60 font-black' : ''
-                    }`}
+                    className={`transition-colors ${getRowStyle(row.section, row.id)}`}
                   >
                     <td className={`py-2 px-3 border-r border-slate-200 text-slate-900 ${
-                      row.indent ? 'pl-6 italic text-slate-600' : 'font-bold'
+                      row.indent ? 'pl-5 text-slate-700' : 'font-extrabold'
                     }`}>
                       {row.label}
                     </td>
@@ -251,14 +236,8 @@ export function ClassicRunRateTables({ data }: ClassicRunRateTablesProps) {
                     <td className="py-2 px-2 border-r border-slate-200 text-right">
                       {renderVarianceCell(row.diff_same, false)}
                     </td>
-                    <td className="py-2 px-2 border-r border-slate-200 text-right">
+                    <td className="py-2 px-2 text-right">
                       {renderVarianceCell(row.mom_same_pct, true)}
-                    </td>
-                    <td className="py-2 px-2 border-r border-slate-200 text-right font-mono font-bold text-slate-800 bg-slate-50/40 tabular-nums">
-                      {formatCell(row.target_val, row.format)}
-                    </td>
-                    <td className="py-2 px-2 text-right bg-slate-50/40">
-                      {renderVsTargetCell(row.vs_target_same_pct, time_gone_pct)}
                     </td>
                   </tr>
                 ))}
@@ -268,17 +247,15 @@ export function ClassicRunRateTables({ data }: ClassicRunRateTablesProps) {
                   <td colSpan={4} className="py-2 px-3 border-r border-slate-200 text-right uppercase tracking-wider text-[11px] text-slate-700">
                     Avg. %MoM
                   </td>
-                  <td className="py-2 px-2 border-r border-slate-200 text-right">
+                  <td className="py-2 px-2 text-right">
                     {renderVarianceCell(table2_avg_mom, true)}
-                  </td>
-                  <td colSpan={2} className="py-2 px-3 text-slate-500 font-normal italic text-[10px]">
-                    Current MTD progress vs Month Elapsed ({time_gone_pct}%)
                   </td>
                 </tr>
               </tfoot>
             </table>
           </div>
         </div>
+
       </div>
     </div>
   );
