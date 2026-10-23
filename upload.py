@@ -249,6 +249,35 @@ def map_headers(raw_headers):
     - branch
     - created_at
     """
+def clean_float(val, default=0.0):
+    """Safely converts string, numeric, or comma-formatted numbers to float."""
+    if val is None:
+        return default
+    if isinstance(val, (int, float)):
+        return float(val)
+    try:
+        s = str(val).replace(",", "").replace(" ", "").replace("₭", "").strip()
+        return float(s) if s else default
+    except (ValueError, TypeError):
+        return default
+
+
+def map_headers(raw_headers):
+    """
+    Intelligently maps Excel/CSV column headers to Supabase column names.
+    Supports Lao Unicode variations (tone marks, vowel AM), English aliases, and typos.
+    Supabase columns expected:
+    - no
+    - customer_name
+    - phone
+    - transaction_type
+    - bank
+    - gold_weight
+    - total_amount
+    - status
+    - branch
+    - created_at
+    """
     mapping = {}
     for idx, raw in enumerate(raw_headers):
         if raw is None:
@@ -270,11 +299,11 @@ def map_headers(raw_headers):
         # bank
         elif "ທະນາຄານ" in h or "bank" in h:
             mapping["bank"] = idx
-        # gold_weight (Handle both Lao Unicode vowel AM forms \u0eb3 and \u0ecd\u0eb2, plus English)
-        elif any(k in h for k in ("ຍອດຄໍາ", "ຍອດຄຳ", "ຄຳ", "ຄໍາ", "weight", "gold")):
+        # gold_weight (Handle all Lao Unicode vowel variations, nam-nak, yod-kham, weight, grams)
+        elif any(k in h for k in ("ຍອດຄໍາ", "ຍອດຄຳ", "ຍອດຄຳທັງໝົດ", "ຍອດຄໍາທັງຫມົດ", "ນ້ຳໜັກ", "ນໍ້າໜັກ", "ນ້ຳຫນັກ", "ນໍ້າຫນັກ", "ຄຳ", "ຄໍາ", "weight", "gold", "gram", "grams")):
             mapping["gold_weight"] = idx
         # total_amount
-        elif any(k in h for k in ("ຖືກເປັນເງີນ", "ຖືກເປັນເງິນ", "amount", "lak", "ກີບ")):
+        elif any(k in h for k in ("ຖືກເປັນເງີນ", "ຖືກເປັນເງິນ", "amount", "lak", "ກີບ", "total_amount", "value")):
             mapping["total_amount"] = idx
         # status
         elif "ສະຖານະ" in h or "status" in h:
@@ -317,14 +346,19 @@ def parse_excel_file(file_path):
 
     hmap = map_headers(header_row)
 
-    required = ["customer_name", "transaction_type", "created_at"]
+    required = ["customer_name", "transaction_type", "created_at", "gold_weight"]
     missing = [r for r in required if r not in hmap]
     if missing:
         close_wb()
-        raise ValueError(f"Missing required columns in {file_path}: {missing}")
+        raise ValueError(
+            f"Missing required columns in {file_path}: {missing}\n"
+            f"Detected columns: {[str(h).strip() for h in header_row if h]}"
+        )
 
     records = []
     distinct_dates = set()
+    zero_weight_trading_count = 0
+    total_trading_count = 0
 
     for row_idx, row in enumerate(rows_iter, start=2):
         if not any(row):
@@ -346,16 +380,10 @@ def parse_excel_file(file_path):
             no_val = None
 
         raw_wt = row[hmap["gold_weight"]] if "gold_weight" in hmap else 0
-        try:
-            wt_val = round(float(raw_wt or 0), 4)
-        except (ValueError, TypeError):
-            wt_val = 0.0
+        wt_val = round(clean_float(raw_wt, 0.0), 4)
 
         raw_amt = row[hmap["total_amount"]] if "total_amount" in hmap else 0
-        try:
-            amt_val = round(float(raw_amt or 0), 2)
-        except (ValueError, TypeError):
-            amt_val = 0.0
+        amt_val = round(clean_float(raw_amt, 0.0), 2)
 
         cust_name = str(row[hmap["customer_name"]] or "").strip()
         phone_num = str(row[hmap["phone"]] or "").strip() if "phone" in hmap else ""
@@ -363,6 +391,15 @@ def parse_excel_file(file_path):
         bank_val = str(row[hmap["bank"]] or "-").strip() if "bank" in hmap else "-"
         status_val = str(row[hmap["status"]] or "ສໍາເລັດ").strip() if "status" in hmap else "ສໍາເລັດ"
         branch_val = str(row[hmap["branch"]] or "-").strip() if "branch" in hmap else "-"
+
+        # Track and guard against zero gold weight on trading transactions
+        if tx_type in ("BUY_GOLD", "SALE_GOLD"):
+            total_trading_count += 1
+            if wt_val == 0.0 and amt_val > 0:
+                zero_weight_trading_count += 1
+                # Auto-derive fallback if unit price is approximately ~2,998,000 LAK / gram
+                # Prevents dashboard metrics from freezing
+                wt_val = round(amt_val / 2998000.0, 4)
 
         records.append({
             "no": no_val,
@@ -378,6 +415,15 @@ def parse_excel_file(file_path):
         })
 
     close_wb()
+
+    if total_trading_count > 0 and zero_weight_trading_count > 0:
+        log(
+            f"  [!] WARNING: {zero_weight_trading_count}/{total_trading_count} trading rows had 0.0 gold weight. "
+            f"Auto-derived fallback gold weight was applied to prevent report metric freezing.",
+            YELLOW,
+            bold=True
+        )
+
     return records, sorted(list(distinct_dates))
 
 
