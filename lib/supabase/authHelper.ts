@@ -68,7 +68,10 @@ export async function getCurrentUser(): Promise<UserProfile | null> {
   if (supabaseUrl && !supabaseUrl.includes('placeholder')) {
     try {
       const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
+      const authTimeout = new Promise<{ data: { user: null } }>((resolve) =>
+        setTimeout(() => resolve({ data: { user: null } }), 1500)
+      );
+      const { data: { user } } = await Promise.race([supabase.auth.getUser(), authTimeout]);
       if (user) {
         // Try fetching rich profile from public.profiles
         const { data: profile } = await supabase

@@ -70,8 +70,9 @@ export function ReportingPdfModal({
   const [hasGoogleServiceAccount, setHasGoogleServiceAccount] = useState<boolean>(false);
   const [hasGoogleAppsScript, setHasGoogleAppsScript] = useState<boolean>(false);
 
-  // Send Test Email State
+  // Send Test Email & PDF Download State
   const [isSendingTest, setIsSendingTest] = useState<boolean>(false);
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState<boolean>(false);
   const [testResult, setTestResult] = useState<{ status: 'success' | 'failed' | 'simulated'; message: string } | null>(null);
 
   // Delivery History State
@@ -233,24 +234,16 @@ export function ReportingPdfModal({
     }
   };
 
-  // Handle Send Test Email
-  const handleSendTestEmail = async () => {
-    setIsSendingTest(true);
-    setTestResult(null);
+  // Core PDF Generation Engine: Captures 3 discrete pages in A4 Landscape with crisp 2.0x scaling
+  const generateExecutivePdf = async (action: 'base64' | 'download' = 'base64'): Promise<string | null> => {
+    const previewContainer = document.getElementById('report-preview-container');
+    const prevDisplay = previewContainer ? previewContainer.style.display : '';
+    const prevPosition = previewContainer ? previewContainer.style.position : '';
+    const prevZIndex = previewContainer ? previewContainer.style.zIndex : '';
+    const prevWidth = previewContainer ? previewContainer.style.width : '';
+    const prevOpacity = previewContainer ? previewContainer.style.opacity : '';
+
     try {
-      const emailList = targetEmails
-        .split(',')
-        .map((em) => em.trim())
-        .filter((em) => em.length > 0);
-
-      // Temporarily ensure report preview container is visible and has layout dimensions
-      const previewContainer = document.getElementById('report-preview-container');
-      const prevDisplay = previewContainer ? previewContainer.style.display : '';
-      const prevPosition = previewContainer ? previewContainer.style.position : '';
-      const prevZIndex = previewContainer ? previewContainer.style.zIndex : '';
-      const prevWidth = previewContainer ? previewContainer.style.width : '';
-      const prevOpacity = previewContainer ? previewContainer.style.opacity : '';
-
       if (previewContainer) {
         previewContainer.style.display = 'block';
         previewContainer.style.position = 'fixed';
@@ -260,25 +253,45 @@ export function ReportingPdfModal({
         previewContainer.style.zIndex = '-9999';
         previewContainer.style.opacity = '1';
         previewContainer.classList.remove('hidden');
-        // Force browser layout reflow
         void previewContainer.offsetHeight;
       }
 
-      // Wait 120ms for DOM layout and fonts to compute
-      await new Promise((resolve) => setTimeout(resolve, 120));
+      // Ensure all custom fonts and web glyphs are completely loaded
+      if (typeof document !== 'undefined' && document.fonts && document.fonts.ready) {
+        await document.fonts.ready;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 200));
 
-      let pdfBase64: string | null = null;
-      try {
-        const reportElem = document.querySelector('.executive-report-root') as HTMLElement | null;
-        if (!reportElem) {
-          throw new Error('Report element .executive-report-root not found in DOM');
+      const html2canvas = (await import('html2canvas')).default;
+      const { jsPDF } = await import('jspdf');
+
+      // Initialize jsPDF in A4 Landscape (297mm x 210mm) matching web widescreen dashboard exactly
+      const pdf = new jsPDF({
+        orientation: 'landscape',
+        unit: 'mm',
+        format: 'a4',
+        compress: true,
+      });
+
+      const pdfWidth = pdf.internal.pageSize.getWidth(); // 297mm
+      const pdfHeight = pdf.internal.pageSize.getHeight(); // 210mm
+
+      const pageIds = ['pdf-page-1', 'pdf-page-2', 'pdf-page-3'];
+
+      for (let i = 0; i < pageIds.length; i++) {
+        const pageElem = document.getElementById(pageIds[i]);
+        if (!pageElem) {
+          console.warn(`Element #${pageIds[i]} not found in DOM`);
+          continue;
         }
 
-        const html2canvas = (await import('html2canvas')).default;
-        const { jsPDF } = await import('jspdf');
+        if (i > 0) {
+          pdf.addPage('a4', 'landscape');
+        }
 
-        const canvas = await html2canvas(reportElem, {
-          scale: 1.25,
+        // Render at high-definition scale (scale 2.0 = crisp vector-like clarity, zero text overlap)
+        const canvas = await html2canvas(pageElem, {
+          scale: 2.0,
           useCORS: true,
           logging: false,
           backgroundColor: '#ffffff',
@@ -286,54 +299,63 @@ export function ReportingPdfModal({
         });
 
         if (!canvas || canvas.width === 0 || canvas.height === 0) {
-          throw new Error('Canvas render produced 0x0 empty image');
+          throw new Error(`Failed to render canvas for page ${i + 1}`);
         }
 
-        const imgData = canvas.toDataURL('image/jpeg', 0.88);
-        const pdf = new jsPDF({
-          orientation: 'portrait',
-          unit: 'mm',
-          format: 'a4',
-        });
-
-        const pdfWidth = pdf.internal.pageSize.getWidth();
-        const pdfHeight = pdf.internal.pageSize.getHeight();
-        const imgWidth = canvas.width;
-        const imgHeight = canvas.height;
-        const ratio = pdfWidth / imgWidth;
-        const renderedHeight = imgHeight * ratio;
-
-        let heightLeft = renderedHeight;
-        let position = 0;
-
-        pdf.addImage(imgData, 'JPEG', 0, position, pdfWidth, renderedHeight, undefined, 'FAST');
-        heightLeft -= pdfHeight;
-
-        while (heightLeft > 0) {
-          position -= pdfHeight;
-          pdf.addPage();
-          pdf.addImage(imgData, 'JPEG', 0, position, pdfWidth, renderedHeight, undefined, 'FAST');
-          heightLeft -= pdfHeight;
-        }
-
-        const dataUri = pdf.output('datauristring');
-        pdfBase64 = dataUri.split(',')[1] || null;
-      } finally {
-        // Restore container style
-        if (previewContainer) {
-          previewContainer.style.display = prevDisplay;
-          previewContainer.style.position = prevPosition;
-          previewContainer.style.zIndex = prevZIndex;
-          previewContainer.style.width = prevWidth;
-          previewContainer.style.opacity = prevOpacity;
-          if (activeTab !== 'preview') {
-            previewContainer.classList.add('hidden');
-          }
-        }
+        const imgData = canvas.toDataURL('image/png');
+        pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight, undefined, 'FAST');
       }
 
+      const safeDate = (momMtd?.as_of_date || 'Daily').replace(/\//g, '-');
+      const filename = `Easy_Gold_Executive_Report_${safeDate}.pdf`;
+
+      if (action === 'download') {
+        pdf.save(filename);
+        return null;
+      }
+
+      const dataUri = pdf.output('datauristring');
+      return dataUri.split(',')[1] || null;
+    } finally {
+      if (previewContainer) {
+        previewContainer.style.display = prevDisplay;
+        previewContainer.style.position = prevPosition;
+        previewContainer.style.zIndex = prevZIndex;
+        previewContainer.style.width = prevWidth;
+        previewContainer.style.opacity = prevOpacity;
+        if (activeTab !== 'preview') {
+          previewContainer.classList.add('hidden');
+        }
+      }
+    }
+  };
+
+  // Handle Direct Download PDF
+  const handleDownloadPdf = async () => {
+    setIsDownloadingPdf(true);
+    try {
+      await generateExecutivePdf('download');
+    } catch (err: any) {
+      console.error('PDF Download Error:', err);
+      alert(`Error generating PDF: ${err?.message || 'Unknown error'}`);
+    } finally {
+      setIsDownloadingPdf(false);
+    }
+  };
+
+  // Handle Send Test Email with 3-Page Landscape High-Resolution PDF
+  const handleSendTestEmail = async () => {
+    setIsSendingTest(true);
+    setTestResult(null);
+    try {
+      const emailList = targetEmails
+        .split(',')
+        .map((em) => em.trim())
+        .filter((em) => em.length > 0);
+
+      const pdfBase64 = await generateExecutivePdf('base64');
       if (!pdfBase64) {
-        throw new Error('Failed to generate visual report PDF');
+        throw new Error('Failed to generate high-definition visual report PDF');
       }
 
       const res = await fetch('/api/reports/send-daily-email', {
@@ -578,20 +600,29 @@ export function ReportingPdfModal({
           <div className="flex items-center gap-2">
             <button
               onClick={handleSendTestEmail}
-              disabled={isSendingTest}
+              disabled={isSendingTest || isDownloadingPdf}
               className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black text-xs shadow-xs transition-all cursor-pointer disabled:opacity-50"
-              title="Capture visual report screenshot and email as PDF"
+              title="Capture 3-page HD landscape report and email to management"
             >
               <Send className="w-3.5 h-3.5 text-white" />
               <span>{isSendingTest ? 'Sending PDF...' : 'Email This Report'}</span>
             </button>
             <button
+              onClick={handleDownloadPdf}
+              disabled={isDownloadingPdf || isSendingTest}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs shadow-xs transition-all cursor-pointer disabled:opacity-50"
+              title="Download exact 3-page high-definition landscape PDF file"
+            >
+              <Download className="w-3.5 h-3.5 text-white" />
+              <span>{isDownloadingPdf ? 'Generating PDF...' : 'Download PDF'}</span>
+            </button>
+            <button
               onClick={handlePrintHd}
               className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-[#d4a017] hover:bg-[#b8860b] text-slate-950 font-black text-xs shadow-xs transition-all cursor-pointer"
-              title="Download or Print PDF in Full HD 300+ DPI"
+              title="Print PDF in Full HD 300+ DPI Native Vector"
             >
               <Printer className="w-4 h-4 text-slate-950" />
-              <span>Download / Print PDF</span>
+              <span>Print</span>
             </button>
             <button
               onClick={onClose}
@@ -662,7 +693,7 @@ export function ReportingPdfModal({
           ) : (
             <div 
               id="executive-pdf-printable" 
-              className="bg-white rounded-2xl shadow-md border border-slate-200/80 p-2 sm:p-6 transition-all"
+              className="w-full flex flex-col items-center justify-center p-0 transition-all"
             >
               <ExecutivePdfReportDocument
                 currentYear={currentYear}

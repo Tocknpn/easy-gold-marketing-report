@@ -111,7 +111,7 @@ export function PdfMtdMetricCard({
               {renderIcon()}
             </div>
             <span
-              className="font-black text-slate-800 text-[10.5px] truncate tracking-tight whitespace-nowrap"
+              className="font-black text-slate-800 text-[11px] truncate whitespace-nowrap"
               title={cleanLabel}
             >
               {cleanLabel}
@@ -120,7 +120,7 @@ export function PdfMtdMetricCard({
 
           {/* Ahead / Behind Pace Badge */}
           <span
-            className={`text-[8px] font-black px-1 py-0.5 rounded shrink-0 uppercase whitespace-nowrap tracking-tighter ${isAheadOfPace
+            className={`text-[8.5px] font-black px-1.5 py-0.5 rounded shrink-0 uppercase whitespace-nowrap ${isAheadOfPace
                 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                 : 'bg-rose-50 text-rose-700 border border-rose-200'
               }`}
@@ -139,21 +139,21 @@ export function PdfMtdMetricCard({
         {/* MTD Variance Badge */}
         <div className="flex items-center justify-center gap-1 font-black text-[10.5px] mb-0.5">
           {isMtdPositive && (
-            <span className="text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded-full border border-emerald-200">
+            <span className="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
               ▲ +{metric.mtd_variance_percent}%
             </span>
           )}
           {isMtdNegative && (
-            <span className="text-rose-700 bg-rose-50 px-1.5 py-0.2 rounded-full border border-rose-200">
+            <span className="text-rose-700 bg-rose-50 px-2 py-0.5 rounded-full border border-rose-200">
               ▼ {metric.mtd_variance_percent}%
             </span>
           )}
           {!isMtdPositive && !isMtdNegative && (
-            <span className="text-slate-600 bg-slate-50 px-1.5 py-0.2 rounded-full border border-slate-200">0%</span>
+            <span className="text-slate-600 bg-slate-50 px-2 py-0.5 rounded-full border border-slate-200">0%</span>
           )}
         </div>
 
-        <div className="text-[9px] text-slate-500 font-medium truncate">
+        <div className="text-[9.5px] text-slate-500 font-medium truncate">
           vs. {comparisonMonthLabel} ({metric.comp_mtd.toLocaleString()})
         </div>
       </div>
@@ -182,15 +182,15 @@ export function PdfMtdMetricCard({
       {/* 4. EST. MONTH END & VS FULL (Guaranteed 1-Line Row) */}
       <div className="pt-0.5 pb-0.5">
         <div className="flex items-center justify-between gap-1 text-[9px] w-full min-w-0 flex-nowrap whitespace-nowrap">
-          <div className="flex items-baseline gap-1 shrink-0">
-            <span className="text-[8px] font-bold text-slate-400 uppercase tracking-tight">Est End:</span>
+          <div className="flex items-baseline gap-1">
+            <span className="text-[8.5px] font-bold text-slate-500 uppercase">Est End:</span>
             <span className="font-black text-slate-900 text-[11px] font-sans">
               {metric.est_month_end.toLocaleString()}
             </span>
           </div>
 
-          <div className="flex items-baseline gap-0.5 shrink-0">
-            <span className="text-[8px] font-bold text-slate-400 uppercase tracking-tight">vs {comparisonMonthLabel}:</span>
+          <div className="flex items-baseline gap-1">
+            <span className="text-[8.5px] font-bold text-slate-500 uppercase">vs {comparisonMonthLabel}:</span>
             <span className={`text-[9.5px] font-black ${isForecastPositive ? 'text-emerald-700' : isForecastNegative ? 'text-rose-700' : 'text-slate-600'
               }`}>
               {isForecastPositive ? `▲+${metric.forecast_variance_percent}%` : isForecastNegative ? `▼${metric.forecast_variance_percent}%` : '0%'}
@@ -201,14 +201,14 @@ export function PdfMtdMetricCard({
 
       {/* 5. VELOCITY & BENCHMARK NEED (Guaranteed 100% visible, no cut off) */}
       <div className="mt-1 px-1.5 py-0.5 rounded-md bg-slate-50 border border-slate-200/90 text-[8.5px] flex items-center justify-between gap-1 w-full min-w-0 flex-nowrap whitespace-nowrap">
-        <div className="flex items-center gap-0.5 shrink-0">
+        <div className="flex items-center gap-1 shrink-0">
           <Gauge className="w-2.5 h-2.5 text-[#0c4ca3] shrink-0" />
           <span className="text-slate-500 font-semibold">Vel:</span>
           <span className="font-black text-slate-800">{currentDailyRate.toLocaleString()}</span>
           <span className="text-slate-400 text-[7.5px]">/d</span>
         </div>
         <span className="text-slate-300 shrink-0">|</span>
-        <div className="flex items-center gap-0.5 shrink-0">
+        <div className="flex items-center gap-1 shrink-0">
           <span className="text-slate-500 font-semibold">Need:</span>
           <span className={`font-black ${targetDailyRate > currentDailyRate ? 'text-amber-700' : 'text-emerald-700'}`}>
             {targetDailyRate.toLocaleString()}

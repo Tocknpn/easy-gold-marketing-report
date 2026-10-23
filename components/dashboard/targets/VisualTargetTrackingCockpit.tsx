@@ -18,11 +18,13 @@ interface VisualTargetTrackingCockpitProps {
   data: RunRateComparisonPayload;
   /** Show %Est. Target Hit / Est. Year End columns. Hidden for completed past months. */
   showEst?: boolean;
+  /** Suppress internal header when embedded inside a section that already renders a header */
+  hideHeader?: boolean;
 }
 
 const fmt = (n: number) => Math.round(n).toLocaleString();
 
-export function VisualTargetTrackingCockpit({ data, showEst = true }: VisualTargetTrackingCockpitProps) {
+export function VisualTargetTrackingCockpit({ data, showEst = true, hideHeader = false }: VisualTargetTrackingCockpitProps) {
   const {
     current_month_label,
     display_as_of_date,
@@ -51,16 +53,18 @@ export function VisualTargetTrackingCockpit({ data, showEst = true }: VisualTarg
   return (
     <div className="w-full space-y-4">
       {/* Visual Cockpit Header */}
-      <div className="flex items-baseline justify-between pb-2 border-b border-slate-200">
-        <div>
-          <h2 className="text-xl sm:text-2xl font-black text-[#0c4ca3] tracking-tight">
-            {current_month_label}&apos;26 Performance - Vs Target
-          </h2>
-          <p className="text-xs text-slate-500 font-bold">
-            Data up to date {display_as_of_date}
-          </p>
+      {!hideHeader && (
+        <div className="flex items-baseline justify-between pb-2 border-b border-slate-200">
+          <div>
+            <h2 className="text-xl sm:text-2xl font-black text-[#0c4ca3] tracking-tight">
+              {current_month_label}&apos;26 Performance - Vs Target
+            </h2>
+            <p className="text-xs text-slate-500 font-bold">
+              Data up to date {display_as_of_date}
+            </p>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Dual Cards Grid: Monthly Target Tracking & YTD Tracking */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-stretch">
