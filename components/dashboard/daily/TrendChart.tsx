@@ -66,33 +66,64 @@ export function TrendChart({ series, legend = false }: { series: ChartSeries[]; 
   const x = (i: number) => padL + (n <= 1 ? innerW / 2 : (i / (n - 1)) * innerW);
   const y = (v: number) => padT + innerH - (v / yMax) * innerH;
 
+  // Catmull-Rom to Cubic Bezier smooth spline
+  const getSmoothPath = (pts: Array<{ x: number; y: number }>, tension = 0.16): string => {
+    if (pts.length === 0) return '';
+    if (pts.length === 1) return `M ${pts[0].x.toFixed(1)},${pts[0].y.toFixed(1)}`;
+    if (pts.length === 2) {
+      return `M ${pts[0].x.toFixed(1)},${pts[0].y.toFixed(1)} L ${pts[1].x.toFixed(1)},${pts[1].y.toFixed(1)}`;
+    }
+
+    let d = `M ${pts[0].x.toFixed(1)},${pts[0].y.toFixed(1)}`;
+    for (let i = 0; i < pts.length - 1; i++) {
+      const p0 = pts[i === 0 ? i : i - 1];
+      const p1 = pts[i];
+      const p2 = pts[i + 1];
+      const p3 = pts[i + 2 < pts.length ? i + 2 : i + 1];
+
+      const cp1x = p1.x + (p2.x - p0.x) * tension;
+      const cp1y = p1.y + (p2.y - p0.y) * tension;
+
+      const cp2x = p2.x - (p3.x - p1.x) * tension;
+      const cp2y = p2.y - (p3.y - p1.y) * tension;
+
+      d += ` C ${cp1x.toFixed(1)},${cp1y.toFixed(1)} ${cp2x.toFixed(1)},${cp2y.toFixed(1)} ${p2.x.toFixed(1)},${p2.y.toFixed(1)}`;
+    }
+    return d;
+  };
+
   const pathFor = (s: ChartSeries) => {
-    let d = '';
-    let pen = false;
+    const segments: Array<Array<{ x: number; y: number }>> = [];
+    let cur: Array<{ x: number; y: number }> = [];
     s.points.forEach((p, i) => {
       if (p.value === null) {
-        pen = false;
-        return;
+        if (cur.length > 0) {
+          segments.push(cur);
+          cur = [];
+        }
+      } else {
+        cur.push({ x: x(i), y: y(p.value) });
       }
-      d += `${pen ? 'L' : 'M'}${x(i).toFixed(1)},${y(p.value).toFixed(1)} `;
-      pen = true;
     });
-    return d.trim();
+    if (cur.length > 0) segments.push(cur);
+    return segments.map((seg) => getSmoothPath(seg)).join(' ');
   };
 
   const areaFor = (s: ChartSeries) => {
-    const valid = s.points.map((p, i) => ({ p, i })).filter((q) => q.p.value !== null);
+    const valid = s.points
+      .map((p, i) => (p.value !== null ? { x: x(i), y: y(p.value) } : null))
+      .filter((pt): pt is { x: number; y: number } => pt !== null);
     if (valid.length < 2) return '';
     const first = valid[0];
     const last = valid[valid.length - 1];
-    const line = valid.map((q) => `L${x(q.i).toFixed(1)},${y(q.p.value as number).toFixed(1)}`).join(' ');
-    return `M${x(first.i).toFixed(1)},${y(0).toFixed(1)} ${line} L${x(last.i).toFixed(1)},${y(0).toFixed(1)} Z`;
+    const curve = getSmoothPath(valid);
+    return `${curve} L ${last.x.toFixed(1)},${y(0).toFixed(1)} L ${first.x.toFixed(1)},${y(0).toFixed(1)} Z`;
   };
 
   const labelEvery = n > 20 ? 5 : n > 10 ? 2 : 1;
-  const activeIdx = hover ?? n - 1;
+  const activeIdx = hover; // only active when user hovers
 
-  const onMove = (e: React.MouseEvent<SVGSVGElement>) => {
+  const onMove = (e: React.MouseEvent<HTMLDivElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
     const px = e.clientX - rect.left;
     const i = Math.round(((px - padL) / innerW) * (n - 1));
@@ -111,15 +142,19 @@ export function TrendChart({ series, legend = false }: { series: ChartSeries[]; 
           ))}
         </div>
       )}
-      <div ref={ref} className="flex-1 min-h-0 relative">
+      <div
+        ref={ref}
+        className="flex-1 min-h-0 relative cursor-crosshair"
+        onMouseMove={onMove}
+        onMouseLeave={() => setHover(null)}
+      >
         {w > 0 && h > 0 && (
           <svg
             width={w}
             height={h}
-            onMouseMove={onMove}
-            onMouseLeave={() => setHover(null)}
             role="img"
             aria-label="Daily trend chart"
+            className="pointer-events-none"
           >
             <defs>
               {series.map((s, si) => (
@@ -149,8 +184,10 @@ export function TrendChart({ series, legend = false }: { series: ChartSeries[]; 
               ) : null
             )}
 
-            {/* hover guide */}
-            <line x1={x(activeIdx)} x2={x(activeIdx)} y1={padT} y2={padT + innerH} stroke={BRAND} strokeOpacity={0.25} strokeWidth={1.5} />
+            {/* hover guide - only when user hovers */}
+            {activeIdx !== null && (
+              <line x1={x(activeIdx)} x2={x(activeIdx)} y1={padT} y2={padT + innerH} stroke={BRAND} strokeOpacity={0.25} strokeWidth={1.5} />
+            )}
 
             {/* areas + lines */}
             {series.map((s, si) =>
@@ -168,23 +205,44 @@ export function TrendChart({ series, legend = false }: { series: ChartSeries[]; 
               />
             ))}
 
-            {/* active points */}
-            {series.map((s, si) => {
-              const p = s.points[activeIdx];
-              if (!p || p.value === null) return null;
-              return (
-                <g key={`p${si}`}>
-                  <circle cx={x(activeIdx)} cy={y(p.value)} r={5.5} fill="#fff" stroke={s.color} strokeWidth={3} />
-                </g>
-              );
-            })}
+            {/* dots on every day point so users can easily spot daily trends */}
+            {series.map((s, si) => (
+              <g key={`dots-${si}`}>
+                {s.points.map((p, i) => {
+                  if (p.value === null) return null;
+                  return (
+                    <circle
+                      key={i}
+                      cx={x(i)}
+                      cy={y(p.value)}
+                      r={2.5}
+                      fill="#ffffff"
+                      stroke={s.color}
+                      strokeWidth={1.8}
+                    />
+                  );
+                })}
+              </g>
+            ))}
+
+            {/* active hover point highlight */}
+            {activeIdx !== null &&
+              series.map((s, si) => {
+                const p = s.points[activeIdx];
+                if (!p || p.value === null) return null;
+                return (
+                  <g key={`p${si}`}>
+                    <circle cx={x(activeIdx)} cy={y(p.value)} r={6} fill="#fff" stroke={s.color} strokeWidth={3.5} />
+                  </g>
+                );
+              })}
           </svg>
         )}
 
-        {/* value tooltip for the active day */}
-        {w > 0 && (
+        {/* value tooltip when hovering */}
+        {w > 0 && activeIdx !== null && (
           <div
-            className="absolute pointer-events-none rounded-lg bg-slate-900/90 text-white px-2 py-1 text-[0.85em] leading-tight shadow-lg whitespace-nowrap"
+            className="absolute pointer-events-none rounded-lg bg-slate-900/90 text-white px-2 py-1 text-[0.85em] leading-tight shadow-lg whitespace-nowrap z-20"
             style={{
               left: Math.min(Math.max(x(activeIdx) - 60, 0), Math.max(0, w - 170)),
               top: 0,

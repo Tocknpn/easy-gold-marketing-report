@@ -34,10 +34,30 @@ interface HeroProps {
   dateLabel?: string;
   /** Bigger number for blocks that have spare room */
   large?: boolean;
+  stacked?: boolean;
 }
 
 /** Big "latest day" number with a plain-language comparison to yesterday. */
-export function HeroNumber({ title, value, yesterdayPct, accent, dateLabel, large = false }: HeroProps) {
+export function HeroNumber({ title, value, yesterdayPct, accent, dateLabel, large = false, stacked = false }: HeroProps) {
+  if (stacked) {
+    return (
+      <div className="flex flex-col min-w-0 pr-3">
+        <div className="flex items-center gap-1.5 text-[0.85em] font-black uppercase tracking-wide text-slate-500">
+          <span className="inline-block w-2.5 h-2.5 rounded-full shrink-0" style={{ background: accent }} />
+          <span>{title}</span>
+        </div>
+        <div className="font-black leading-none tabular-nums text-slate-900 my-1" style={{ fontSize: large ? '3.8em' : '2.7em' }}>
+          {fmtInt(value)}
+        </div>
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <ChangeChip pct={yesterdayPct} size="md" />
+          <span className="text-[0.8em] font-semibold text-slate-500">vs yesterday</span>
+        </div>
+        {dateLabel && <div className="text-[0.75em] font-semibold text-slate-400 mt-0.5">{dateLabel}</div>}
+      </div>
+    );
+  }
+
   return (
     <div className="flex items-end justify-between gap-3">
       <div className="min-w-0">

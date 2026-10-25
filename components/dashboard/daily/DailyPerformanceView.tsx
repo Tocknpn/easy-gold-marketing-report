@@ -399,14 +399,9 @@ export function DailyPerformanceView({ onBack }: { onBack: () => void }) {
         </div>
 
         <div className="flex items-center gap-[0.9em] text-right shrink-0">
-          <div className="leading-tight">
-            <div className="flex items-center justify-end gap-1.5 font-bold">
-              <span className="inline-block w-2.5 h-2.5 rounded-full" style={{ background: statusColor }} />
-              {statusText}
-            </div>
-            <div className="text-[0.8em] font-semibold text-white/80">
-              Data updated {updatedAt ? updatedAt.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : '–'}
-            </div>
+          <div className="flex items-center gap-1.5 font-bold">
+            <span className="inline-block w-2.5 h-2.5 rounded-full" style={{ background: statusColor }} />
+            <span>{statusText}</span>
           </div>
           <div className="text-[1.6em] font-black tabular-nums leading-none">
             {now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
@@ -431,18 +426,23 @@ export function DailyPerformanceView({ onBack }: { onBack: () => void }) {
         <main className="flex-1 min-h-0 grid grid-cols-[minmax(0,5fr)_minmax(0,7fr)] grid-rows-[minmax(0,1.12fr)_minmax(0,0.88fr)] gap-[0.7em] p-[0.7em]">
           {/* 1. New register */}
           <Panel no={1} title="New Register" hint="Last 30 days">
-            <div className="h-full grid grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] gap-[1em] min-h-0">
-              <div className="flex flex-col justify-between min-h-0 gap-[0.5em]">
+            <div className="h-full flex flex-col justify-between min-h-0">
+              {/* Top row: Left Hero (stacked), Right Compare table */}
+              <div className="grid grid-cols-[auto_1fr] gap-4 items-center shrink-0 border-b border-slate-100 pb-2">
                 <HeroNumber
                   title="New Register"
                   value={series.nc.cmp.latest}
                   yesterdayPct={series.nc.cmp.rows[0].pct}
                   accent={TEAL}
+                  stacked
                   large
                 />
-                <ComparePanel rows={series.nc.cmp.rows} roomy />
+                <div className="min-w-0">
+                  <ComparePanel rows={series.nc.cmp.rows} />
+                </div>
               </div>
-              <div className="min-h-0">
+              {/* Bottom: full-width daily trend chart */}
+              <div className="flex-1 min-h-0 pt-1">
                 <TrendChart series={[{ name: 'New Register', color: TEAL, points: series.nc.points, area: true }]} />
               </div>
             </div>
