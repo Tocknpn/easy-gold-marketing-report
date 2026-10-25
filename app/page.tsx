@@ -10,6 +10,7 @@ import { DynamicReportView } from '@/components/dashboard/dynamic/DynamicReportV
 import { PowerPivotStudio } from '@/components/dashboard/pivot/PowerPivotStudio';
 import { CampaignTrackingView } from '@/components/dashboard/campaign/CampaignTrackingView';
 import { WeeklyHistoricalMatrix } from '@/components/dashboard/weekly/WeeklyHistoricalMatrix';
+import { DailyPerformanceView } from '@/components/dashboard/daily/DailyPerformanceView';
 import { UserAuthModal } from '@/components/dashboard/auth/UserAuthModal';
 import { CorporateLoginView } from '@/components/dashboard/auth/CorporateLoginView';
 import { AdminUserManagementModal } from '@/components/dashboard/admin/AdminUserManagementModal';
@@ -55,8 +56,8 @@ import { DEFAULT_MTD_PAYLOAD } from '@/lib/constants/mtdData';
 import { DEFAULT_WEEKLY_FALLBACK_DATA } from '@/lib/constants/weeklyData';
 import { DEFAULT_2026_TARGETS } from '@/lib/constants/targetData';
 
-type ReportTab = 'targets' | 'dynamic' | 'mtd' | 'weekly' | 'pivot' | 'campaign';
-const VALID_TABS: ReportTab[] = ['targets', 'dynamic', 'mtd', 'weekly', 'pivot', 'campaign'];
+type ReportTab = 'targets' | 'dynamic' | 'mtd' | 'weekly' | 'pivot' | 'campaign' | 'daily';
+const VALID_TABS: ReportTab[] = ['targets', 'dynamic', 'mtd', 'weekly', 'pivot', 'campaign', 'daily'];
 
 export default function DashboardPage() {
   // View toggle: 'dynamic', 'mtd', 'weekly', 'pivot', 'campaign' with URL and localStorage sync
@@ -85,11 +86,16 @@ export default function DashboardPage() {
     }
   }, [isTelemetryPopoverOpen]);
 
+  // Remember the last normal report tab so the Daily screen's Back arrow can return to it
+  const lastNormalTabRef = useRef<ReportTab>('dynamic');
+
   // Tab change handler that updates state, localStorage, and browser URL query param (?tab=...)
   const handleTabChange = (tab: ReportTab) => {
+    if (tab !== 'daily') lastNormalTabRef.current = tab;
     setActiveReportTab(tab);
     if (typeof window !== 'undefined') {
-      localStorage.setItem('easy_gold_active_tab', tab);
+      // 'daily' is a wall-screen view: never make it the default landing tab
+      if (tab !== 'daily') localStorage.setItem('easy_gold_active_tab', tab);
       const url = new URL(window.location.href);
       url.searchParams.set('tab', tab);
       window.history.replaceState(null, '', url.pathname + url.search);
@@ -516,6 +522,15 @@ export default function DashboardPage() {
     );
   }
 
+  // Daily Performance MKT: full-screen wall display. No header, banner or tab bar.
+  if (activeReportTab === 'daily') {
+    return (
+      <DailyPerformanceView
+        onBack={() => handleTabChange(lastNormalTabRef.current)}
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#f3f5f9] text-slate-900 flex flex-col select-none">
       {/* Main Executive Report Content Area */}
@@ -829,6 +844,20 @@ export default function DashboardPage() {
             >
               <Target className="w-4 h-4" />
               <span>Campaign Tracking</span>
+            </button>
+            <button
+              role="tab"
+              id="tab-daily"
+              aria-selected={false}
+              aria-controls="panel-daily"
+              tabIndex={-1}
+              onClick={() => handleTabChange('daily')}
+              onKeyDown={(e) => handleTabKeyDown(e, 'daily')}
+              className="flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-all cursor-pointer shrink-0 whitespace-nowrap focus:outline-hidden focus:ring-2 focus:ring-brand-navy text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+            >
+              <Activity className="w-4 h-4" />
+              <span>Daily Performance MKT</span>
+              <span className="px-1.5 py-0.5 rounded-md text-[10px] font-black bg-emerald-100 text-emerald-700 uppercase">New</span>
             </button>
           </div>
         </nav>
