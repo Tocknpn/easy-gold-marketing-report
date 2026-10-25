@@ -11,8 +11,6 @@ import {
   UserPlus,
   ArrowLeftRight,
   Gauge,
-  CheckCircle2,
-  AlertCircle
 } from 'lucide-react';
 
 interface PdfMtdMetricCardProps {
@@ -29,7 +27,7 @@ export function PdfMtdMetricCard({
   totalDays = 31,
 }: PdfMtdMetricCardProps) {
   const renderIcon = () => {
-    const iconProps = { className: 'w-3.5 h-3.5 text-[#0c4ca3]' };
+    const iconProps = { className: 'w-4 h-4 text-[#0c4ca3]' };
     switch (metric.icon_name) {
       case 'shopping-bag':
         return <ShoppingBag {...iconProps} />;
@@ -71,9 +69,9 @@ export function PdfMtdMetricCard({
   const cleanLabel = (() => {
     switch (metric.id) {
       case 'buy_weight_g':
-        return 'Buy Weight (15g)';
+        return 'Buy Wt (15g)';
       case 'sell_weight_g':
-        return 'Sell Weight (15g)';
+        return 'Sell Wt (15g)';
       case 'buy_transactions':
         return 'Buy Trx';
       case 'sell_transactions':
@@ -96,22 +94,22 @@ export function PdfMtdMetricCard({
   })();
 
   return (
-    <div className="bg-white rounded-xl border border-slate-200/90 p-2 shadow-2xs flex flex-col justify-between relative overflow-hidden min-w-0">
+    <div className="bg-white rounded-xl border border-slate-200/90 p-2.5 shadow-2xs flex flex-col justify-between relative overflow-hidden min-w-0">
       {/* Top Accent Stripe */}
       <div
-        className={`absolute top-0 left-0 right-0 h-1 ${isForecastPositive ? 'bg-emerald-500' : isForecastNegative ? 'bg-rose-500' : 'bg-slate-300'
+        className={`absolute top-0 left-0 right-0 h-1.5 ${isForecastPositive ? 'bg-emerald-500' : isForecastNegative ? 'bg-rose-500' : 'bg-slate-300'
           }`}
       />
 
-      {/* 1. HEADER (Strict 1-Line: Icon + Name ... Compact Pace Badge, ZERO Overlap) */}
-      <div className="w-full mb-1 pt-0.5 min-w-0">
+      {/* 1. HEADER (Strict 1-Line: Icon + Name ... Compact Pace Badge) */}
+      <div className="w-full mb-1.5 pt-0.5 min-w-0">
         <div className="flex items-center justify-between gap-1 w-full min-w-0 flex-nowrap">
-          <div className="flex items-center gap-1 min-w-0 shrink">
+          <div className="flex items-center gap-1.5 min-w-0 shrink">
             <div className="p-0.5 rounded bg-blue-50 text-[#0c4ca3] shrink-0">
               {renderIcon()}
             </div>
             <span
-              className="font-black text-slate-800 text-[11px] truncate whitespace-nowrap"
+              className="font-black text-slate-800 text-[12px] truncate whitespace-nowrap"
               title={cleanLabel}
             >
               {cleanLabel}
@@ -120,7 +118,7 @@ export function PdfMtdMetricCard({
 
           {/* Ahead / Behind Pace Badge */}
           <span
-            className={`text-[8.5px] font-black px-1.5 py-0.5 rounded shrink-0 uppercase whitespace-nowrap ${isAheadOfPace
+            className={`text-[9.5px] font-black px-1.5 py-0.5 rounded shrink-0 uppercase whitespace-nowrap ${isAheadOfPace
                 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                 : 'bg-rose-50 text-rose-700 border border-rose-200'
               }`}
@@ -131,13 +129,13 @@ export function PdfMtdMetricCard({
       </div>
 
       {/* 2. CURRENT MTD ACTUALS */}
-      <div className="flex flex-col items-center justify-center text-center py-0.5">
-        <div className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight leading-none mb-0.5 font-sans">
+      <div className="flex flex-col items-center justify-center text-center py-1">
+        <div className="text-[26px] font-black text-slate-900 tracking-tight leading-none mb-1 font-sans">
           {metric.current_mtd.toLocaleString()}
         </div>
 
         {/* MTD Variance Badge */}
-        <div className="flex items-center justify-center gap-1 font-black text-[10.5px] mb-0.5">
+        <div className="flex items-center justify-center gap-1 font-black text-[11.5px] mb-1">
           {isMtdPositive && (
             <span className="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
               ▲ +{metric.mtd_variance_percent}%
@@ -153,14 +151,14 @@ export function PdfMtdMetricCard({
           )}
         </div>
 
-        <div className="text-[9.5px] text-slate-500 font-medium truncate">
+        <div className="text-[10px] text-slate-500 font-medium truncate">
           vs. {comparisonMonthLabel} ({metric.comp_mtd.toLocaleString()})
         </div>
       </div>
 
       {/* 3. PROGRESS BAR */}
-      <div className="my-1 px-0.5">
-        <div className="flex items-center justify-between text-[8.5px] font-bold text-slate-500 mb-0.5">
+      <div className="my-1.5 px-0.5">
+        <div className="flex items-center justify-between text-[9.5px] font-bold text-slate-500 mb-0.5">
           <span>Prog: {targetAchievedPct}%</span>
           <span className="text-slate-400">Tgt: {metric.full_comp_month.toLocaleString()}</span>
         </div>
@@ -181,17 +179,17 @@ export function PdfMtdMetricCard({
 
       {/* 4. EST. MONTH END & VS FULL (Guaranteed 1-Line Row) */}
       <div className="pt-0.5 pb-0.5">
-        <div className="flex items-center justify-between gap-1 text-[9px] w-full min-w-0 flex-nowrap whitespace-nowrap">
+        <div className="flex items-center justify-between gap-1 text-[10px] w-full min-w-0 flex-nowrap whitespace-nowrap">
           <div className="flex items-baseline gap-1">
-            <span className="text-[8.5px] font-bold text-slate-500 uppercase">Est End:</span>
-            <span className="font-black text-slate-900 text-[11px] font-sans">
+            <span className="text-[9px] font-bold text-slate-500 uppercase">Est End:</span>
+            <span className="font-black text-slate-900 text-[12px] font-sans">
               {metric.est_month_end.toLocaleString()}
             </span>
           </div>
 
           <div className="flex items-baseline gap-1">
-            <span className="text-[8.5px] font-bold text-slate-500 uppercase">vs {comparisonMonthLabel}:</span>
-            <span className={`text-[9.5px] font-black ${isForecastPositive ? 'text-emerald-700' : isForecastNegative ? 'text-rose-700' : 'text-slate-600'
+            <span className="text-[9px] font-bold text-slate-500 uppercase">vs {comparisonMonthLabel}:</span>
+            <span className={`text-[10.5px] font-black ${isForecastPositive ? 'text-emerald-700' : isForecastNegative ? 'text-rose-700' : 'text-slate-600'
               }`}>
               {isForecastPositive ? `▲+${metric.forecast_variance_percent}%` : isForecastNegative ? `▼${metric.forecast_variance_percent}%` : '0%'}
             </span>
@@ -200,12 +198,12 @@ export function PdfMtdMetricCard({
       </div>
 
       {/* 5. VELOCITY & BENCHMARK NEED (Guaranteed 100% visible, no cut off) */}
-      <div className="mt-1 px-1.5 py-0.5 rounded-md bg-slate-50 border border-slate-200/90 text-[8.5px] flex items-center justify-between gap-1 w-full min-w-0 flex-nowrap whitespace-nowrap">
+      <div className="mt-1 px-2 py-0.5 rounded-md bg-slate-50 border border-slate-200/90 text-[9.5px] flex items-center justify-between gap-1 w-full min-w-0 flex-nowrap whitespace-nowrap">
         <div className="flex items-center gap-1 shrink-0">
-          <Gauge className="w-2.5 h-2.5 text-[#0c4ca3] shrink-0" />
+          <Gauge className="w-3 h-3 text-[#0c4ca3] shrink-0" />
           <span className="text-slate-500 font-semibold">Vel:</span>
           <span className="font-black text-slate-800">{currentDailyRate.toLocaleString()}</span>
-          <span className="text-slate-400 text-[7.5px]">/d</span>
+          <span className="text-slate-400 text-[8.5px]">/d</span>
         </div>
         <span className="text-slate-300 shrink-0">|</span>
         <div className="flex items-center gap-1 shrink-0">
@@ -213,7 +211,7 @@ export function PdfMtdMetricCard({
           <span className={`font-black ${targetDailyRate > currentDailyRate ? 'text-amber-700' : 'text-emerald-700'}`}>
             {targetDailyRate.toLocaleString()}
           </span>
-          <span className="text-slate-400 text-[7.5px]">/d</span>
+          <span className="text-slate-400 text-[8.5px]">/d</span>
         </div>
       </div>
     </div>
