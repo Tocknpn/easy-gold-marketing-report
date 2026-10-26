@@ -39,7 +39,10 @@ export function SparklineChart({
   const values = data.map((d) => d.value);
   const minVal = Math.min(...values);
   const maxVal = Math.max(...values);
-  const valRange = maxVal - minVal || 1;
+
+  // Anchor to 0 for additive metrics so partial vs prorated pace visibly reflects true run-rate
+  const chartMin = isDecimal ? Math.max(0, minVal > 0 ? minVal * 0.7 : 0) : 0;
+  const valRange = maxVal - chartMin || 1;
 
   // Curated Institutional Color Schemes
   const colorSchemes: Record<string, { stroke: string; fillStart: string; fillEnd: string; activeDot: string }> = {
@@ -81,7 +84,7 @@ export function SparklineChart({
 
   const points = data.map((d, index) => {
     const x = paddingX + index * stepX;
-    const normalizedY = (d.value - minVal) / valRange;
+    const normalizedY = Math.max(0, Math.min(1, (d.value - chartMin) / valRange));
     const y = height - paddingBottom - normalizedY * chartHeight;
     const isSelected = selectedWeek ? d.week === selectedWeek : index === data.length - 1;
     return { x, y, week: d.week, value: d.value, isSelected, index };

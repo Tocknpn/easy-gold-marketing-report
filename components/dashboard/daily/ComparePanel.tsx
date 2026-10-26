@@ -41,12 +41,12 @@ interface HeroProps {
 export function HeroNumber({ title, value, yesterdayPct, accent, dateLabel, large = false, stacked = false }: HeroProps) {
   if (stacked) {
     return (
-      <div className="flex flex-col min-w-0 pr-3">
+      <div className="flex flex-col min-w-0">
         <div className="flex items-center gap-1.5 text-[0.85em] font-black uppercase tracking-wide text-slate-500">
           <span className="inline-block w-2.5 h-2.5 rounded-full shrink-0" style={{ background: accent }} />
           <span>{title}</span>
         </div>
-        <div className="font-black leading-none tabular-nums text-slate-900 my-1" style={{ fontSize: large ? '3.8em' : '2.7em' }}>
+        <div className="font-black leading-none tabular-nums text-slate-900 my-1" style={{ fontSize: large ? '3.8em' : '2.6em' }}>
           {fmtInt(value)}
         </div>
         <div className="flex items-center gap-1.5 flex-wrap">
@@ -59,55 +59,57 @@ export function HeroNumber({ title, value, yesterdayPct, accent, dateLabel, larg
   }
 
   return (
-    <div className="flex items-end justify-between gap-3">
-      <div className="min-w-0">
-        <div className="flex items-center gap-1.5 text-[0.9em] font-black uppercase tracking-wide text-slate-500">
-          <span className="inline-block w-2.5 h-2.5 rounded-full" style={{ background: accent }} />
-          {title}
-        </div>
-        <div className="font-black leading-none tabular-nums text-slate-900" style={{ fontSize: large ? '4.6em' : '2.7em' }}>
+    <div className="flex flex-col min-w-0">
+      <div className="flex items-center gap-1.5 text-[0.85em] font-black uppercase tracking-wide text-slate-500">
+        <span className="inline-block w-2.5 h-2.5 rounded-full shrink-0" style={{ background: accent }} />
+        <span>{title}</span>
+      </div>
+      <div className="flex items-baseline gap-2.5 flex-wrap my-0.5">
+        <div className="font-black leading-none tabular-nums text-slate-900" style={{ fontSize: large ? '4.2em' : '2.4em' }}>
           {fmtInt(value)}
         </div>
-        {dateLabel && <div className="text-[0.8em] font-semibold text-slate-500 mt-0.5">{dateLabel}</div>}
+        <div className="flex items-center gap-1 shrink-0">
+          <ChangeChip pct={yesterdayPct} size="sm" />
+          <span className="text-[0.75em] font-semibold text-slate-500 whitespace-nowrap">vs yesterday</span>
+        </div>
       </div>
-      <div className="text-right pb-1 shrink-0">
-        <ChangeChip pct={yesterdayPct} />
-        <div className="text-[0.8em] font-semibold text-slate-500 mt-0.5">vs yesterday</div>
-      </div>
+      {dateLabel && <div className="text-[0.75em] font-semibold text-slate-400 mt-0.5">{dateLabel}</div>}
     </div>
   );
 }
 
 /** Yesterday + average of previous 3/7/14/21 days: value, % change, gap. */
 export function ComparePanel({ rows, roomy = false }: { rows: CompareRow[]; roomy?: boolean }) {
-  const pad = roomy ? 'py-[0.6em]' : 'py-[0.28em]';
+  const pad = roomy ? 'py-[0.45em]' : 'py-[0.22em]';
   return (
-    <table className="w-full text-[0.9em] tabular-nums border-separate border-spacing-0">
-      <thead>
-        <tr className="text-[0.85em] uppercase tracking-wide text-slate-400">
-          <th className="text-left font-bold pb-1">Compare with</th>
-          <th className="text-right font-bold pb-1">Number</th>
-          <th className="text-right font-bold pb-1">Change</th>
-          <th className="text-right font-bold pb-1">Gap</th>
-        </tr>
-      </thead>
-      <tbody>
-        {rows.map((r, i) => {
-          const gapColor = r.gap === null ? '#64748b' : r.gap > 0 ? UP : r.gap < 0 ? DOWN : '#64748b';
-          return (
-            <tr key={r.label} className={i % 2 === 0 ? 'bg-slate-50' : ''}>
-              <td className={`${pad} pl-1.5 rounded-l-md font-bold text-slate-700 whitespace-nowrap`}>{r.label}</td>
-              <td className={`${pad} text-right font-semibold text-slate-800`}>{fmtInt(r.ref)}</td>
-              <td className={`${pad} text-right`}>
-                <ChangeChip pct={r.pct} size="sm" />
-              </td>
-              <td className={`${pad} pr-1.5 rounded-r-md text-right font-black`} style={{ color: gapColor }}>
-                {fmtSigned(r.gap)}
-              </td>
-            </tr>
-          );
-        })}
-      </tbody>
-    </table>
+    <div className="rounded-lg border border-slate-200/90 bg-white shadow-2xs overflow-hidden">
+      <table className="w-full text-[0.85em] tabular-nums border-collapse">
+        <thead>
+          <tr className="text-[0.78em] uppercase tracking-wide text-slate-500 bg-slate-50 border-b border-slate-200">
+            <th className="text-left font-bold py-1 px-2">Compare with</th>
+            <th className="text-right font-bold py-1 px-2">Number</th>
+            <th className="text-right font-bold py-1 px-2">Change</th>
+            <th className="text-right font-bold py-1 px-2">Gap</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-100">
+          {rows.map((r, i) => {
+            const gapColor = r.gap === null ? '#64748b' : r.gap > 0 ? UP : r.gap < 0 ? DOWN : '#64748b';
+            return (
+              <tr key={r.label} className={i % 2 === 0 ? 'bg-slate-50/60 hover:bg-slate-50' : 'bg-white hover:bg-slate-50'}>
+                <td className={`${pad} px-2 font-bold text-slate-700 whitespace-nowrap`}>{r.label}</td>
+                <td className={`${pad} px-2 text-right font-semibold text-slate-800`}>{fmtInt(r.ref)}</td>
+                <td className={`${pad} px-2 text-right`}>
+                  <ChangeChip pct={r.pct} size="sm" />
+                </td>
+                <td className={`${pad} px-2 text-right font-black`} style={{ color: gapColor }}>
+                  {fmtSigned(r.gap)}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
   );
 }

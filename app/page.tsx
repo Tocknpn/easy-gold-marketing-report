@@ -379,7 +379,7 @@ export default function DashboardPage() {
     const windowStart = Math.max(0, effectiveIndex - 4);
     const rawChartHistory = history.slice(windowStart, effectiveIndex + 1);
     const chartHistory = rawChartHistory.map((w) => 
-      (w.week_label === currentWeek.week_label && isProratedWoW && isPartial) ? currentWeek : w
+      (((w.year_week && currentWeek.year_week ? w.year_week === currentWeek.year_week : w.week_label === currentWeek.week_label)) && isProratedWoW && isPartial) ? currentWeek : w
     );
 
     // Trading Flow Dynamics
@@ -1122,59 +1122,7 @@ export default function DashboardPage() {
                   </section>
                 </div>
 
-                {/* 3. Trading Flow Balance & Market Pulse Ribbon */}
-                <section className="w-full bg-white/95 rounded-2xl border border-slate-200/90 px-3.5 py-2.5 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-3">
-                  <div className="flex items-center gap-2.5">
-                    <div className="p-1.5 rounded-lg bg-amber-50 text-brand-gold border border-amber-200/80 shrink-0">
-                      <ArrowRightLeft className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <div className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                        Trading Flow &amp; Net Gold Position ({activeWeeklyMetrics.currentWeek.week_label})
-                      </div>
-                      <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                        <span className="text-xs font-bold text-slate-700">Net Flow:</span>
-                        <span className={`text-xs font-bold font-mono tabular-nums px-2 py-0.5 rounded-md ${
-                          activeWeeklyMetrics.netGoldFlow > 0 
-                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                            : activeWeeklyMetrics.netGoldFlow < 0
-                            ? 'bg-rose-50 text-brand-outflowLight border border-rose-200'
-                            : 'bg-slate-100 text-slate-700'
-                        }`}>
-                          {activeWeeklyMetrics.netGoldFlow > 0 
-                            ? `▲ +${activeWeeklyMetrics.netGoldFlow.toLocaleString()} Baht (Accumulation)` 
-                            : `${activeWeeklyMetrics.netGoldFlow.toLocaleString()} Baht (Liquidation)`}
-                        </span>
-                        <span className="text-xs text-slate-500 font-medium font-mono tabular-nums">
-                          • Turnover: <strong className="text-slate-700">{activeWeeklyMetrics.totalGoldTurnover.toLocaleString()} Baht</strong>
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Buy vs Sell Volume Bar & Order Ratio */}
-                  <div className="w-full md:w-80 lg:w-96">
-                    <div className="flex justify-between text-[11px] font-black mb-1">
-                      <span className="text-emerald-700">Buy: {activeWeeklyMetrics.buyWeightPct.toFixed(1)}%</span>
-                      <span className="text-slate-500 font-bold text-[10px] bg-slate-100 px-1.5 py-0.2 rounded">
-                        Ratio: {activeWeeklyMetrics.orderFlowRatio}x
-                      </span>
-                      <span className="text-rose-700">Sell: {activeWeeklyMetrics.sellWeightPct.toFixed(1)}%</span>
-                    </div>
-                    <div className="h-2 rounded-full bg-slate-100 overflow-hidden flex shadow-inner">
-                      <div 
-                        className="h-full bg-gradient-to-r from-emerald-500 to-emerald-600 transition-all duration-300" 
-                        style={{ width: `${activeWeeklyMetrics.buyWeightPct}%` }}
-                        title={`Buy: ${activeWeeklyMetrics.buyWeightPct.toFixed(1)}%`}
-                      />
-                      <div 
-                        className="h-full bg-gradient-to-r from-rose-500 to-rose-600 transition-all duration-300" 
-                        style={{ width: `${activeWeeklyMetrics.sellWeightPct}%` }}
-                        title={`Sell: ${activeWeeklyMetrics.sellWeightPct.toFixed(1)}%`}
-                      />
-                    </div>
-                  </div>
-                </section>
+                {/* 8-Week Historical Trajectory Matrix with 4-Week Moving Average (MA4) */}
 
                 {/* 5. 8-Week Historical Trajectory Matrix with 4-Week Moving Average (MA4) */}
                 <section className="w-full">

@@ -185,9 +185,17 @@ function MtdVsLastMonth({ data }: { data: RunRateComparisonPayload }) {
     })
     .filter((t): t is NonNullable<typeof t> => t !== null);
 
-  const avg = tiles.length
+  const avgSame = tiles.length
     ? tiles.reduce((s, t) => s + t.r.mom_same_pct, 0) / tiles.length
     : 0;
+  const avgFull = tiles.length
+    ? tiles.reduce((s, t) => s + t.r.mom_full_pct, 0) / tiles.length
+    : 0;
+
+  const roundSame = Math.round(avgSame);
+  const roundFull = Math.round(avgFull);
+  const colorSame = roundSame >= 0 ? UP : DOWN;
+  const colorFull = roundFull >= 0 ? UP : DOWN;
 
   return (
     <div className="h-full grid grid-cols-4 grid-rows-2 gap-[0.6em] min-h-0">
@@ -231,22 +239,47 @@ function MtdVsLastMonth({ data }: { data: RunRateComparisonPayload }) {
         );
       })}
 
-      {/* overall summary tile */}
-      <div
-        className="rounded-xl px-[0.8em] py-[0.55em] flex flex-col justify-between text-white min-h-0"
-        style={{ background: `linear-gradient(135deg, #0a3f87, ${BRAND} 55%, #2f7be0)` }}
-      >
-        <div className="text-[0.85em] font-black uppercase tracking-wide text-white/80">Overall</div>
-        <div>
-          <div className="font-black leading-none tabular-nums" style={{ fontSize: '2.2em' }}>
-            {avg > 0 ? '▲ +' : avg < 0 ? '▼ ' : ''}
-            {Math.round(avg)}%
+      {/* overall summary tile - white card with conditional green/red dual metric */}
+      <div className="relative rounded-xl border border-slate-200 bg-white shadow-2xs px-[0.8em] py-[0.55em] flex flex-col justify-between min-h-0 overflow-hidden">
+        <span
+          className="absolute left-0 top-0 bottom-0 w-[0.3em]"
+          style={{ background: roundSame >= 0 ? UP : DOWN }}
+        />
+        <div className="flex items-center justify-between text-[0.82em] font-black uppercase tracking-wide text-slate-600">
+          <span>Overall Performance</span>
+          <span className="text-[0.8em] font-bold text-slate-400 lowercase">{cur} vs {cmp}</span>
+        </div>
+
+        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-1 my-auto">
+          {/* Left: Same days */}
+          <div className="text-center min-w-0">
+            <div className="font-black leading-none tabular-nums" style={{ fontSize: '1.75em', color: colorSame }}>
+              {roundSame >= 0 ? '▲ +' : '▼ '}
+              {roundSame}%
+            </div>
+            <div className="text-[0.72em] font-bold text-slate-600 mt-1 leading-tight truncate">
+              Same {data.days_elapsed} days
+            </div>
           </div>
-          <div className="text-[0.8em] font-semibold text-white/85 mt-[0.2em]">
-            {cur} vs {cmp}, same number of days
+
+          {/* Divider */}
+          <div className="h-8 w-[1.5px] bg-slate-200 mx-0.5" />
+
+          {/* Right: Est. month-end vs full month */}
+          <div className="text-center min-w-0">
+            <div className="font-black leading-none tabular-nums" style={{ fontSize: '1.75em', color: colorFull }}>
+              {roundFull >= 0 ? '▲ +' : '▼ '}
+              {roundFull}%
+            </div>
+            <div className="text-[0.72em] font-bold text-slate-600 mt-1 leading-tight truncate">
+              Est. vs full {cmp}
+            </div>
           </div>
         </div>
-        <div className="text-[0.75em] font-semibold text-white/75">Average of the 7 measures</div>
+
+        <div className="border-t border-slate-100 pt-[0.25em] text-[0.72em] text-center font-bold text-slate-400">
+          Average of the 7 measures
+        </div>
       </div>
     </div>
   );
@@ -427,17 +460,19 @@ export function DailyPerformanceView({ onBack }: { onBack: () => void }) {
           {/* 1. New register */}
           <Panel no={1} title="New Register" hint="Last 30 days">
             <div className="h-full flex flex-col justify-between min-h-0">
-              {/* Top row: Left Hero (stacked), Right Compare table */}
-              <div className="grid grid-cols-[auto_1fr] gap-4 items-center shrink-0 border-b border-slate-100 pb-2">
-                <HeroNumber
-                  title="New Register"
-                  value={series.nc.cmp.latest}
-                  yesterdayPct={series.nc.cmp.rows[0].pct}
-                  accent={TEAL}
-                  stacked
-                  large
-                />
-                <div className="min-w-0">
+              {/* Top row: Left Hero Card, Right Compare table */}
+              <div className="grid grid-cols-[auto_1fr] gap-3 items-stretch shrink-0 pb-1.5">
+                <div className="rounded-xl border border-teal-200/80 bg-gradient-to-br from-teal-50/60 via-white to-slate-50/40 p-[0.65em] shadow-2xs flex flex-col justify-center min-w-[10.5em]">
+                  <HeroNumber
+                    title="New Register"
+                    value={series.nc.cmp.latest}
+                    yesterdayPct={series.nc.cmp.rows[0].pct}
+                    accent={TEAL}
+                    stacked
+                    large
+                  />
+                </div>
+                <div className="min-w-0 flex flex-col justify-center">
                   <ComparePanel rows={series.nc.cmp.rows} />
                 </div>
               </div>
@@ -450,24 +485,31 @@ export function DailyPerformanceView({ onBack }: { onBack: () => void }) {
 
           {/* 2. Buy & Sell */}
           <Panel no={2} title="Buy & Sell Transactions" hint="Last 30 days">
-            <div className="h-full grid grid-cols-[minmax(0,0.78fr)_minmax(0,1.22fr)] gap-[1em] min-h-0">
-              <div className="flex flex-col justify-between min-h-0 gap-[0.6em]">
-                <div className="space-y-[0.4em]">
-                  <HeroNumber
-                    title="Buy"
-                    value={series.buy.cmp.latest}
-                    yesterdayPct={series.buy.cmp.rows[0].pct}
-                    accent={BRAND}
-                  />
+            <div className="h-full grid grid-cols-[minmax(0,0.86fr)_minmax(0,1.14fr)] gap-[0.8em] min-h-0">
+              <div className="flex flex-col justify-between min-h-0 gap-[0.55em]">
+                {/* Buy section card container */}
+                <div className="rounded-xl border border-blue-200/90 bg-gradient-to-br from-blue-50/40 via-white to-slate-50/30 p-[0.55em] space-y-[0.35em] shadow-2xs">
+                  <div className="px-0.5">
+                    <HeroNumber
+                      title="Buy"
+                      value={series.buy.cmp.latest}
+                      yesterdayPct={series.buy.cmp.rows[0].pct}
+                      accent={BRAND}
+                    />
+                  </div>
                   <ComparePanel rows={series.buy.cmp.rows} />
                 </div>
-                <div className="space-y-[0.4em]">
-                  <HeroNumber
-                    title="Sell"
-                    value={series.sell.cmp.latest}
-                    yesterdayPct={series.sell.cmp.rows[0].pct}
-                    accent={GOLD}
-                  />
+
+                {/* Sell section card container */}
+                <div className="rounded-xl border border-amber-200/90 bg-gradient-to-br from-amber-50/40 via-white to-slate-50/30 p-[0.55em] space-y-[0.35em] shadow-2xs">
+                  <div className="px-0.5">
+                    <HeroNumber
+                      title="Sell"
+                      value={series.sell.cmp.latest}
+                      yesterdayPct={series.sell.cmp.rows[0].pct}
+                      accent={GOLD}
+                    />
+                  </div>
                   <ComparePanel rows={series.sell.cmp.rows} />
                 </div>
               </div>
