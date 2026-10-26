@@ -203,27 +203,24 @@ export function SparklineChart({
       </div>
 
       {/* Bottom Timeline Axis: Week labels for each point */}
-      <div className="flex justify-between items-center text-[9px] font-mono font-medium text-slate-400 px-0.5 pt-1 border-t border-slate-100">
+      <div className="flex justify-between items-center text-[9px] font-mono font-medium text-slate-500 px-0.5 pt-1 border-t border-slate-100 min-h-[16px] shrink-0">
         {points.map((p) => {
           const isCur = p.isSelected;
           const isHov = hoveredIdx === p.index;
           return (
-            <button
+            <span
               key={p.week}
-              type="button"
               onMouseEnter={() => setHoveredIdx(p.index)}
               onMouseLeave={() => setHoveredIdx(null)}
-              className={`transition-colors cursor-pointer px-0.5 rounded leading-none ${
-                isHov
-                  ? 'font-black text-slate-900 bg-slate-200/80'
-                  : isCur
-                  ? 'font-bold text-slate-900 underline decoration-slate-400 underline-offset-2'
-                  : 'hover:text-slate-700'
+              className={`px-0.5 rounded leading-none select-none ${
+                isHov || isCur
+                  ? 'font-black text-slate-900'
+                  : 'text-slate-400 font-semibold'
               }`}
               title={`${p.week}: ${formatFull(p.value)}`}
             >
               {p.week}
-            </button>
+            </span>
           );
         })}
       </div>

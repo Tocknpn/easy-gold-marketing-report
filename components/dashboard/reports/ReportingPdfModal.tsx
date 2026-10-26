@@ -308,15 +308,27 @@ export function ReportingPdfModal({
               *, *::before, *::after {
                 animation: none !important;
                 transition: none !important;
+                letter-spacing: normal !important;
+                -webkit-font-smoothing: antialiased !important;
+                text-rendering: geometricPrecision !important;
+              }
+              body, div, span, p, h1, h2, h3, h4, header, section, footer {
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
               }
               .pdf-page-container {
                 box-shadow: none !important;
                 border: none !important;
                 ring: 0 !important;
                 outline: none !important;
+                overflow: hidden !important;
               }
               img, svg {
                 display: inline-block;
+                overflow: visible !important;
+              }
+              /* Prevent sparkline chart text clipping */
+              svg text {
+                overflow: visible !important;
               }
             `;
             clonedDoc.head.appendChild(style);
