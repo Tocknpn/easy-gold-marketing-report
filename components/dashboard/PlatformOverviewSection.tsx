@@ -65,7 +65,6 @@ export function PlatformOverviewSection({
           historyData={allTxData}
           themeColor="blue"
           selectedWeek={selectedWeek || currentWeek.week_label}
-          subtitle="Orders"
           proratedEstimate={proratedAllTx}
           isPartialWeek={showProratedEstimate}
         />
@@ -78,7 +77,6 @@ export function PlatformOverviewSection({
           historyData={userPartData}
           themeColor="blue"
           selectedWeek={selectedWeek || currentWeek.week_label}
-          subtitle="Active"
           proratedEstimate={proratedUsers}
           isPartialWeek={showProratedEstimate}
         />
@@ -91,7 +89,6 @@ export function PlatformOverviewSection({
           historyData={newRegData}
           themeColor="blue"
           selectedWeek={selectedWeek || currentWeek.week_label}
-          subtitle="Signups"
           proratedEstimate={proratedNewReg}
           isPartialWeek={showProratedEstimate}
         />
@@ -104,7 +101,6 @@ export function PlatformOverviewSection({
           historyData={withdrawData}
           themeColor="blue"
           selectedWeek={selectedWeek || currentWeek.week_label}
-          subtitle="Physical"
           proratedEstimate={proratedWithdraw}
           isPartialWeek={showProratedEstimate}
         />

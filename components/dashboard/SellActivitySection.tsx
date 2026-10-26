@@ -72,7 +72,6 @@ export function SellActivitySection({
           historyData={weightData}
           themeColor="indigo"
           selectedWeek={selectedWeek || currentWeek.week_label}
-          subtitle="Baht"
           proratedEstimate={proratedWeight}
           isPartialWeek={showProratedEstimate}
         />
@@ -85,7 +84,6 @@ export function SellActivitySection({
           historyData={txData}
           themeColor="indigo"
           selectedWeek={selectedWeek || currentWeek.week_label}
-          subtitle="Count"
           proratedEstimate={proratedTx}
           isPartialWeek={showProratedEstimate}
         />
@@ -98,7 +96,6 @@ export function SellActivitySection({
           historyData={valueData}
           themeColor="indigo"
           selectedWeek={selectedWeek || currentWeek.week_label}
-          subtitle="Volume"
           proratedEstimate={proratedValue}
           isPartialWeek={showProratedEstimate && currentSellValue > 0}
         />
@@ -112,7 +109,6 @@ export function SellActivitySection({
           themeColor="indigo"
           isDecimal={true}
           selectedWeek={selectedWeek || currentWeek.week_label}
-          subtitle="Avg/Tx"
         />
       </div>
     </div>

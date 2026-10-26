@@ -103,13 +103,7 @@ export function MetricKpiCard({
               </span>
             )}
             {isNegative && (
-              <span
-                className={`px-1.5 py-0.5 rounded text-[11px] font-bold font-mono tabular-nums border ${
-                  themeColor === 'indigo' || themeColor === 'purple'
-                    ? 'bg-slate-100 text-slate-700 border-slate-200'
-                    : 'bg-rose-50 text-rose-700 border-rose-200/80'
-                }`}
-              >
+              <span className="px-1.5 py-0.5 rounded text-[11px] font-bold font-mono tabular-nums border bg-rose-50 text-rose-700 border-rose-200/80">
                 {variancePercent}%
               </span>
             )}
