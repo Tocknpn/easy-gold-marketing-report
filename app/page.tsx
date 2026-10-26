@@ -56,12 +56,12 @@ import { DEFAULT_MTD_PAYLOAD } from '@/lib/constants/mtdData';
 import { DEFAULT_WEEKLY_FALLBACK_DATA } from '@/lib/constants/weeklyData';
 import { DEFAULT_2026_TARGETS } from '@/lib/constants/targetData';
 
-type ReportTab = 'targets' | 'dynamic' | 'mtd' | 'weekly' | 'pivot' | 'campaign' | 'daily';
-const VALID_TABS: ReportTab[] = ['targets', 'dynamic', 'mtd', 'weekly', 'pivot', 'campaign', 'daily'];
+type ReportTab = 'targets' | 'mtd' | 'weekly' | 'daily' | 'campaign' | 'dynamic' | 'pivot';
+const VALID_TABS: ReportTab[] = ['targets', 'mtd', 'weekly', 'daily', 'campaign', 'dynamic', 'pivot'];
 
 export default function DashboardPage() {
-  // View toggle: 'dynamic', 'mtd', 'weekly', 'pivot', 'campaign' with URL and localStorage sync
-  const [activeReportTab, setActiveReportTab] = useState<ReportTab>('dynamic');
+  // View toggle: 'targets', 'mtd', 'weekly', 'daily', 'campaign', 'dynamic', 'pivot' with URL and localStorage sync
+  const [activeReportTab, setActiveReportTab] = useState<ReportTab>('targets');
 
   // User authentication & Admin management modal state
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
@@ -87,7 +87,7 @@ export default function DashboardPage() {
   }, [isTelemetryPopoverOpen]);
 
   // Remember the last normal report tab so the Daily screen's Back arrow can return to it
-  const lastNormalTabRef = useRef<ReportTab>('dynamic');
+  const lastNormalTabRef = useRef<ReportTab>('targets');
 
   // Tab change handler that updates state, localStorage, and browser URL query param (?tab=...)
   const handleTabChange = (tab: ReportTab) => {
@@ -249,7 +249,7 @@ export default function DashboardPage() {
       const hashTab = window.location.hash.replace('#', '') as ReportTab;
       const storedTab = localStorage.getItem('easy_gold_active_tab') as ReportTab | null;
 
-      let resolvedTab: ReportTab = 'dynamic';
+      let resolvedTab: ReportTab = 'targets';
       if (urlTab && VALID_TABS.includes(urlTab)) {
         resolvedTab = urlTab;
       } else if (hashTab && VALID_TABS.includes(hashTab)) {
@@ -700,27 +700,29 @@ export default function DashboardPage() {
           </div>
         </header>
 
-        {/* Universal Executive Pulse Banner across all reporting views */}
-        <div className="mb-3.5">
-          <ExecutivePulseBanner
-            targetMonthLabel={targetPacingStats.monthLabel}
-            targetPacePct={targetPacingStats.avgPace}
-            targetEstLandingPct={targetPacingStats.estLanding}
-            daysGone={targetPacingStats.elapsedDays}
-            totalDays={targetPacingStats.totalDays}
-            mtdCompMonthLabel={mtdData?.comparison_month_label || "Sep'26"}
-            avgEstLandingMoMPct={avgEstLandingMoM}
-            totalTransactionsMtd={mtdData?.metrics?.total_transactions?.current_mtd || 127982}
-            totalTransactionsMoMPct={mtdData?.metrics?.total_transactions?.mtd_variance_percent || 16}
-            newCustomersMtd={mtdData?.metrics?.new_customers?.current_mtd || 1571}
-            newCustomersMoMPct={mtdData?.metrics?.new_customers?.mtd_variance_percent || -27}
-            activeWeekLabel={activeWeeklyMetrics?.currentWeek?.week_label || 'W43'}
-            weeklyVolumeBaht={activeWeeklyMetrics ? Number(activeWeeklyMetrics.currentWeek.buy_weight_15g) : 1912}
-            weeklyWoWVariance={activeWeeklyMetrics ? activeWeeklyMetrics.variances.buy_weight_15g : -36}
-            isPartialWeek={activeWeeklyMetrics?.isPartial ?? true}
-            onNavigateTab={(tab) => handleTabChange(tab)}
-          />
-        </div>
+        {/* Quick Brief Top line performance: only showing on Business Target (homepage) */}
+        {activeReportTab === 'targets' && (
+          <div className="mb-3.5">
+            <ExecutivePulseBanner
+              targetMonthLabel={targetPacingStats.monthLabel}
+              targetPacePct={targetPacingStats.avgPace}
+              targetEstLandingPct={targetPacingStats.estLanding}
+              daysGone={targetPacingStats.elapsedDays}
+              totalDays={targetPacingStats.totalDays}
+              mtdCompMonthLabel={mtdData?.comparison_month_label || "Sep'26"}
+              avgEstLandingMoMPct={avgEstLandingMoM}
+              totalTransactionsMtd={mtdData?.metrics?.total_transactions?.current_mtd || 127982}
+              totalTransactionsMoMPct={mtdData?.metrics?.total_transactions?.mtd_variance_percent || 16}
+              newCustomersMtd={mtdData?.metrics?.new_customers?.current_mtd || 1571}
+              newCustomersMoMPct={mtdData?.metrics?.new_customers?.mtd_variance_percent || -27}
+              activeWeekLabel={activeWeeklyMetrics?.currentWeek?.week_label || 'W43'}
+              weeklyVolumeBaht={activeWeeklyMetrics ? Number(activeWeeklyMetrics.currentWeek.buy_weight_15g) : 1912}
+              weeklyWoWVariance={activeWeeklyMetrics ? activeWeeklyMetrics.variances.buy_weight_15g : -36}
+              isPartialWeek={activeWeeklyMetrics?.isPartial ?? true}
+              onNavigateTab={(tab) => handleTabChange(tab)}
+            />
+          </div>
+        )}
 
         {/* Weekly Summary Error Notice with Retry */}
         {weeklyError && (
@@ -745,6 +747,7 @@ export default function DashboardPage() {
             aria-label="Executive Reporting Sections"
             className="flex items-center bg-white p-1 rounded-xl border border-slate-300/80 shadow-xs flex-nowrap overflow-x-auto max-w-full gap-1 scrollbar-none"
           >
+            {/* 1. Business Target Tracking */}
             <button
               role="tab"
               id="tab-targets"
@@ -760,28 +763,10 @@ export default function DashboardPage() {
               }`}
             >
               <Target className="w-4 h-4 text-brand-gold" />
-              <span>Business Target</span>
-              <span className="px-1.5 py-0.5 rounded-md text-xs font-mono font-bold bg-brand-gold text-slate-950">
-                2026
-              </span>
+              <span>Business Target Tracking</span>
             </button>
-            <button
-              role="tab"
-              id="tab-dynamic"
-              aria-selected={activeReportTab === 'dynamic'}
-              aria-controls="panel-dynamic"
-              tabIndex={activeReportTab === 'dynamic' ? 0 : -1}
-              onClick={() => handleTabChange('dynamic')}
-              onKeyDown={(e) => handleTabKeyDown(e, 'dynamic')}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-all cursor-pointer shrink-0 whitespace-nowrap focus:outline-hidden focus:ring-2 focus:ring-brand-navy ${
-                activeReportTab === 'dynamic'
-                  ? 'bg-brand-navy text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-              }`}
-            >
-              <SlidersHorizontal className="w-4 h-4" />
-              <span>Dynamic BI</span>
-            </button>
+
+            {/* 2. MTD Forecast */}
             <button
               role="tab"
               id="tab-mtd"
@@ -799,6 +784,8 @@ export default function DashboardPage() {
               <TrendingUp className="w-4 h-4" />
               <span>MTD Forecast</span>
             </button>
+
+            {/* 3. WoW Trends */}
             <button
               role="tab"
               id="tab-weekly"
@@ -816,23 +803,24 @@ export default function DashboardPage() {
               <BarChart3 className="w-4 h-4" />
               <span>WoW Trends</span>
             </button>
+
+            {/* 4. Daily Performance MKT */}
             <button
               role="tab"
-              id="tab-pivot"
-              aria-selected={activeReportTab === 'pivot'}
-              aria-controls="panel-pivot"
-              tabIndex={activeReportTab === 'pivot' ? 0 : -1}
-              onClick={() => handleTabChange('pivot')}
-              onKeyDown={(e) => handleTabKeyDown(e, 'pivot')}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-all cursor-pointer shrink-0 whitespace-nowrap focus:outline-hidden focus:ring-2 focus:ring-brand-navy ${
-                activeReportTab === 'pivot'
-                  ? 'bg-brand-navy text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-              }`}
+              id="tab-daily"
+              aria-selected={false}
+              aria-controls="panel-daily"
+              tabIndex={-1}
+              onClick={() => handleTabChange('daily')}
+              onKeyDown={(e) => handleTabKeyDown(e, 'daily')}
+              className="flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-all cursor-pointer shrink-0 whitespace-nowrap focus:outline-hidden focus:ring-2 focus:ring-brand-navy text-slate-600 hover:text-slate-900 hover:bg-slate-50"
             >
-              <Table2 className="w-4 h-4" />
-              <span>Custom Pivot Profile</span>
+              <Activity className="w-4 h-4" />
+              <span>Daily Performance MKT</span>
+              <span className="px-1.5 py-0.5 rounded-md text-[10px] font-black bg-emerald-100 text-emerald-700 uppercase">New</span>
             </button>
+
+            {/* 5. Campaign Tracking */}
             <button
               role="tab"
               id="tab-campaign"
@@ -850,19 +838,43 @@ export default function DashboardPage() {
               <Target className="w-4 h-4" />
               <span>Campaign Tracking</span>
             </button>
+
+            {/* 6. Dynamic BI */}
             <button
               role="tab"
-              id="tab-daily"
-              aria-selected={false}
-              aria-controls="panel-daily"
-              tabIndex={-1}
-              onClick={() => handleTabChange('daily')}
-              onKeyDown={(e) => handleTabKeyDown(e, 'daily')}
-              className="flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-all cursor-pointer shrink-0 whitespace-nowrap focus:outline-hidden focus:ring-2 focus:ring-brand-navy text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+              id="tab-dynamic"
+              aria-selected={activeReportTab === 'dynamic'}
+              aria-controls="panel-dynamic"
+              tabIndex={activeReportTab === 'dynamic' ? 0 : -1}
+              onClick={() => handleTabChange('dynamic')}
+              onKeyDown={(e) => handleTabKeyDown(e, 'dynamic')}
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-all cursor-pointer shrink-0 whitespace-nowrap focus:outline-hidden focus:ring-2 focus:ring-brand-navy ${
+                activeReportTab === 'dynamic'
+                  ? 'bg-brand-navy text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+              }`}
             >
-              <Activity className="w-4 h-4" />
-              <span>Daily Performance MKT</span>
-              <span className="px-1.5 py-0.5 rounded-md text-[10px] font-black bg-emerald-100 text-emerald-700 uppercase">New</span>
+              <SlidersHorizontal className="w-4 h-4" />
+              <span>Dynamic BI</span>
+            </button>
+
+            {/* 7. Custom Pivot Profile */}
+            <button
+              role="tab"
+              id="tab-pivot"
+              aria-selected={activeReportTab === 'pivot'}
+              aria-controls="panel-pivot"
+              tabIndex={activeReportTab === 'pivot' ? 0 : -1}
+              onClick={() => handleTabChange('pivot')}
+              onKeyDown={(e) => handleTabKeyDown(e, 'pivot')}
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-all cursor-pointer shrink-0 whitespace-nowrap focus:outline-hidden focus:ring-2 focus:ring-brand-navy ${
+                activeReportTab === 'pivot'
+                  ? 'bg-brand-navy text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+              }`}
+            >
+              <Table2 className="w-4 h-4" />
+              <span>Custom Pivot Profile</span>
             </button>
           </div>
         </nav>
@@ -997,6 +1009,27 @@ export default function DashboardPage() {
                   ))}
                 </div>
 
+                {/* In-Progress Partial Week Elapsed & Prorated Run-Rate Toggle */}
+                {activeWeeklyMetrics?.isPartial && (
+                  <div className="flex items-center gap-1.5 border-l border-slate-200 pl-2">
+                    <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300">
+                      {activeWeeklyMetrics?.elapsedDays || 1} Day{activeWeeklyMetrics?.elapsedDays && activeWeeklyMetrics.elapsedDays > 1 ? 's' : ''} Elapsed
+                    </span>
+                    <button
+                      onClick={() => setIsProratedWoW(!isProratedWoW)}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-black transition-all cursor-pointer flex items-center gap-1 shadow-2xs ${
+                        isProratedWoW
+                          ? 'bg-amber-500 text-white shadow-xs'
+                          : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                      }`}
+                      title="Toggle 7-Day Prorated Run-Rate"
+                    >
+                      <Gauge className="w-3 h-3" />
+                      <span>{isProratedWoW ? 'Prorated: ON' : 'Prorated: OFF'}</span>
+                    </button>
+                  </div>
+                )}
+
                 {/* Report Density / Scale Switcher */}
                 <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200 ml-1">
                   <button
@@ -1044,41 +1077,7 @@ export default function DashboardPage() {
               </div>
             ) : activeWeeklyMetrics ? (
               <main className={`flex-1 flex flex-col justify-between ${densityMode === 'compact' ? 'gap-2 sm:gap-2.5' : 'gap-3 sm:gap-3.5'}`}>
-                {/* 1. In-Progress Partial Week Intelligence Alert Banner */}
-                {activeWeeklyMetrics.isPartial && (
-                  <div className="bg-gradient-to-r from-amber-500 via-amber-600 to-orange-600 rounded-2xl p-3 sm:p-3.5 text-white shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in duration-200">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 rounded-xl bg-white/20 backdrop-blur-xs shrink-0">
-                        <AlertTriangle className="w-5 h-5 text-white" />
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <h4 className="text-xs sm:text-sm font-black uppercase tracking-wider">
-                            In-Progress Partial Week Detected: {selectedWeekLabel}
-                          </h4>
-                          <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-slate-950/30 text-amber-100">
-                            {activeWeeklyMetrics?.elapsedDays || 1} Day{activeWeeklyMetrics?.elapsedDays && activeWeeklyMetrics.elapsedDays > 1 ? 's' : ''} Elapsed
-                          </span>
-                        </div>
-                        <p className="text-xs text-amber-100/90 font-medium mt-0.5">
-                          Comparing raw numbers against a full 7-day week (W42) shows an artificial drop. Turn on <strong>7-Day Prorated Run-Rate</strong> to compare on an equalized basis!
-                        </p>
-                      </div>
-                    </div>
-
-                    <button
-                      onClick={() => setIsProratedWoW(!isProratedWoW)}
-                      className={`px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer shadow-sm flex items-center gap-1.5 self-start sm:self-auto shrink-0 ${
-                        isProratedWoW
-                          ? 'bg-slate-950 text-amber-400 ring-2 ring-amber-300'
-                          : 'bg-white text-slate-900 hover:bg-amber-50'
-                      }`}
-                    >
-                      <Gauge className="w-3.5 h-3.5" />
-                      <span>{isProratedWoW ? '⚡ Prorated Run-Rate: ON' : 'Prorate to 7-Day Run-Rate'}</span>
-                    </button>
-                  </div>
-                )}
+                {/* 1. Partial week controls moved into week filter bar */}
 
                 {/* 2. Three Report Sections on the SAME LINE (3x1 Line: Platform Overview | Buy Activity | Sell Activity) */}
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-3.5 w-full items-stretch">

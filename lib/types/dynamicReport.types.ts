@@ -145,6 +145,8 @@ export interface TrendPoint {
   sell_weight_g: number;
   net_weight_g: number;
   nc: number;
+  withdraw_tx?: number;
+  withdraw_weight_g?: number;
 }
 
 export interface DynamicReportPayload {

@@ -76,15 +76,8 @@ export function ExecutivePulseBanner({
         <div className="flex items-center gap-2">
           <span className="w-2.5 h-2.5 rounded-full bg-brand-gold animate-pulse shadow-xs" />
           <h2 className="text-xs font-black uppercase tracking-wider text-brand-navy flex items-center gap-1.5">
-            Executive Briefing Pulse
+            Quick Brief Top line performance
           </h2>
-          <span className="hidden sm:inline text-[11px] text-slate-500 font-medium">
-            5-Second High-Level Operations &amp; Pacing Summary
-          </span>
-        </div>
-        <div className="flex items-center gap-1.5 text-[11px] font-mono font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-lg shadow-xs">
-          <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-          <span>Live Parity Verified</span>
         </div>
       </div>
 

@@ -78,11 +78,11 @@ export function VisualTargetTrackingCockpit({ data, showEst = true, hideHeader =
               <h3 className="text-base sm:text-lg font-black text-slate-900">
                 Monthly Target Tracking
               </h3>
-              <div className="text-right">
-                <span className="text-xs sm:text-sm font-black text-slate-900">
-                  {monthly_tracking.days_gone} Days Gone ={' '}
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs sm:text-sm font-black text-slate-700">
+                  {monthly_tracking.days_gone} Days Gone
                 </span>
-                <span className="text-base sm:text-lg font-black text-[#0c4ca3]">
+                <span className="px-2 py-0.5 rounded-lg border border-blue-200 bg-blue-50 text-xs sm:text-sm font-black font-mono text-[#0c4ca3]">
                   {monthly_tracking.days_gone_pct}%
                 </span>
               </div>
@@ -218,11 +218,11 @@ export function VisualTargetTrackingCockpit({ data, showEst = true, hideHeader =
               <h3 className="text-base sm:text-lg font-black text-slate-900">
                 YTD Tracking ({ytd_tracking.year})
               </h3>
-              <div className="text-right">
-                <span className="text-xs sm:text-sm font-black text-slate-900">
-                  {ytd_tracking.days_gone} Days Gone ={' '}
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs sm:text-sm font-black text-slate-700">
+                  {ytd_tracking.days_gone} Days Gone
                 </span>
-                <span className="text-base sm:text-lg font-black text-[#0c4ca3]">
+                <span className="px-2 py-0.5 rounded-lg border border-blue-200 bg-blue-50 text-xs sm:text-sm font-black font-mono text-[#0c4ca3]">
                   {ytd_tracking.days_gone_pct}%
                 </span>
               </div>

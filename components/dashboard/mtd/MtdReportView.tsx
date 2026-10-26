@@ -503,26 +503,6 @@ export function MtdReportView({ initialData, onRefresh, loading = false, error =
         </div>
       ) : (
         <div className="space-y-4 animate-in fade-in duration-200">
-          {/* Live Execution Feedback Badge */}
-          <div className="flex items-center justify-between bg-emerald-50/80 border border-emerald-200 rounded-2xl px-4 py-2 text-xs text-emerald-900 font-medium flex-wrap gap-2">
-            <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-              <span>
-                <strong>Live MTD Calculation:</strong> Cutoff: <strong>Day {displayedData.elapsed_days} ({displayedData.display_as_of_date})</strong> | Comp: <strong>vs {displayedData.comparison_month_label}</strong> | Model: <strong className="capitalize">{forecastScenario.replace('_', ' ')}</strong>
-              </span>
-            </div>
-            <div className="flex items-center gap-3">
-              <span className="text-emerald-700 text-[11px]">Computed at {executionTimestamp}</span>
-              <button
-                onClick={() => handleExecuteMtd()}
-                disabled={isExecuting || loading}
-                className="text-xs font-black text-emerald-800 hover:text-emerald-950 underline flex items-center gap-1 cursor-pointer"
-              >
-                <span>{isExecuting || loading ? 'Recalculating...' : 'Re-calculate'}</span>
-              </button>
-            </div>
-          </div>
-
           {/* 7 Cards across 3 Themed Containers with Pacing Props */}
           <div className="grid grid-cols-1 xl:grid-cols-7 gap-3 sm:gap-3.5 items-stretch">
             {/* BUY ACTIVITY: 2 Cards (xl:col-span-2) */}

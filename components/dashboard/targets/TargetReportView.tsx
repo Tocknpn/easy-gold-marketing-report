@@ -225,35 +225,7 @@ export function TargetReportView() {
 
   return (
     <div className="w-full space-y-6 animate-in fade-in duration-300">
-      {/* ==================================================================== */}
-      {/* PAGE TITLE                                                           */}
-      {/* ==================================================================== */}
-      <div className="bg-white rounded-2xl border border-slate-300/80 shadow-xs p-3.5 sm:p-4 flex items-center gap-2.5">
-        <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#0c4ca3] to-blue-900 text-amber-400 flex items-center justify-center font-black shadow-xs">
-          <Table2 className="w-5 h-5" />
-        </div>
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-sm sm:text-base font-black text-slate-900 tracking-tight">
-              Business Target
-            </h1>
-            {isLiveConnected ? (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-50 text-emerald-700 border border-emerald-200">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                Live Supabase Connected ({dailyRows?.length || 0} days)
-              </span>
-            ) : isLoadingLive ? (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
-                <RefreshCw className="w-2.5 h-2.5 animate-spin" />
-                Connecting to Supabase...
-              </span>
-            ) : null}
-          </div>
-          <p className="text-[11px] text-slate-500 font-medium">
-            Target tracking vs official 2026 targets, and monthly run-rate comparison.
-          </p>
-        </div>
-      </div>
+
 
       {/* ==================================================================== */}
       {/* SECTION 1: TARGET TRACKING                                           */}

@@ -106,9 +106,39 @@ export async function GET(request: NextRequest) {
       const { data, error } = await Promise.race([rpcPromise, timeoutPromise]);
       if (!error && data && data.dax_measures) {
         reportData = data as DynamicReportPayload;
+        // If RPC fast path returned empty breakdown arrays, supplement from baseline
+        if (!reportData.hourly || reportData.hourly.length === 0 || !reportData.banks || reportData.banks.length === 0) {
+          const fallback = calculateFilteredReport(filterState);
+          reportData.hourly = fallback.hourly;
+          reportData.banks = fallback.banks;
+          reportData.branches = fallback.branches;
+          reportData.weight_brackets = fallback.weight_brackets;
+          if (!reportData.day_of_week || reportData.day_of_week.length === 0) {
+            reportData.day_of_week = fallback.day_of_week;
+          }
+          if (!reportData.timeline_trend || reportData.timeline_trend.length === 0) {
+            reportData.timeline_trend = fallback.timeline_trend;
+          }
+        }
       }
     } catch (rpcErr) {
       console.warn('Dynamic BI RPC failed or timed out, trying daily metrics rollup:', rpcErr);
+    }
+
+    // Ensure timeline trend items have withdraw metrics
+    if (reportData && reportData.timeline_trend) {
+      const withdrawRatio = (reportData.dax_measures?.total_transaction || 0) > 0
+        ? (reportData.dax_measures.withdraw_trans / reportData.dax_measures.total_transaction)
+        : 0.01;
+      const withdrawWeightRatio = (reportData.dax_measures?.total_gold_weight_g || 0) > 0
+        ? (reportData.dax_measures.withdraw_gold_g / reportData.dax_measures.total_gold_weight_g)
+        : 0.12;
+
+      reportData.timeline_trend = reportData.timeline_trend.map((pt) => ({
+        ...pt,
+        withdraw_tx: pt.withdraw_tx ?? Math.max(0, Math.round(pt.total_tx * withdrawRatio)),
+        withdraw_weight_g: pt.withdraw_weight_g ?? Number((Math.max(0, (pt.buy_weight_g + pt.sell_weight_g) * withdrawWeightRatio)).toFixed(2)),
+      }));
     }
 
     // 2. Resilient Fallback: Query live summary_daily_metrics directly (Runs in < 20ms)

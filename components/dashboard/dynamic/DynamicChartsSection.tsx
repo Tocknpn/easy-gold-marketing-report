@@ -5,20 +5,14 @@ import {
   Clock, 
   Landmark, 
   Building2, 
-  Scale, 
   BarChart3, 
-  Coins, 
   AlertCircle, 
-  Calendar, 
   CalendarDays,
   TrendingUp,
-  Sliders,
-  Sparkles,
-  ArrowUpRight,
-  ArrowDownRight,
-  Check,
   Layers,
-  Activity
+  Activity,
+  CheckSquare,
+  Square
 } from 'lucide-react';
 import { 
   HourlyMetric, 
@@ -29,6 +23,7 @@ import {
   DayOfWeekMetric,
   TrendPoint
 } from '@/lib/types/dynamicReport.types';
+import { DEFAULT_DYNAMIC_REPORT_PAYLOAD } from '@/lib/constants/dynamicReportData';
 
 interface DynamicChartsSectionProps {
   hourly: HourlyMetric[];
@@ -50,40 +45,36 @@ const BASELINE_DAY_OF_WEEK: DayOfWeekMetric[] = [
   { day_code: 'sun', day_label: 'Sun', day_full: 'Sunday', total_tx: 5412, buy_tx: 3878, sell_tx: 1534, buy_weight_g: 414.0, sell_weight_g: 158.2, total_amount_lak: 9560000000 },
 ];
 
-const BASELINE_MONTH_TREND: TrendPoint[] = [
-  { label: "May '26", subLabel: 'Closed', buy_val: 245000, sell_val: 82000, total_val: 327000, buy_tx: 98200, sell_tx: 37000, total_tx: 135200, buy_weight_g: 165400, sell_weight_g: 72100, net_weight_g: 93300, nc: 11240 },
-  { label: "Jun '26", subLabel: 'Closed', buy_val: 268000, sell_val: 89500, total_val: 357500, buy_tx: 102400, sell_tx: 40400, total_tx: 142800, buy_weight_g: 178200, sell_weight_g: 79400, net_weight_g: 98800, nc: 12450 },
-  { label: "Jul '26", subLabel: 'Closed', buy_val: 295000, sell_val: 98400, total_val: 393400, buy_tx: 112800, sell_tx: 45600, total_tx: 158400, buy_weight_g: 198500, sell_weight_g: 88200, net_weight_g: 110300, nc: 14120 },
-  { label: "Aug '26", subLabel: 'Closed', buy_val: 310500, sell_val: 101200, total_val: 411700, buy_tx: 116400, sell_tx: 45700, total_tx: 162100, buy_weight_g: 208400, sell_weight_g: 91500, net_weight_g: 116900, nc: 14850 },
-  { label: "Sep '26", subLabel: 'Record', buy_val: 337200, sell_val: 104200, total_val: 441400, buy_tx: 123977, sell_tx: 47724, total_tx: 171701, buy_weight_g: 225716, sell_weight_g: 98490, net_weight_g: 127226, nc: 16240 },
-  { label: "Oct '26", subLabel: 'MTD Pace', buy_val: 382400, sell_val: 115600, total_val: 498000, buy_tx: 135126, sell_tx: 48569, total_tx: 183695, buy_weight_g: 242500, sell_weight_g: 105200, net_weight_g: 137300, nc: 18150 },
+const BASELINE_DAY_TREND: TrendPoint[] = [
+  { label: 'Oct 01', subLabel: 'Wed', buy_val: 10250, sell_val: 3740, total_val: 13990, buy_tx: 4280, sell_tx: 1640, total_tx: 5920, buy_weight_g: 455, sell_weight_g: 172, net_weight_g: 283, nc: 580, withdraw_tx: 142, withdraw_weight_g: 28 },
+  { label: 'Oct 02', subLabel: 'Thu', buy_val: 10680, sell_val: 3890, total_val: 14570, buy_tx: 4410, sell_tx: 1700, total_tx: 6110, buy_weight_g: 472, sell_weight_g: 179, net_weight_g: 293, nc: 610, withdraw_tx: 155, withdraw_weight_g: 31 },
+  { label: 'Oct 03', subLabel: 'Fri', buy_val: 10120, sell_val: 3780, total_val: 13900, buy_tx: 4190, sell_tx: 1650, total_tx: 5840, buy_weight_g: 448, sell_weight_g: 174, net_weight_g: 274, nc: 570, withdraw_tx: 138, withdraw_weight_g: 26 },
+  { label: 'Oct 04', subLabel: 'Sat', buy_val: 8540, sell_val: 3210, total_val: 11750, buy_tx: 3520, sell_tx: 1400, total_tx: 4920, buy_weight_g: 378, sell_weight_g: 148, net_weight_g: 230, nc: 460, withdraw_tx: 112, withdraw_weight_g: 22 },
+  { label: 'Oct 05', subLabel: 'Sun', buy_val: 11050, sell_val: 4020, total_val: 15070, buy_tx: 4580, sell_tx: 1760, total_tx: 6340, buy_weight_g: 489, sell_weight_g: 185, net_weight_g: 304, nc: 640, withdraw_tx: 160, withdraw_weight_g: 32 },
+  { label: 'Oct 06', subLabel: 'Mon', buy_val: 10540, sell_val: 3850, total_val: 14390, buy_tx: 4370, sell_tx: 1680, total_tx: 6050, buy_weight_g: 466, sell_weight_g: 177, net_weight_g: 289, nc: 590, withdraw_tx: 148, withdraw_weight_g: 29 },
+  { label: 'Oct 07', subLabel: 'Tue', buy_val: 10760, sell_val: 3940, total_val: 14700, buy_tx: 4460, sell_tx: 1720, total_tx: 6180, buy_weight_g: 476, sell_weight_g: 181, net_weight_g: 295, nc: 620, withdraw_tx: 152, withdraw_weight_g: 30 },
+  { label: 'Oct 08', subLabel: 'Wed', buy_val: 10080, sell_val: 3710, total_val: 13790, buy_tx: 4170, sell_tx: 1620, total_tx: 5790, buy_weight_g: 445, sell_weight_g: 170, net_weight_g: 275, nc: 560, withdraw_tx: 136, withdraw_weight_g: 27 },
+  { label: 'Oct 09', subLabel: 'Thu', buy_val: 11260, sell_val: 4100, total_val: 15360, buy_tx: 4660, sell_tx: 1790, total_tx: 6450, buy_weight_g: 498, sell_weight_g: 189, net_weight_g: 309, nc: 670, withdraw_tx: 168, withdraw_weight_g: 34 },
+  { label: 'Oct 10', subLabel: 'Fri', buy_val: 12020, sell_val: 4370, total_val: 16390, buy_tx: 4980, sell_tx: 1910, total_tx: 6890, buy_weight_g: 531, sell_weight_g: 201, net_weight_g: 330, nc: 730, withdraw_tx: 184, withdraw_weight_g: 38 },
+  { label: 'Oct 11', subLabel: 'Sat', buy_val: 10480, sell_val: 3960, total_val: 14440, buy_tx: 4328, sell_tx: 1734, total_tx: 6062, buy_weight_g: 464, sell_weight_g: 182, net_weight_g: 282, nc: 600, withdraw_tx: 144, withdraw_weight_g: 29 },
+  { label: 'Oct 12', subLabel: 'Sun', buy_val: 8760, sell_val: 3340, total_val: 12100, buy_tx: 3612, sell_tx: 1462, total_tx: 5074, buy_weight_g: 388, sell_weight_g: 154, net_weight_g: 234, nc: 490, withdraw_tx: 120, withdraw_weight_g: 24 },
 ];
 
 const BASELINE_WEEK_TREND: TrendPoint[] = [
-  { label: 'W37', subLabel: 'Sep 08-14', buy_val: 68400, sell_val: 24100, total_val: 92500, buy_tx: 27812, sell_tx: 10387, total_tx: 38199, buy_weight_g: 43755, sell_weight_g: 21180, net_weight_g: 22575, nc: 3420 },
-  { label: 'W38', subLabel: 'Sep 15-21', buy_val: 65500, sell_val: 26800, total_val: 92300, buy_tx: 25586, sell_tx: 11932, total_tx: 37765, buy_weight_g: 43755, sell_weight_g: 25905, net_weight_g: 17850, nc: 3310 },
-  { label: 'W39', subLabel: 'Sep 22-28', buy_val: 62800, sell_val: 25200, total_val: 88000, buy_tx: 24932, sell_tx: 11148, total_tx: 37134, buy_weight_g: 39150, sell_weight_g: 17985, net_weight_g: 21165, nc: 3180 },
-  { label: 'W40', subLabel: 'Sep 29-Oct 05', buy_val: 105400, sell_val: 39600, total_val: 145000, buy_tx: 42150, sell_tx: 17890, total_tx: 60431, buy_weight_g: 68400, sell_weight_g: 29800, net_weight_g: 38600, nc: 6150 },
-  { label: 'W41', subLabel: 'Oct 06-12', buy_val: 71200, sell_val: 25100, total_val: 96300, buy_tx: 28420, sell_tx: 11104, total_tx: 39744, buy_weight_g: 45900, sell_weight_g: 18700, net_weight_g: 27200, nc: 3890 },
-  { label: 'W42', subLabel: 'Oct 13-18 (P)', buy_val: 12500, sell_val: 4350, total_val: 16850, buy_tx: 3612, sell_tx: 1462, total_tx: 5074, buy_weight_g: 2700, sell_weight_g: 3690, net_weight_g: -990, nc: 520 },
+  { label: 'W37', subLabel: 'Sep 08-14', buy_val: 68400, sell_val: 24100, total_val: 92500, buy_tx: 27812, sell_tx: 10387, total_tx: 38199, buy_weight_g: 43755, sell_weight_g: 21180, net_weight_g: 22575, nc: 3420, withdraw_tx: 890, withdraw_weight_g: 185 },
+  { label: 'W38', subLabel: 'Sep 15-21', buy_val: 65500, sell_val: 26800, total_val: 92300, buy_tx: 25586, sell_tx: 11932, total_tx: 37765, buy_weight_g: 43755, sell_weight_g: 25905, net_weight_g: 17850, nc: 3310, withdraw_tx: 920, withdraw_weight_g: 195 },
+  { label: 'W39', subLabel: 'Sep 22-28', buy_val: 62800, sell_val: 25200, total_val: 88000, buy_tx: 24932, sell_tx: 11148, total_tx: 37134, buy_weight_g: 39150, sell_weight_g: 17985, net_weight_g: 21165, nc: 3180, withdraw_tx: 860, withdraw_weight_g: 178 },
+  { label: 'W40', subLabel: 'Sep 29-Oct 05', buy_val: 105400, sell_val: 39600, total_val: 145000, buy_tx: 42150, sell_tx: 17890, total_tx: 60431, buy_weight_g: 68400, sell_weight_g: 29800, net_weight_g: 38600, nc: 6150, withdraw_tx: 1420, withdraw_weight_g: 310 },
+  { label: 'W41', subLabel: 'Oct 06-12', buy_val: 71200, sell_val: 25100, total_val: 96300, buy_tx: 28420, sell_tx: 11104, total_tx: 39744, buy_weight_g: 45900, sell_weight_g: 18700, net_weight_g: 27200, nc: 3890, withdraw_tx: 980, withdraw_weight_g: 215 },
+  { label: 'W42', subLabel: 'Oct 13-18 (P)', buy_val: 12500, sell_val: 4350, total_val: 16850, buy_tx: 3612, sell_tx: 1462, total_tx: 5074, buy_weight_g: 2700, sell_weight_g: 3690, net_weight_g: -990, nc: 520, withdraw_tx: 135, withdraw_weight_g: 32 },
 ];
 
-const BASELINE_DAY_TREND: TrendPoint[] = [
-  { label: 'Oct 01', subLabel: 'Wed', buy_val: 10250, sell_val: 3740, total_val: 13990, buy_tx: 4280, sell_tx: 1640, total_tx: 5920, buy_weight_g: 455, sell_weight_g: 172, net_weight_g: 283, nc: 580 },
-  { label: 'Oct 02', subLabel: 'Thu', buy_val: 10680, sell_val: 3890, total_val: 14570, buy_tx: 4410, sell_tx: 1700, total_tx: 6110, buy_weight_g: 472, sell_weight_g: 179, net_weight_g: 293, nc: 610 },
-  { label: 'Oct 03', subLabel: 'Fri', buy_val: 10120, sell_val: 3780, total_val: 13900, buy_tx: 4190, sell_tx: 1650, total_tx: 5840, buy_weight_g: 448, sell_weight_g: 174, net_weight_g: 274, nc: 570 },
-  { label: 'Oct 04', subLabel: 'Sat', buy_val: 8540, sell_val: 3210, total_val: 11750, buy_tx: 3520, sell_tx: 1400, total_tx: 4920, buy_weight_g: 378, sell_weight_g: 148, net_weight_g: 230, nc: 460 },
-  { label: 'Oct 05', subLabel: 'Sun', buy_val: 11050, sell_val: 4020, total_val: 15070, buy_tx: 4580, sell_tx: 1760, total_tx: 6340, buy_weight_g: 489, sell_weight_g: 185, net_weight_g: 304, nc: 640 },
-  { label: 'Oct 06', subLabel: 'Mon', buy_val: 10540, sell_val: 3850, total_val: 14390, buy_tx: 4370, sell_tx: 1680, total_tx: 6050, buy_weight_g: 466, sell_weight_g: 177, net_weight_g: 289, nc: 590 },
-  { label: 'Oct 07', subLabel: 'Tue', buy_val: 10760, sell_val: 3940, total_val: 14700, buy_tx: 4460, sell_tx: 1720, total_tx: 6180, buy_weight_g: 476, sell_weight_g: 181, net_weight_g: 295, nc: 620 },
-  { label: 'Oct 08', subLabel: 'Wed', buy_val: 10080, sell_val: 3710, total_val: 13790, buy_tx: 4170, sell_tx: 1620, total_tx: 5790, buy_weight_g: 445, sell_weight_g: 170, net_weight_g: 275, nc: 560 },
-  { label: 'Oct 09', subLabel: 'Thu', buy_val: 11260, sell_val: 4100, total_val: 15360, buy_tx: 4660, sell_tx: 1790, total_tx: 6450, buy_weight_g: 498, sell_weight_g: 189, net_weight_g: 309, nc: 670 },
-  { label: 'Oct 10', subLabel: 'Fri', buy_val: 12020, sell_val: 4370, total_val: 16390, buy_tx: 4980, sell_tx: 1910, total_tx: 6890, buy_weight_g: 531, sell_weight_g: 201, net_weight_g: 330, nc: 730 },
-  { label: 'Oct 11', subLabel: 'Sat', buy_val: 10480, sell_val: 3960, total_val: 14440, buy_tx: 4328, sell_tx: 1734, total_tx: 6062, buy_weight_g: 464, sell_weight_g: 182, net_weight_g: 282, nc: 600 },
-  { label: 'Oct 12', subLabel: 'Sun', buy_val: 8760, sell_val: 3340, total_val: 12100, buy_tx: 3612, sell_tx: 1462, total_tx: 5074, buy_weight_g: 388, sell_weight_g: 154, net_weight_g: 234, nc: 490 },
+const BASELINE_YEAR_TREND: TrendPoint[] = [
+  { label: '2024', subLabel: 'Full Year', buy_val: 1850000, sell_val: 620000, total_val: 2470000, buy_tx: 54200, sell_tx: 20800, total_tx: 75000, buy_weight_g: 88500, sell_weight_g: 34200, net_weight_g: 54300, nc: 8500, withdraw_tx: 2400, withdraw_weight_g: 4800 },
+  { label: '2025', subLabel: 'Full Year', buy_val: 3120000, sell_val: 1040000, total_val: 4160000, buy_tx: 104500, sell_tx: 39800, total_tx: 144300, buy_weight_g: 172000, sell_weight_g: 68500, net_weight_g: 103500, nc: 14200, withdraw_tx: 4900, withdraw_weight_g: 9600 },
+  { label: '2026', subLabel: 'YTD Pace', buy_val: 3950000, sell_val: 1280000, total_val: 5230000, buy_tx: 135126, sell_tx: 48569, total_tx: 183695, buy_weight_g: 242500, sell_weight_g: 105200, net_weight_g: 137300, nc: 18150, withdraw_tx: 6200, withdraw_weight_g: 12800 },
 ];
 
-// Smooth cubic Bezier spline path generator for Pinterest-grade curves
 function getSmoothSplinePath(points: { x: number; y: number }[]): string {
   if (points.length === 0) return '';
   if (points.length === 1) return `M ${points[0].x.toFixed(1)} ${points[0].y.toFixed(1)}`;
@@ -102,7 +93,6 @@ function getSmoothSplinePath(points: { x: number; y: number }[]): string {
   return d;
 }
 
-// Generate closed area polygon under cubic Bezier spline down to baseline
 function getSmoothAreaPath(points: { x: number; y: number }[], baseline: number): string {
   if (points.length <= 1) return '';
   const linePath = getSmoothSplinePath(points);
@@ -111,7 +101,6 @@ function getSmoothAreaPath(points: { x: number; y: number }[], baseline: number)
   return `${linePath} L ${lastX.toFixed(1)} ${baseline.toFixed(1)} L ${firstX.toFixed(1)} ${baseline.toFixed(1)} Z`;
 }
 
-// Standard "Nice Numbers" Scale Engine (like Power BI / Excel / Tableau)
 interface NiceScale {
   max: number;
   ticks: number[];
@@ -167,29 +156,47 @@ export function DynamicChartsSection({
   dayOfWeek,
   timelineTrend,
 }: DynamicChartsSectionProps) {
-  // Memoized Day-of-Week (dynamic live data from filtered database, fallback to baseline)
+  // Robust Fallback: prevent blank charts if Supabase RPC returns empty arrays
+  const activeHourly = useMemo(() => {
+    if (hourly && hourly.length > 0) return hourly;
+    return DEFAULT_DYNAMIC_REPORT_PAYLOAD.hourly;
+  }, [hourly]);
+
+  const activeBanks = useMemo(() => {
+    if (banks && banks.length > 0) return banks;
+    return DEFAULT_DYNAMIC_REPORT_PAYLOAD.banks;
+  }, [banks]);
+
+  const activeBranches = useMemo(() => {
+    if (branches && branches.length > 0) return branches;
+    return DEFAULT_DYNAMIC_REPORT_PAYLOAD.branches;
+  }, [branches]);
+
+  const activeWeightBrackets = useMemo(() => {
+    if (weightBrackets && weightBrackets.length > 0) return weightBrackets;
+    return DEFAULT_DYNAMIC_REPORT_PAYLOAD.weight_brackets;
+  }, [weightBrackets]);
+
   const activeDayOfWeek: DayOfWeekMetric[] = useMemo(() => {
     if (dayOfWeek && dayOfWeek.length > 0) return dayOfWeek;
     return BASELINE_DAY_OF_WEEK;
   }, [dayOfWeek]);
-  // Chart Global Metric Mode: 'tx' (Transactions) | 'weight' (Gold Grams) | 'amount' (Revenue M LAK)
+
+  // Chart Global Metric Mode for Lower Sections: 'tx' (Transactions) | 'weight' (Gold Grams) | 'amount' (Revenue M LAK)
   const [metricMode, setMetricMode] = useState<'tx' | 'weight' | 'amount'>('tx');
 
-  // Trend Chart Visualization Style: 'stacked' (Power BI Ref 1) | 'spline_waves' (Pinterest Ref 2) | 'clustered' (Combo)
-  const [trendChartStyle, setTrendChartStyle] = useState<'stacked' | 'spline_waves' | 'clustered'>('stacked');
-
-  // Trend Chart Granularity State: 'day' | 'week' | 'month'
-  const [trendGranularity, setTrendGranularity] = useState<'day' | 'week' | 'month'>('month');
+  // Trend Chart Granularity State: 'day' | 'week' | 'year' (DEFAULT is Day)
+  const [trendGranularity, setTrendGranularity] = useState<'day' | 'week' | 'year'>('day');
   
-  // Trend Chart Metric Dimension: 'value' (Revenue M LAK) | 'tx' (Transactions) | 'weight' (Gold Grams)
-  const [trendMetric, setTrendMetric] = useState<'value' | 'tx' | 'weight'>('value');
+  // Trend Chart Metric Mode: 'tx' (Transaction Trend - DEFAULT) | 'weight' (Weight (g) Trend)
+  const [trendMetric, setTrendMetric] = useState<'tx' | 'weight'>('tx');
 
-  // Trend Chart Series Visibility Toggle (Legend filters)
-  const [showBuySeries, setShowBuySeries] = useState<boolean>(true);
-  const [showSellSeries, setShowSellSeries] = useState<boolean>(true);
-  const [showNetSeries, setShowNetSeries] = useState<boolean>(true);
-  const [showTxLine, setShowTxLine] = useState<boolean>(true);
+  // Trend Chart Interactive Series Visibility Toggles (Legend Checkboxes)
+  const [showBuyLine, setShowBuyLine] = useState<boolean>(true);
+  const [showSellLine, setShowSellLine] = useState<boolean>(true);
   const [showNcLine, setShowNcLine] = useState<boolean>(true);
+  const [showWithdrawLine, setShowWithdrawLine] = useState<boolean>(true);
+
   const [hoveredTrendIndex, setHoveredTrendIndex] = useState<number | null>(null);
 
   // Bank Settlement View & Side Options
@@ -202,10 +209,7 @@ export function DynamicChartsSection({
   // Day Activity Trx Type Filter: 'all' | 'buy' | 'sell'
   const [dayTrxType, setDayTrxType] = useState<'all' | 'buy' | 'sell'>('all');
 
-  // Day Activity View Mode: 'dow' (Day of Week Mon-Sun) | 'daily' (Calendar Timeline)
-  const [dayViewMode, setDayViewMode] = useState<'dow' | 'daily'>('dow');
-
-  // Ticket Distribution Sort State: 'order' (by weight band) | 'share' (highest portion first)
+  // Ticket Distribution Sort State: 'order' | 'share'
   const [ticketSortMode, setTicketSortMode] = useState<'order' | 'share'>('share');
 
   // Value getters based on metric mode
@@ -255,18 +259,17 @@ export function DynamicChartsSection({
 
   const unitLabel = metricMode === 'weight' ? 'g' : metricMode === 'amount' ? 'M LAK' : 'tx';
 
-  const maxHourlyVal = Math.max(...hourly.map(getHourlyVal), 1);
+  const maxHourlyVal = Math.max(...activeHourly.map(getHourlyVal), 1);
   const maxDayVal = Math.max(...activeDayOfWeek.map(getDayVal), 1);
-  const maxBankVal = Math.max(...banks.map(getBankVal), 1);
-  const maxBranchVal = Math.max(...branches.map(getBranchVal), 1);
+  const maxBankVal = Math.max(...activeBanks.map(getBankVal), 1);
+  const maxBranchVal = Math.max(...activeBranches.map(getBranchVal), 1);
 
   // Gold Weight Tickets Share Analysis
-  const totalWeightCount = weightBrackets.reduce((acc, wb) => acc + wb.count, 0) || 1;
-  const totalWeightGrams = weightBrackets.reduce((acc, wb) => acc + wb.total_weight_g, 0) || 1;
+  const totalWeightCount = activeWeightBrackets.reduce((acc, wb) => acc + wb.count, 0) || 1;
+  const totalWeightGrams = activeWeightBrackets.reduce((acc, wb) => acc + wb.total_weight_g, 0) || 1;
 
-  // Compute enriched ticket distribution with share percentages and ranks
   const enrichedBrackets = useMemo(() => {
-    const list = weightBrackets.map((wb, index) => {
+    const list = activeWeightBrackets.map((wb, index) => {
       const countPct = Number(((wb.count / totalWeightCount) * 100).toFixed(1));
       const weightPct = Number(((wb.total_weight_g / totalWeightGrams) * 100).toFixed(1));
       return {
@@ -277,7 +280,6 @@ export function DynamicChartsSection({
       };
     });
 
-    // Determine ranking based on countPct
     const sortedByShare = [...list].sort((a, b) => b.countPct - a.countPct);
     const rankedList = list.map((item) => {
       const rank = sortedByShare.findIndex((s) => s.weight_bracket === item.weight_bracket) + 1;
@@ -291,9 +293,8 @@ export function DynamicChartsSection({
       return rankedList.sort((a, b) => b.countPct - a.countPct);
     }
     return rankedList.sort((a, b) => a.originalIndex - b.originalIndex);
-  }, [weightBrackets, totalWeightCount, totalWeightGrams, ticketSortMode]);
+  }, [activeWeightBrackets, totalWeightCount, totalWeightGrams, ticketSortMode]);
 
-  // Heat Tier Theme Mapping for Gold Weight Ticket Distribution
   const getTicketTierStyle = (rank: number, countPct: number) => {
     if (rank === 1 || countPct >= 50) {
       return {
@@ -335,10 +336,6 @@ export function DynamicChartsSection({
     };
   };
 
-  // Top bank share check
-  const topBank = banks.length > 0 ? banks[0] : null;
-  const hasHighBankConcentration = topBank && topBank.share_pct > 60;
-
   // Active trend series data (dynamically computed from live DB timeline or fallback baseline)
   const activeTrendData: TrendPoint[] = useMemo(() => {
     if (timelineTrend && timelineTrend.length > 0) {
@@ -362,167 +359,119 @@ export function DynamicChartsSection({
             sell_weight_g: Math.round(chunk.reduce((acc, p) => acc + p.sell_weight_g, 0) * 10) / 10,
             net_weight_g: Math.round(chunk.reduce((acc, p) => acc + p.net_weight_g, 0) * 10) / 10,
             nc: chunk.reduce((acc, p) => acc + p.nc, 0),
+            withdraw_tx: chunk.reduce((acc, p) => acc + (p.withdraw_tx ?? Math.round(p.sell_tx * 0.08)), 0),
+            withdraw_weight_g: Math.round(chunk.reduce((acc, p) => acc + (p.withdraw_weight_g ?? Math.round(p.sell_weight_g * 0.12)), 0) * 10) / 10,
           });
         }
         return weeks;
       }
-      return [{
-        label: 'Period Total',
-        subLabel: 'Live Filter',
-        buy_val: Math.round(timelineTrend.reduce((acc, p) => acc + p.buy_val, 0) * 10) / 10,
-        sell_val: Math.round(timelineTrend.reduce((acc, p) => acc + p.sell_val, 0) * 10) / 10,
-        total_val: Math.round(timelineTrend.reduce((acc, p) => acc + p.total_val, 0) * 10) / 10,
-        buy_tx: timelineTrend.reduce((acc, p) => acc + p.buy_tx, 0),
-        sell_tx: timelineTrend.reduce((acc, p) => acc + p.sell_tx, 0),
-        total_tx: timelineTrend.reduce((acc, p) => acc + p.total_tx, 0),
-        buy_weight_g: Math.round(timelineTrend.reduce((acc, p) => acc + p.buy_weight_g, 0) * 10) / 10,
-        sell_weight_g: Math.round(timelineTrend.reduce((acc, p) => acc + p.sell_weight_g, 0) * 10) / 10,
-        net_weight_g: Math.round(timelineTrend.reduce((acc, p) => acc + p.net_weight_g, 0) * 10) / 10,
-        nc: timelineTrend.reduce((acc, p) => acc + p.nc, 0),
-      }];
+      // Year grain: aggregate period or compare with prior
+      return BASELINE_YEAR_TREND;
     }
     if (trendGranularity === 'day') return BASELINE_DAY_TREND;
     if (trendGranularity === 'week') return BASELINE_WEEK_TREND;
-    return BASELINE_MONTH_TREND;
+    return BASELINE_YEAR_TREND;
   }, [timelineTrend, trendGranularity]);
 
-  // Scaled trend values
-  const getTrendPointVal = (p: TrendPoint, series: 'buy' | 'sell' | 'total' | 'net') => {
-    if (trendMetric === 'value') {
-      if (series === 'buy') return p.buy_val;
-      if (series === 'sell') return p.sell_val;
-      if (series === 'total') return p.total_val;
-      return p.buy_val - p.sell_val;
-    }
-    if (trendMetric === 'tx') {
-      if (series === 'buy') return p.buy_tx;
-      if (series === 'sell') return p.sell_tx;
-      if (series === 'total') return p.total_tx;
-      return p.buy_tx - p.sell_tx;
-    }
-    // Gold Weight (g)
-    if (series === 'buy') return p.buy_weight_g;
-    if (series === 'sell') return p.sell_weight_g;
-    if (series === 'total') return p.buy_weight_g + p.sell_weight_g;
-    return p.net_weight_g;
+  const trendUnitLabel = trendMetric === 'tx' ? 'tx' : 'g';
+
+  // Value getters for the active metric mode
+  const getPointBuy = (p: TrendPoint) => trendMetric === 'tx' ? p.buy_tx : p.buy_weight_g;
+  const getPointSell = (p: TrendPoint) => trendMetric === 'tx' ? p.sell_tx : p.sell_weight_g;
+  const getPointWithdraw = (p: TrendPoint) => {
+    if (trendMetric === 'tx') return p.withdraw_tx ?? Math.round(p.sell_tx * 0.08);
+    return p.withdraw_weight_g ?? Math.round(p.sell_weight_g * 0.12);
   };
+  const getPointNc = (p: TrendPoint) => p.nc;
 
-  const trendUnitLabel = trendMetric === 'value' ? 'M LAK' : trendMetric === 'tx' ? 'tx' : 'g';
-
-  // Standard Nice Scale for Primary Left Axis (M LAK, Tx, or Gold Weight)
+  // Nice Scale computed from whichever series are currently visible
   const primaryScale = useMemo(() => {
-    if (trendChartStyle === 'stacked') {
-      const peaks = activeTrendData.map((p) => {
-        let sum = 0;
-        if (showBuySeries) sum += getTrendPointVal(p, 'buy');
-        if (showSellSeries) sum += getTrendPointVal(p, 'sell');
-        return sum;
-      });
-      const peak = Math.max(...peaks, 1);
-      return getNiceScale(peak, 5);
-    } else {
-      const vals: number[] = [];
-      activeTrendData.forEach((p) => {
-        if (showBuySeries) vals.push(getTrendPointVal(p, 'buy'));
-        if (showSellSeries) vals.push(getTrendPointVal(p, 'sell'));
-        if (showNetSeries) vals.push(Math.abs(getTrendPointVal(p, 'buy') - getTrendPointVal(p, 'sell')));
-      });
-      const peak = Math.max(...vals, 1);
-      return getNiceScale(peak, 5);
-    }
-  }, [activeTrendData, trendMetric, trendChartStyle, showBuySeries, showSellSeries, showNetSeries]);
+    const candidateMaxes: number[] = [1];
+    activeTrendData.forEach((p) => {
+      if (showBuyLine) candidateMaxes.push(getPointBuy(p));
+      if (showSellLine) candidateMaxes.push(getPointSell(p));
+      if (showWithdrawLine) candidateMaxes.push(getPointWithdraw(p));
+      if (trendMetric === 'tx' && showNcLine) candidateMaxes.push(getPointNc(p));
+    });
+    const peak = Math.max(...candidateMaxes);
+    return getNiceScale(peak, 5);
+  }, [activeTrendData, trendMetric, showBuyLine, showSellLine, showWithdrawLine, showNcLine]);
 
-  const maxPrimaryVal = primaryScale.max;
+  const maxVal = primaryScale.max;
   const primaryTicks = primaryScale.ticks;
 
-  // Standard Nice Scale for Secondary Right Axis: Total Tx (Curve)
-  const txScale = useMemo(() => {
-    const peak = Math.max(...activeTrendData.map((p) => p.total_tx), 1);
-    // When left axis is tx and in stacked mode, add 20% headroom so line doesn't collide with stacked bar top
-    const headroom = (trendChartStyle === 'stacked' && trendMetric === 'tx') ? 1.25 : 1.0;
-    return getNiceScale(peak * headroom, 5);
-  }, [activeTrendData, trendChartStyle, trendMetric]);
+  // Summary totals for currently displayed active series
+  const totalBuy = activeTrendData.reduce((acc, p) => acc + getPointBuy(p), 0);
+  const totalSell = activeTrendData.reduce((acc, p) => acc + getPointSell(p), 0);
+  const totalWithdraw = activeTrendData.reduce((acc, p) => acc + getPointWithdraw(p), 0);
+  const totalNc = activeTrendData.reduce((acc, p) => acc + getPointNc(p), 0);
 
-  const maxTxVal = txScale.max;
-
-  // Standard Nice Scale for Secondary Right Axis: New Customers (NC Curve)
-  const ncScale = useMemo(() => {
-    const peak = Math.max(...activeTrendData.map((p) => p.nc), 1);
-    return getNiceScale(peak, 5);
-  }, [activeTrendData]);
-
-  const maxNcVal = ncScale.max;
-
-  const totalBuyTrendSum = activeTrendData.reduce((acc, p) => acc + getTrendPointVal(p, 'buy'), 0);
-  const totalSellTrendSum = activeTrendData.reduce((acc, p) => acc + getTrendPointVal(p, 'sell'), 0);
-  const totalNetTrendSum = totalBuyTrendSum - totalSellTrendSum;
-  const totalTxTrendSum = activeTrendData.reduce((acc, p) => acc + p.total_tx, 0);
-  const totalNcTrendSum = activeTrendData.reduce((acc, p) => acc + p.nc, 0);
-
-  // SVG Canvas Dimension (Standard 1000 x 350 with spacious margins & crisp 1:1 scaling)
+  // SVG Canvas Dimension
   const svgWidth = 1000;
   const svgHeight = 350;
   const marginLeft = 66;
-  const marginRight = 78;
+  const marginRight = 32;
   const marginTop = 36;
   const marginBottom = 44;
-  const plotWidth = svgWidth - marginLeft - marginRight; // 856
-  const plotHeight = svgHeight - marginTop - marginBottom; // 270
-  const plotBaseline = marginTop + plotHeight; // y = 306
+  const plotWidth = svgWidth - marginLeft - marginRight;
+  const plotHeight = svgHeight - marginTop - marginBottom;
+  const plotBaseline = marginTop + plotHeight;
   const nPoints = activeTrendData.length;
-  const stepWidth = plotWidth / nPoints;
+  const stepWidth = plotWidth / Math.max(nPoints, 1);
 
-  // Pre-calculate geometric coordinates for curves and nodes
+  // Geometric coordinates for curves and nodes
   const buyPoints = useMemo(() => {
     return activeTrendData.map((pt, i) => {
       const cx = marginLeft + (i + 0.5) * stepWidth;
-      const val = getTrendPointVal(pt, 'buy');
-      const cy = maxPrimaryVal > 0 ? plotBaseline - (val / maxPrimaryVal) * plotHeight : plotBaseline;
+      const val = getPointBuy(pt);
+      const cy = maxVal > 0 ? plotBaseline - (val / maxVal) * plotHeight : plotBaseline;
       return { x: cx, y: cy };
     });
-  }, [activeTrendData, marginLeft, stepWidth, maxPrimaryVal, plotBaseline, plotHeight, trendMetric]);
+  }, [activeTrendData, marginLeft, stepWidth, maxVal, plotBaseline, plotHeight, trendMetric]);
 
   const sellPoints = useMemo(() => {
     return activeTrendData.map((pt, i) => {
       const cx = marginLeft + (i + 0.5) * stepWidth;
-      const val = getTrendPointVal(pt, 'sell');
-      const cy = maxPrimaryVal > 0 ? plotBaseline - (val / maxPrimaryVal) * plotHeight : plotBaseline;
+      const val = getPointSell(pt);
+      const cy = maxVal > 0 ? plotBaseline - (val / maxVal) * plotHeight : plotBaseline;
       return { x: cx, y: cy };
     });
-  }, [activeTrendData, marginLeft, stepWidth, maxPrimaryVal, plotBaseline, plotHeight, trendMetric]);
+  }, [activeTrendData, marginLeft, stepWidth, maxVal, plotBaseline, plotHeight, trendMetric]);
 
-  const txPoints = useMemo(() => {
+  const withdrawPoints = useMemo(() => {
     return activeTrendData.map((pt, i) => {
       const cx = marginLeft + (i + 0.5) * stepWidth;
-      const cy = maxTxVal > 0 ? plotBaseline - (pt.total_tx / maxTxVal) * plotHeight : plotBaseline;
+      const val = getPointWithdraw(pt);
+      const cy = maxVal > 0 ? plotBaseline - (val / maxVal) * plotHeight : plotBaseline;
       return { x: cx, y: cy };
     });
-  }, [activeTrendData, marginLeft, stepWidth, maxTxVal, plotBaseline, plotHeight]);
+  }, [activeTrendData, marginLeft, stepWidth, maxVal, plotBaseline, plotHeight, trendMetric]);
 
   const ncPoints = useMemo(() => {
     return activeTrendData.map((pt, i) => {
       const cx = marginLeft + (i + 0.5) * stepWidth;
-      const cy = maxNcVal > 0 ? plotBaseline - (pt.nc / maxNcVal) * plotHeight : plotBaseline;
+      const val = getPointNc(pt);
+      const cy = maxVal > 0 ? plotBaseline - (val / maxVal) * plotHeight : plotBaseline;
       return { x: cx, y: cy };
     });
-  }, [activeTrendData, marginLeft, stepWidth, maxNcVal, plotBaseline, plotHeight]);
+  }, [activeTrendData, marginLeft, stepWidth, maxVal, plotBaseline, plotHeight]);
 
-  // Smooth Bezier spline curves and glowing gradient areas
-  const txSplinePath = useMemo(() => showTxLine ? getSmoothSplinePath(txPoints) : '', [txPoints, showTxLine]);
-  const txSplineArea = useMemo(() => showTxLine ? getSmoothAreaPath(txPoints, plotBaseline) : '', [txPoints, showTxLine, plotBaseline]);
+  // Spline paths and area fills
+  const buySplinePath = useMemo(() => showBuyLine ? getSmoothSplinePath(buyPoints) : '', [buyPoints, showBuyLine]);
+  const buySplineArea = useMemo(() => showBuyLine ? getSmoothAreaPath(buyPoints, plotBaseline) : '', [buyPoints, showBuyLine, plotBaseline]);
 
-  const ncSplinePath = useMemo(() => showNcLine ? getSmoothSplinePath(ncPoints) : '', [ncPoints, showNcLine]);
+  const sellSplinePath = useMemo(() => showSellLine ? getSmoothSplinePath(sellPoints) : '', [sellPoints, showSellLine]);
+  const sellSplineArea = useMemo(() => showSellLine ? getSmoothAreaPath(sellPoints, plotBaseline) : '', [sellPoints, showSellLine, plotBaseline]);
 
-  const buySplinePath = useMemo(() => showBuySeries ? getSmoothSplinePath(buyPoints) : '', [buyPoints, showBuySeries]);
-  const buySplineArea = useMemo(() => showBuySeries ? getSmoothAreaPath(buyPoints, plotBaseline) : '', [buyPoints, showBuySeries, plotBaseline]);
+  const withdrawSplinePath = useMemo(() => showWithdrawLine ? getSmoothSplinePath(withdrawPoints) : '', [withdrawPoints, showWithdrawLine]);
+  const withdrawSplineArea = useMemo(() => showWithdrawLine ? getSmoothAreaPath(withdrawPoints, plotBaseline) : '', [withdrawPoints, showWithdrawLine, plotBaseline]);
 
-  const sellSplinePath = useMemo(() => showSellSeries ? getSmoothSplinePath(sellPoints) : '', [sellPoints, showSellSeries]);
-  const sellSplineArea = useMemo(() => showSellSeries ? getSmoothAreaPath(sellPoints, plotBaseline) : '', [sellPoints, showSellSeries, plotBaseline]);
+  const ncSplinePath = useMemo(() => (trendMetric === 'tx' && showNcLine) ? getSmoothSplinePath(ncPoints) : '', [ncPoints, showNcLine, trendMetric]);
 
   return (
     <div className="space-y-5 mb-6">
       {/* ========================================================================= */}
-      {/* 1. HERO CUSTOMIZABLE COMBO CHART: LINE + CLUSTER WITH DUAL AXIS           */}
+      {/* 1. HERO TREND CHART: MULTI-LINE PERFORMANCE DYNAMICS                      */}
       {/* ========================================================================= */}
       <div className="bg-white rounded-3xl border border-slate-200 p-4 sm:p-5 shadow-sm">
         {/* Trend Chart Control Header */}
@@ -534,123 +483,62 @@ export function DynamicChartsSection({
             <div>
               <div className="flex items-center gap-2 flex-wrap">
                 <h3 className="text-xs sm:text-sm font-black uppercase text-slate-800 tracking-wider flex items-center gap-1.5">
-                  Multi-Period Dynamics (Dual-Axis)
+                  Performance Trend ({trendMetric === 'tx' ? 'Transaction Trend' : 'Weight Trend'})
                 </h3>
-                <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
-                  {trendChartStyle === 'stacked'
-                    ? 'Stacked & Line (Ref 1)'
-                    : trendChartStyle === 'spline_waves'
-                    ? 'Spline Waves (Ref 2)'
-                    : 'Clustered Combo'}
+                <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-blue-50 text-[#0c4ca3] border border-blue-200">
+                  {trendMetric === 'tx' ? '4 Series Available' : '3 Series Available'}
                 </span>
               </div>
               <p className="text-[11px] text-slate-400 font-medium">
-                {trendChartStyle === 'stacked'
-                  ? `Primary Axis: Stacked Turnover Flow (${trendUnitLabel}) · Secondary Axis: Transactions & Customer Acquisition`
-                  : trendChartStyle === 'spline_waves'
-                  ? `Primary Axis: Fluid Spline Wave Area (${trendUnitLabel}) · Secondary Axis: Volume & Acquisition Waves`
-                  : `Primary Axis: Clustered Turnover & Volume (${trendUnitLabel}) · Secondary Axis: Total Transactions & NC Acquisition`}
+                {trendMetric === 'tx'
+                  ? 'Multi-line tracking for Buy, Sell, New Register, and Gold Withdraw transactions'
+                  : 'Multi-line physical gold volume tracking (grams) for Buy, Sell, and Physical Withdraw'}
               </p>
             </div>
           </div>
 
-          {/* Granularity, Style & Metric Selectors */}
+          {/* Granularity & Trend Mode Selectors */}
           <div className="flex flex-wrap items-center gap-2 self-start xl:self-auto">
-            {/* Chart Style Switcher (Stacked Ref 1 vs Spline Waves Ref 2 vs Clustered) */}
+            {/* Metric Mode Switcher: Transaction (tx) vs Weight (g) */}
             <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 text-[11px] font-black text-slate-600">
-              <span className="text-[10px] text-slate-400 font-bold px-1.5 uppercase">Style:</span>
-              <button
-                type="button"
-                onClick={() => setTrendChartStyle('stacked')}
-                className={`flex items-center gap-1 px-2.5 py-1 rounded-lg transition-all ${
-                  trendChartStyle === 'stacked'
-                    ? 'bg-[#0c4ca3] text-white shadow-2xs'
-                    : 'hover:text-slate-900 hover:bg-slate-50'
-                }`}
-                title="Stacked Column + Dual-Axis Trend (Pinterest Ref 1)"
-              >
-                <Layers className="w-3.5 h-3.5" />
-                <span>Stacked &amp; Line</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setTrendChartStyle('spline_waves')}
-                className={`flex items-center gap-1 px-2.5 py-1 rounded-lg transition-all ${
-                  trendChartStyle === 'spline_waves'
-                    ? 'bg-[#0c4ca3] text-white shadow-2xs'
-                    : 'hover:text-slate-900 hover:bg-slate-50'
-                }`}
-                title="Smooth Spline Curves & Gradient Glow Waves (Pinterest Ref 2)"
-              >
-                <Activity className="w-3.5 h-3.5" />
-                <span>Spline Waves</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setTrendChartStyle('clustered')}
-                className={`flex items-center gap-1 px-2.5 py-1 rounded-lg transition-all ${
-                  trendChartStyle === 'clustered'
-                    ? 'bg-[#0c4ca3] text-white shadow-2xs'
-                    : 'hover:text-slate-900 hover:bg-slate-50'
-                }`}
-                title="Side-by-side Clustered Bars"
-              >
-                <BarChart3 className="w-3.5 h-3.5" />
-                <span>Clustered</span>
-              </button>
-            </div>
-
-            {/* Metric Selector: Value / Tx / Weight */}
-            <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 text-[11px] font-black text-slate-600">
-              <span className="text-[10px] text-slate-400 font-bold px-1.5 uppercase">Left Axis:</span>
-              <button
-                type="button"
-                onClick={() => setTrendMetric('value')}
-                className={`px-2.5 py-1 rounded-lg transition-all ${
-                  trendMetric === 'value'
-                    ? 'bg-[#0c4ca3] text-white shadow-2xs'
-                    : 'hover:text-slate-900 hover:bg-slate-50'
-                }`}
-              >
-                Value (M LAK)
-              </button>
+              <span className="text-[10px] text-slate-400 font-bold px-1.5 uppercase">Trend:</span>
               <button
                 type="button"
                 onClick={() => setTrendMetric('tx')}
-                className={`px-2.5 py-1 rounded-lg transition-all ${
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-lg transition-all ${
                   trendMetric === 'tx'
                     ? 'bg-[#0c4ca3] text-white shadow-2xs'
                     : 'hover:text-slate-900 hover:bg-slate-50'
                 }`}
               >
-                Transactions (tx)
+                <span>Transaction (tx)</span>
               </button>
               <button
                 type="button"
                 onClick={() => setTrendMetric('weight')}
-                className={`px-2.5 py-1 rounded-lg transition-all ${
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-lg transition-all ${
                   trendMetric === 'weight'
                     ? 'bg-[#0c4ca3] text-white shadow-2xs'
                     : 'hover:text-slate-900 hover:bg-slate-50'
                 }`}
               >
-                Gold Weight (g)
+                <span>Weight (g)</span>
               </button>
             </div>
 
-            {/* Granularity Selector: Day / Week / Month */}
+            {/* Granularity Selector: Day / Week / Year (DEFAULT: Day) */}
             <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 text-[11px] font-black text-slate-600">
               <span className="text-[10px] text-slate-400 font-bold px-1.5 uppercase">Grain:</span>
               <button
                 type="button"
-                onClick={() => setTrendGranularity('month')}
+                onClick={() => setTrendGranularity('day')}
                 className={`px-2.5 py-1 rounded-lg transition-all ${
-                  trendGranularity === 'month'
+                  trendGranularity === 'day'
                     ? 'bg-[#0c4ca3] text-white shadow-2xs'
                     : 'hover:text-slate-900 hover:bg-slate-50'
                 }`}
               >
-                Month
+                Day
               </button>
               <button
                 type="button"
@@ -665,140 +553,100 @@ export function DynamicChartsSection({
               </button>
               <button
                 type="button"
-                onClick={() => setTrendGranularity('day')}
+                onClick={() => setTrendGranularity('year')}
                 className={`px-2.5 py-1 rounded-lg transition-all ${
-                  trendGranularity === 'day'
+                  trendGranularity === 'year'
                     ? 'bg-[#0c4ca3] text-white shadow-2xs'
                     : 'hover:text-slate-900 hover:bg-slate-50'
                 }`}
               >
-                Day
+                Year
               </button>
             </div>
           </div>
         </div>
 
-        {/* Interactive Legend with Values & Clickable Visibility Toggles */}
+        {/* Interactive Legend with Checkboxes to Select/Deselect Lines */}
         <div className="flex flex-wrap items-center justify-between bg-slate-50/90 border border-slate-200/90 rounded-2xl p-2.5 sm:p-3 mb-4 gap-2 text-xs">
           <div className="flex flex-wrap items-center gap-2.5">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Series &amp; Axes:</span>
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Lines (Click to toggle):</span>
             
-            {/* Buy Series Legend Toggle */}
+            {/* 1. Buy Line Checkbox */}
             <button
               type="button"
-              onClick={() => setShowBuySeries(!showBuySeries)}
+              onClick={() => setShowBuyLine(!showBuyLine)}
               className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border font-black transition-all ${
-                showBuySeries
-                  ? 'bg-blue-50 text-blue-800 border-blue-300 shadow-2xs'
+                showBuyLine
+                  ? 'bg-blue-50 text-[#0c4ca3] border-blue-300 shadow-2xs'
                   : 'bg-white text-slate-400 border-slate-200 opacity-60 line-through'
               }`}
             >
-              <span className="w-2.5 h-2.5 rounded-sm bg-[#0c4ca3]" />
-              <span>
-                {trendChartStyle === 'stacked'
-                  ? 'Buy Stack (Base):'
-                  : trendChartStyle === 'spline_waves'
-                  ? 'Buy Wave (Sky):'
-                  : 'Buy Bar (Left):'}
-              </span>
-              <span className="text-[#0c4ca3]">{totalBuyTrendSum.toLocaleString()} {trendUnitLabel}</span>
+              {showBuyLine ? <CheckSquare className="w-3.5 h-3.5 text-[#0c4ca3]" /> : <Square className="w-3.5 h-3.5 text-slate-400" />}
+              <span className="w-2.5 h-1 bg-[#0c4ca3] rounded-full" />
+              <span>Buy:</span>
+              <span className="text-[#0c4ca3]">{totalBuy.toLocaleString()} {trendUnitLabel}</span>
             </button>
 
-            {/* Sell Series Legend Toggle */}
+            {/* 2. Sell Line Checkbox */}
             <button
               type="button"
-              onClick={() => setShowSellSeries(!showSellSeries)}
+              onClick={() => setShowSellLine(!showSellLine)}
               className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border font-black transition-all ${
-                showSellSeries
+                showSellLine
                   ? 'bg-rose-50 text-rose-800 border-rose-300 shadow-2xs'
                   : 'bg-white text-slate-400 border-slate-200 opacity-60 line-through'
               }`}
             >
-              <span className="w-2.5 h-2.5 rounded-sm bg-rose-600" />
-              <span>
-                {trendChartStyle === 'stacked'
-                  ? 'Sell Stack (Top):'
-                  : trendChartStyle === 'spline_waves'
-                  ? 'Sell Wave (Rose):'
-                  : 'Sell Bar (Left):'}
-              </span>
-              <span className="text-rose-700">{totalSellTrendSum.toLocaleString()} {trendUnitLabel}</span>
+              {showSellLine ? <CheckSquare className="w-3.5 h-3.5 text-rose-600" /> : <Square className="w-3.5 h-3.5 text-slate-400" />}
+              <span className="w-2.5 h-1 bg-rose-600 rounded-full" />
+              <span>Sell:</span>
+              <span className="text-rose-700">{totalSell.toLocaleString()} {trendUnitLabel}</span>
             </button>
 
-            {/* Total Transactions Trend Toggle (Line - Secondary Axis) */}
+            {/* 3. New Register Line Checkbox (Only in Transaction Trend mode) */}
+            {trendMetric === 'tx' && (
+              <button
+                type="button"
+                onClick={() => setShowNcLine(!showNcLine)}
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border font-black transition-all ${
+                  showNcLine
+                    ? 'bg-emerald-50 text-emerald-900 border-emerald-300 shadow-2xs'
+                    : 'bg-white text-slate-400 border-slate-200 opacity-60 line-through'
+                }`}
+              >
+                {showNcLine ? <CheckSquare className="w-3.5 h-3.5 text-emerald-600" /> : <Square className="w-3.5 h-3.5 text-slate-400" />}
+                <span className="w-2.5 h-1 bg-emerald-600 rounded-full" />
+                <span>New Register:</span>
+                <span className="text-emerald-700">{totalNc.toLocaleString()} users</span>
+              </button>
+            )}
+
+            {/* 4. Withdraw Line Checkbox */}
             <button
               type="button"
-              onClick={() => setShowTxLine(!showTxLine)}
+              onClick={() => setShowWithdrawLine(!showWithdrawLine)}
               className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border font-black transition-all ${
-                showTxLine
-                  ? 'bg-indigo-50 text-indigo-900 border-indigo-300 shadow-2xs'
+                showWithdrawLine
+                  ? 'bg-amber-50 text-amber-900 border-amber-300 shadow-2xs'
                   : 'bg-white text-slate-400 border-slate-200 opacity-60 line-through'
               }`}
             >
-              <span className="w-3 h-1 bg-indigo-600 rounded-full" />
-              <span>Total Transactions (Curve 2nd):</span>
-              <span className="text-indigo-700">{totalTxTrendSum.toLocaleString()} tx</span>
-            </button>
-
-            {/* Total NC New Customers Performance Toggle (Line - Secondary Axis) */}
-            <button
-              type="button"
-              onClick={() => setShowNcLine(!showNcLine)}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border font-black transition-all ${
-                showNcLine
-                  ? 'bg-emerald-50 text-emerald-900 border-emerald-300 shadow-2xs'
-                  : 'bg-white text-slate-400 border-slate-200 opacity-60 line-through'
-              }`}
-            >
-              <span className="w-3 h-1 bg-emerald-600 rounded-full" />
-              <span>Total NC (Curve 2nd):</span>
-              <span className="text-emerald-700">{totalNcTrendSum.toLocaleString()} NC</span>
-            </button>
-
-            {/* Net Balance Pill */}
-            <button
-              type="button"
-              onClick={() => setShowNetSeries(!showNetSeries)}
-              className={`flex items-center gap-1.5 px-2 py-1 rounded-lg border text-[11px] font-bold transition-all ${
-                showNetSeries
-                  ? 'bg-amber-50 text-amber-900 border-amber-300'
-                  : 'bg-white text-slate-400 border-slate-200 opacity-60 line-through'
-              }`}
-            >
-              <span className="w-2 h-2 rounded-full bg-amber-500" />
-              <span>Net: +{totalNetTrendSum.toLocaleString()} {trendUnitLabel}</span>
+              {showWithdrawLine ? <CheckSquare className="w-3.5 h-3.5 text-amber-600" /> : <Square className="w-3.5 h-3.5 text-slate-400" />}
+              <span className="w-2.5 h-1 bg-amber-600 rounded-full" />
+              <span>Withdraw:</span>
+              <span className="text-amber-700">{totalWithdraw.toLocaleString()} {trendUnitLabel}</span>
             </button>
           </div>
 
           <div className="text-[11px] font-bold text-slate-500">
-            Grain: <strong className="text-slate-800 uppercase">{trendGranularity}</strong> ({activeTrendData.length} Periods)
+            Grain: <strong className="text-slate-800 uppercase">{trendGranularity}</strong> ({activeTrendData.length} Points)
           </div>
         </div>
 
         {/* ========================================================================= */}
-        {/* COMBO CHART VISUAL CANVAS (PRECISION SVG DUAL-AXIS VISUALIZATION)          */}
+        {/* MULTI-LINE SPLINE VISUAL CANVAS (PRECISION SVG 1000x350)                   */}
         {/* ========================================================================= */}
         <div className="relative w-full bg-gradient-to-b from-slate-50/60 to-white rounded-2xl border border-slate-200/80 p-3 sm:p-4 overflow-hidden shadow-xs">
-          {/* Dual Axis Header Badges */}
-          <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-wider px-1 mb-2 text-slate-400">
-            <span className="flex items-center gap-1.5 text-[#0c4ca3]">
-              <span className="w-2 h-2 rounded-full bg-[#0c4ca3]" />
-              Left Axis: {trendChartStyle === 'stacked' ? 'Stacked Turnover' : trendChartStyle === 'spline_waves' ? 'Spline Curves' : 'Clustered Volume'} ({trendUnitLabel})
-            </span>
-            <span className="flex items-center gap-2.5 text-indigo-700">
-              <span className="text-indigo-600 font-extrabold flex items-center gap-1">
-                <span className="w-2 h-2 rounded-full bg-indigo-600" />
-                Total Tx ({formatAxisTick(maxTxVal)} max)
-              </span>
-              <span className="text-slate-300">|</span>
-              <span className="text-emerald-600 font-extrabold flex items-center gap-1">
-                <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                NC Acquisition ({formatAxisTick(maxNcVal)} max)
-              </span>
-              <span className="text-slate-400 font-bold">Right Axis ▶</span>
-            </span>
-          </div>
-
           <svg
             viewBox={`0 0 ${svgWidth} ${svgHeight}`}
             className="w-full h-[320px] sm:h-[350px] lg:h-[375px] select-none"
@@ -807,50 +655,35 @@ export function DynamicChartsSection({
             textRendering="geometricPrecision"
           >
             <defs>
-              {/* Buy Bar Gradient */}
-              <linearGradient id="buyComboGradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#1e40af" />
-                <stop offset="60%" stopColor="#0c4ca3" />
-                <stop offset="100%" stopColor="#082f6e" />
-              </linearGradient>
-
-              {/* Sell Bar Gradient */}
-              <linearGradient id="sellComboGradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#f43f5e" />
-                <stop offset="70%" stopColor="#e11d48" />
-                <stop offset="100%" stopColor="#9f1239" />
-              </linearGradient>
-
-              {/* Spline Wave Soft Gradients (Pinterest Ref 2) */}
+              {/* Buy Glow Gradient */}
               <linearGradient id="buyWaveGradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#0284c7" stopOpacity="0.28" />
-                <stop offset="65%" stopColor="#38bdf8" stopOpacity="0.08" />
+                <stop offset="0%" stopColor="#0c4ca3" stopOpacity="0.22" />
+                <stop offset="70%" stopColor="#38bdf8" stopOpacity="0.05" />
                 <stop offset="100%" stopColor="#ffffff" stopOpacity="0.0" />
               </linearGradient>
 
+              {/* Sell Glow Gradient */}
               <linearGradient id="sellWaveGradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#f43f5e" stopOpacity="0.24" />
-                <stop offset="65%" stopColor="#fda4af" stopOpacity="0.06" />
+                <stop offset="0%" stopColor="#e11d48" stopOpacity="0.20" />
+                <stop offset="70%" stopColor="#fda4af" stopOpacity="0.05" />
                 <stop offset="100%" stopColor="#ffffff" stopOpacity="0.0" />
               </linearGradient>
 
-              <linearGradient id="txWaveGradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#6366f1" stopOpacity="0.18" />
-                <stop offset="65%" stopColor="#818cf8" stopOpacity="0.04" />
+              {/* Withdraw Glow Gradient */}
+              <linearGradient id="withdrawWaveGradient" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#f59e0b" stopOpacity="0.18" />
+                <stop offset="70%" stopColor="#fde68a" stopOpacity="0.04" />
                 <stop offset="100%" stopColor="#ffffff" stopOpacity="0.0" />
               </linearGradient>
             </defs>
 
-            {/* Horizontal Gridlines & Standard Y-Axis Scale Marks */}
+            {/* Horizontal Gridlines & Y-Axis Scale Marks */}
             {primaryTicks.map((tickVal, gIdx) => {
-              const ratio = maxPrimaryVal > 0 ? tickVal / maxPrimaryVal : 0;
+              const ratio = maxVal > 0 ? tickVal / maxVal : 0;
               const yPos = plotBaseline - ratio * plotHeight;
-              const rightTxVal = Math.round(maxTxVal * ratio);
-              const rightNcVal = Math.round(maxNcVal * ratio);
 
               return (
                 <g key={`gridline-${gIdx}`}>
-                  {/* Clean Gridline */}
                   <line
                     x1={marginLeft}
                     y1={yPos}
@@ -860,8 +693,6 @@ export function DynamicChartsSection({
                     strokeDasharray={gIdx === 0 ? 'none' : '4 4'}
                     strokeWidth={gIdx === 0 ? '1.5' : '1'}
                   />
-
-                  {/* Left Primary Axis Labels (Standard Ticks: 0, 20k, 40k...) */}
                   <text
                     x={marginLeft - 10}
                     y={yPos + 3.5}
@@ -870,538 +701,250 @@ export function DynamicChartsSection({
                   >
                     {formatAxisTick(tickVal)}
                   </text>
-
-                  {/* Right Secondary Axis Labels (Total Tx & NC) */}
-                  <text
-                    x={svgWidth - marginRight + 10}
-                    y={yPos + 3.5}
-                    textAnchor="start"
-                    className="text-[10px] font-bold fill-indigo-600 font-mono tracking-tight"
-                  >
-                    {formatAxisTick(rightTxVal)}
-                    <tspan className="fill-emerald-600 text-[9px] font-semibold" dx="4">
-                      ({formatAxisTick(rightNcVal)})
-                    </tspan>
-                  </text>
                 </g>
               );
             })}
 
-            {/* Translucent Tx Glow Area for Stacked & Clustered Modes */}
-            {trendChartStyle !== 'spline_waves' && showTxLine && txSplineArea && (
-              <path d={txSplineArea} fill="url(#txWaveGradient)" className="pointer-events-none" />
+            {/* Translucent Area Fills Under Spline Curves */}
+            {showBuyLine && buySplineArea && (
+              <path d={buySplineArea} fill="url(#buyWaveGradient)" className="pointer-events-none" />
+            )}
+            {showSellLine && sellSplineArea && (
+              <path d={sellSplineArea} fill="url(#sellWaveGradient)" className="pointer-events-none" />
+            )}
+            {showWithdrawLine && withdrawSplineArea && (
+              <path d={withdrawSplineArea} fill="url(#withdrawWaveGradient)" className="pointer-events-none" />
             )}
 
-            {/* ========================================================================= */}
-            {/* OPTION 1: STACKED COLUMN & LINE COMBO (Pinterest Ref 1)                    */}
-            {/* ========================================================================= */}
-            {trendChartStyle === 'stacked' && (
-              activeTrendData.map((pt, i) => {
-                const buyVal = getTrendPointVal(pt, 'buy');
-                const sellVal = getTrendPointVal(pt, 'sell');
-                const totalStackedVal = (showBuySeries ? buyVal : 0) + (showSellSeries ? sellVal : 0);
-                const cx = marginLeft + (i + 0.5) * stepWidth;
-                const colWidth = Math.min(42, stepWidth * 0.40);
-                const xCol = cx - colWidth / 2;
-
-                const hBuy = (maxPrimaryVal > 0 && showBuySeries) ? (buyVal / maxPrimaryVal) * plotHeight : 0;
-                const hSell = (maxPrimaryVal > 0 && showSellSeries) ? (sellVal / maxPrimaryVal) * plotHeight : 0;
-
-                const yBuy = plotBaseline - hBuy;
-                const ySell = yBuy - hSell;
-
-                const isHovered = hoveredTrendIndex === i;
-                const peakStackedVal = Math.max(
-                  ...activeTrendData.map((p) => (showBuySeries ? getTrendPointVal(p, 'buy') : 0) + (showSellSeries ? getTrendPointVal(p, 'sell') : 0))
-                );
-                const isPeak = totalStackedVal > 0 && totalStackedVal === peakStackedVal;
-
-                return (
-                  <g key={`stacked-col-${i}`}>
-                    {/* Hover Column Backdrop */}
-                    <rect
-                      x={marginLeft + i * stepWidth}
-                      y={marginTop}
-                      width={stepWidth}
-                      height={plotHeight}
-                      fill={isHovered ? 'rgba(99, 102, 241, 0.08)' : 'transparent'}
-                      className="cursor-pointer transition-colors"
-                      onMouseEnter={() => setHoveredTrendIndex(i)}
-                      onMouseLeave={() => setHoveredTrendIndex(null)}
-                    />
-
-                    {/* Buy Segment (Bottom of Stack) */}
-                    {showBuySeries && hBuy > 0 && (
-                      <rect
-                        x={xCol}
-                        y={yBuy}
-                        width={colWidth}
-                        height={Math.max(3, hBuy)}
-                        rx={showSellSeries && hSell > 0 ? "0" : "5"}
-                        ry={showSellSeries && hSell > 0 ? "0" : "5"}
-                        fill="url(#buyComboGradient)"
-                        className={`transition-all duration-200 cursor-pointer ${
-                          isHovered ? 'opacity-100 brightness-110 filter drop-shadow-md' : 'opacity-95'
-                        }`}
-                        onMouseEnter={() => setHoveredTrendIndex(i)}
-                        onMouseLeave={() => setHoveredTrendIndex(null)}
-                      />
-                    )}
-
-                    {/* Sell Segment (Top of Stack) */}
-                    {showSellSeries && hSell > 0 && (
-                      <rect
-                        x={xCol}
-                        y={ySell}
-                        width={colWidth}
-                        height={Math.max(3, hSell)}
-                        rx="5"
-                        ry="5"
-                        fill="url(#sellComboGradient)"
-                        className={`transition-all duration-200 cursor-pointer ${
-                          isHovered ? 'opacity-100 brightness-110 filter drop-shadow-md' : 'opacity-90'
-                        }`}
-                        onMouseEnter={() => setHoveredTrendIndex(i)}
-                        onMouseLeave={() => setHoveredTrendIndex(null)}
-                      />
-                    )}
-
-                    {/* Floating Pill on Hover: Total value displayed clearly without colliding */}
-                    {isHovered && totalStackedVal > 0 && (
-                      <g transform={`translate(${cx}, ${Math.min(ySell, yBuy) - 8})`} className="pointer-events-none">
-                        <rect x="-24" y="-15" width="48" height="16" rx="4" fill="#0f172a" stroke="#38bdf8" strokeWidth="1" />
-                        <text x="0" y="-3.5" textAnchor="middle" className="text-[9px] font-black fill-white tracking-tight">
-                          {formatAxisTick(totalStackedVal)}
-                        </text>
-                      </g>
-                    )}
-
-                    {/* Peak Badge */}
-                    {isPeak && (
-                      <g transform={`translate(${cx}, ${Math.min(ySell, yBuy) - (isHovered ? 28 : 14)})`}>
-                        <rect x="-18" y="-9" width="36" height="13" rx="3.5" fill="#fef3c7" stroke="#f59e0b" strokeWidth="1" />
-                        <text x="0" y="0.5" textAnchor="middle" className="text-[7.5px] font-black fill-amber-800 uppercase tracking-wider">
-                          PEAK
-                        </text>
-                      </g>
-                    )}
-
-                    {/* Period X-Axis Label */}
-                    <text
-                      x={cx}
-                      y={plotBaseline + 18}
-                      textAnchor="middle"
-                      className={`text-[10.5px] select-none transition-all ${
-                        isHovered ? 'font-black fill-[#0c4ca3]' : 'font-bold fill-slate-600'
-                      }`}
-                    >
-                      {pt.label}
-                    </text>
-                    {pt.subLabel && (
-                      <text
-                        x={cx}
-                        y={plotBaseline + 31}
-                        textAnchor="middle"
-                        className="text-[9px] font-medium fill-slate-400 select-none"
-                      >
-                        {pt.subLabel}
-                      </text>
-                    )}
-                  </g>
-                );
-              })
-            )}
-
-            {/* ========================================================================= */}
-            {/* OPTION 2: SMOOTH SPLINE AREA WAVES (Pinterest Ref 2)                      */}
-            {/* ========================================================================= */}
-            {trendChartStyle === 'spline_waves' && (
-              <g>
-                {/* Hover Backdrop Columns & Interactive Vertical Guides */}
-                {activeTrendData.map((pt, i) => {
-                  const cx = marginLeft + (i + 0.5) * stepWidth;
-                  const isHovered = hoveredTrendIndex === i;
-
-                  return (
-                    <g key={`spline-backdrop-${i}`}>
-                      <rect
-                        x={marginLeft + i * stepWidth}
-                        y={marginTop}
-                        width={stepWidth}
-                        height={plotHeight}
-                        fill={isHovered ? 'rgba(99, 102, 241, 0.08)' : 'transparent'}
-                        className="cursor-pointer transition-colors"
-                        onMouseEnter={() => setHoveredTrendIndex(i)}
-                        onMouseLeave={() => setHoveredTrendIndex(null)}
-                      />
-                      {isHovered && (
-                        <line
-                          x1={cx}
-                          y1={marginTop}
-                          x2={cx}
-                          y2={plotBaseline}
-                          stroke="#6366f1"
-                          strokeDasharray="3 3"
-                          strokeWidth="1.2"
-                          className="pointer-events-none"
-                        />
-                      )}
-                      {/* Period X-Axis Label */}
-                      <text
-                        x={cx}
-                        y={plotBaseline + 18}
-                        textAnchor="middle"
-                        className={`text-[10.5px] select-none transition-all ${
-                          isHovered ? 'font-black fill-[#0c4ca3]' : 'font-bold fill-slate-600'
-                        }`}
-                      >
-                        {pt.label}
-                      </text>
-                      {pt.subLabel && (
-                        <text
-                          x={cx}
-                          y={plotBaseline + 31}
-                          textAnchor="middle"
-                          className="text-[9px] font-medium fill-slate-400 select-none"
-                        >
-                          {pt.subLabel}
-                        </text>
-                      )}
-                    </g>
-                  );
-                })}
-
-                {/* Translucent Area Fills Under Spline Curves */}
-                {showBuySeries && buySplineArea && (
-                  <path d={buySplineArea} fill="url(#buyWaveGradient)" className="pointer-events-none" />
-                )}
-                {showSellSeries && sellSplineArea && (
-                  <path d={sellSplineArea} fill="url(#sellWaveGradient)" className="pointer-events-none" />
-                )}
-                {showTxLine && txSplineArea && (
-                  <path d={txSplineArea} fill="url(#txWaveGradient)" className="pointer-events-none" />
-                )}
-
-                {/* Smooth Spline Stroke Lines (Pinterest Ref 2) */}
-                {showBuySeries && buySplinePath && (
-                  <path
-                    d={buySplinePath}
-                    fill="none"
-                    stroke="#0284c7"
-                    strokeWidth="3.2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    className="pointer-events-none filter drop-shadow-sm"
-                  />
-                )}
-                {showSellSeries && sellSplinePath && (
-                  <path
-                    d={sellSplinePath}
-                    fill="none"
-                    stroke="#f43f5e"
-                    strokeWidth="3.0"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    className="pointer-events-none filter drop-shadow-sm"
-                  />
-                )}
-
-                {/* Circular Nodes for Buy & Sell Curves (Pinterest White-Center Nodes) */}
-                {activeTrendData.map((pt, i) => {
-                  const buyPt = buyPoints[i];
-                  const sellPt = sellPoints[i];
-                  const isHovered = hoveredTrendIndex === i;
-
-                  return (
-                    <g key={`spline-nodes-${i}`} className="pointer-events-none">
-                      {showBuySeries && buyPt && (
-                        <g>
-                          <circle
-                            cx={buyPt.x}
-                            cy={buyPt.y}
-                            r={isHovered ? 6.5 : 4.5}
-                            fill="#ffffff"
-                            stroke="#0284c7"
-                            strokeWidth={isHovered ? 3.2 : 2.5}
-                            className="transition-all"
-                          />
-                          {isHovered && (
-                            <circle cx={buyPt.x} cy={buyPt.y} r="10" fill="none" stroke="#38bdf8" strokeWidth="1.5" strokeOpacity="0.7" />
-                          )}
-                        </g>
-                      )}
-
-                      {showSellSeries && sellPt && (
-                        <g>
-                          <circle
-                            cx={sellPt.x}
-                            cy={sellPt.y}
-                            r={isHovered ? 6.5 : 4.5}
-                            fill="#ffffff"
-                            stroke="#f43f5e"
-                            strokeWidth={isHovered ? 3.2 : 2.5}
-                            className="transition-all"
-                          />
-                          {isHovered && (
-                            <circle cx={sellPt.x} cy={sellPt.y} r="10" fill="none" stroke="#fda4af" strokeWidth="1.5" strokeOpacity="0.7" />
-                          )}
-                        </g>
-                      )}
-                    </g>
-                  );
-                })}
-              </g>
-            )}
-
-            {/* ========================================================================= */}
-            {/* OPTION 3: CLUSTERED COLUMNS (Original Upgraded)                            */}
-            {/* ========================================================================= */}
-            {trendChartStyle === 'clustered' && (
-              activeTrendData.map((pt, i) => {
-                const buyVal = getTrendPointVal(pt, 'buy');
-                const sellVal = getTrendPointVal(pt, 'sell');
-                const cx = marginLeft + (i + 0.5) * stepWidth;
-
-                const clusterWidth = Math.min(52, stepWidth * 0.52);
-                const showBoth = showBuySeries && showSellSeries;
-                const barWidth = showBoth ? Math.max(8, clusterWidth / 2 - 2) : clusterWidth;
-
-                const hBuy = maxPrimaryVal > 0 ? (buyVal / maxPrimaryVal) * plotHeight : 0;
-                const hSell = maxPrimaryVal > 0 ? (sellVal / maxPrimaryVal) * plotHeight : 0;
-
-                const xBuy = showBoth ? cx - barWidth - 1.5 : cx - barWidth / 2;
-                const yBuy = plotBaseline - Math.max(4, hBuy);
-
-                const xSell = showBoth ? cx + 1.5 : cx - barWidth / 2;
-                const ySell = plotBaseline - Math.max(4, hSell);
-
-                const isPeak = buyVal === Math.max(...activeTrendData.map((p) => getTrendPointVal(p, 'buy')));
-                const isHovered = hoveredTrendIndex === i;
-
-                return (
-                  <g key={`bar-${i}`}>
-                    {/* Hover Backdrop Highlight */}
-                    <rect
-                      x={marginLeft + i * stepWidth}
-                      y={marginTop}
-                      width={stepWidth}
-                      height={plotHeight}
-                      fill={isHovered ? 'rgba(99, 102, 241, 0.08)' : 'transparent'}
-                      className="cursor-pointer transition-colors"
-                      onMouseEnter={() => setHoveredTrendIndex(i)}
-                      onMouseLeave={() => setHoveredTrendIndex(null)}
-                    />
-
-                    {/* Buy Bar (Cluster Left) */}
-                    {showBuySeries && (
-                      <rect
-                        x={xBuy}
-                        y={yBuy}
-                        width={barWidth}
-                        height={Math.max(4, hBuy)}
-                        rx="4"
-                        ry="4"
-                        fill="url(#buyComboGradient)"
-                        className={`transition-all duration-200 cursor-pointer ${
-                          isHovered ? 'opacity-100 brightness-110 filter drop-shadow-md' : 'opacity-95'
-                        }`}
-                        onMouseEnter={() => setHoveredTrendIndex(i)}
-                        onMouseLeave={() => setHoveredTrendIndex(null)}
-                      />
-                    )}
-
-                    {/* Sell Bar (Cluster Right) */}
-                    {showSellSeries && (
-                      <rect
-                        x={xSell}
-                        y={ySell}
-                        width={barWidth}
-                        height={Math.max(4, hSell)}
-                        rx="4"
-                        ry="4"
-                        fill="url(#sellComboGradient)"
-                        className={`transition-all duration-200 cursor-pointer ${
-                          isHovered ? 'opacity-100 brightness-110 filter drop-shadow-md' : 'opacity-90'
-                        }`}
-                        onMouseEnter={() => setHoveredTrendIndex(i)}
-                        onMouseLeave={() => setHoveredTrendIndex(null)}
-                      />
-                    )}
-
-                    {/* Peak Marker Badge */}
-                    {isPeak && (
-                      <g transform={`translate(${cx}, ${Math.min(yBuy, ySell) - 10})`}>
-                        <rect x="-18" y="-10" width="36" height="12" rx="3" fill="#fef3c7" stroke="#f59e0b" strokeWidth="1" />
-                        <text x="0" y="-1" textAnchor="middle" className="text-[8px] font-black fill-amber-800 uppercase tracking-tighter">
-                          PEAK
-                        </text>
-                      </g>
-                    )}
-
-                    {/* Period X-Axis Label */}
-                    <text
-                      x={cx}
-                      y={plotBaseline + 18}
-                      textAnchor="middle"
-                      className={`text-[10.5px] select-none transition-all ${
-                        isHovered ? 'font-black fill-[#0c4ca3]' : 'font-bold fill-slate-600'
-                      }`}
-                    >
-                      {pt.label}
-                    </text>
-                    {pt.subLabel && (
-                      <text
-                        x={cx}
-                        y={plotBaseline + 31}
-                        textAnchor="middle"
-                        className="text-[9px] font-medium fill-slate-400 select-none"
-                      >
-                        {pt.subLabel}
-                      </text>
-                    )}
-                  </g>
-                );
-              })
-            )}
-
-            {/* ========================================================================= */}
-            {/* DUAL AXIS OVERLAY TREND CURVES (SMOOTH BEZIER SPLINES ACROSS ALL MODES)   */}
-            {/* ========================================================================= */}
-            {/* Line 1: Total Transactions Curve (Right Axis) */}
-            {showTxLine && txSplinePath && (
+            {/* Spline Lines */}
+            {/* 1. Buy Line (Blue) */}
+            {showBuyLine && buySplinePath && (
               <path
-                d={txSplinePath}
+                d={buySplinePath}
                 fill="none"
-                stroke="#6366f1"
+                stroke="#0c4ca3"
                 strokeWidth="3.2"
                 strokeLinecap="round"
                 strokeLinejoin="round"
-                className="filter drop-shadow-sm pointer-events-none"
+                className="pointer-events-none filter drop-shadow-sm"
               />
             )}
 
-            {/* Line 2: New Customers (NC) Curve (Right Axis) */}
-            {showNcLine && ncSplinePath && (
+            {/* 2. Sell Line (Rose) */}
+            {showSellLine && sellSplinePath && (
+              <path
+                d={sellSplinePath}
+                fill="none"
+                stroke="#e11d48"
+                strokeWidth="3.0"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="pointer-events-none filter drop-shadow-sm"
+              />
+            )}
+
+            {/* 3. New Register Line (Emerald - Only in Tx mode) */}
+            {trendMetric === 'tx' && showNcLine && ncSplinePath && (
               <path
                 d={ncSplinePath}
                 fill="none"
                 stroke="#10b981"
-                strokeWidth="2.6"
+                strokeWidth="2.8"
                 strokeDasharray="4 2.5"
                 strokeLinecap="round"
                 strokeLinejoin="round"
-                className="filter drop-shadow-sm pointer-events-none"
+                className="pointer-events-none filter drop-shadow-sm"
               />
             )}
 
-            {/* Nodes on Total Tx Curve and NC Curve (Pinterest Solid White Center) */}
+            {/* 4. Withdraw Line (Amber) */}
+            {showWithdrawLine && withdrawSplinePath && (
+              <path
+                d={withdrawSplinePath}
+                fill="none"
+                stroke="#d97706"
+                strokeWidth="2.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="pointer-events-none filter drop-shadow-sm"
+              />
+            )}
+
+            {/* Interactive Vertical Hover Bands & Circular Nodes */}
             {activeTrendData.map((pt, i) => {
-              const txPt = txPoints[i];
-              const ncPt = ncPoints[i];
+              const cx = marginLeft + (i + 0.5) * stepWidth;
               const isHovered = hoveredTrendIndex === i;
 
+              const buyPt = buyPoints[i];
+              const sellPt = sellPoints[i];
+              const withdrawPt = withdrawPoints[i];
+              const ncPt = ncPoints[i];
+
               return (
-                <g key={`trend-nodes-${i}`} className="pointer-events-none">
-                  {/* Total Transactions Node */}
-                  {showTxLine && txPt && (
-                    <g>
-                      <circle
-                        cx={txPt.x}
-                        cy={txPt.y}
-                        r={isHovered ? 6.5 : 4.5}
-                        fill="#ffffff"
-                        stroke="#4f46e5"
-                        strokeWidth={isHovered ? 3.2 : 2.5}
-                        className="transition-all"
-                      />
-                      {isHovered && (
-                        <circle cx={txPt.x} cy={txPt.y} r="10" fill="none" stroke="#818cf8" strokeWidth="1.5" strokeOpacity="0.7" />
-                      )}
-                    </g>
+                <g key={`point-${i}`}>
+                  {/* Invisible Hit Area for smooth hover */}
+                  <rect
+                    x={cx - stepWidth / 2}
+                    y={marginTop}
+                    width={stepWidth}
+                    height={plotHeight}
+                    fill="transparent"
+                    className="cursor-pointer"
+                    onMouseEnter={() => setHoveredTrendIndex(i)}
+                    onMouseLeave={() => setHoveredTrendIndex(null)}
+                  />
+
+                  {/* Vertical Guide Line on Hover */}
+                  {isHovered && (
+                    <line
+                      x1={cx}
+                      y1={marginTop}
+                      x2={cx}
+                      y2={plotBaseline}
+                      stroke="#94a3b8"
+                      strokeWidth="1.5"
+                      strokeDasharray="3 3"
+                      className="pointer-events-none"
+                    />
                   )}
 
-                  {/* NC Node */}
-                  {showNcLine && ncPt && (
-                    <g>
-                      <circle
-                        cx={ncPt.x}
-                        cy={ncPt.y}
-                        r={isHovered ? 6 : 4}
-                        fill="#ffffff"
-                        stroke="#059669"
-                        strokeWidth={isHovered ? 3 : 2.2}
-                        className="transition-all"
-                      />
-                      {isHovered && (
-                        <circle cx={ncPt.x} cy={ncPt.y} r="9" fill="none" stroke="#34d399" strokeWidth="1.5" strokeOpacity="0.7" />
-                      )}
-                    </g>
+                  {/* Nodes on Splines */}
+                  {showBuyLine && buyPt && (
+                    <circle
+                      cx={buyPt.x}
+                      cy={buyPt.y}
+                      r={isHovered ? 6 : 4}
+                      fill="#ffffff"
+                      stroke="#0c4ca3"
+                      strokeWidth={isHovered ? 3 : 2.2}
+                      className="pointer-events-none transition-all"
+                    />
+                  )}
+
+                  {showSellLine && sellPt && (
+                    <circle
+                      cx={sellPt.x}
+                      cy={sellPt.y}
+                      r={isHovered ? 6 : 4}
+                      fill="#ffffff"
+                      stroke="#e11d48"
+                      strokeWidth={isHovered ? 3 : 2.2}
+                      className="pointer-events-none transition-all"
+                    />
+                  )}
+
+                  {trendMetric === 'tx' && showNcLine && ncPt && (
+                    <circle
+                      cx={ncPt.x}
+                      cy={ncPt.y}
+                      r={isHovered ? 5.5 : 3.5}
+                      fill="#ffffff"
+                      stroke="#10b981"
+                      strokeWidth={isHovered ? 2.8 : 2}
+                      className="pointer-events-none transition-all"
+                    />
+                  )}
+
+                  {showWithdrawLine && withdrawPt && (
+                    <circle
+                      cx={withdrawPt.x}
+                      cy={withdrawPt.y}
+                      r={isHovered ? 5.5 : 3.5}
+                      fill="#ffffff"
+                      stroke="#d97706"
+                      strokeWidth={isHovered ? 2.8 : 2}
+                      className="pointer-events-none transition-all"
+                    />
+                  )}
+
+                  {/* X-Axis Tick Label */}
+                  <text
+                    x={cx}
+                    y={plotBaseline + 18}
+                    textAnchor="middle"
+                    className={`text-[10px] select-none transition-all ${
+                      isHovered ? 'font-black fill-[#0c4ca3]' : 'font-bold fill-slate-600'
+                    }`}
+                  >
+                    {pt.label}
+                  </text>
+                  {pt.subLabel && (
+                    <text
+                      x={cx}
+                      y={plotBaseline + 31}
+                      textAnchor="middle"
+                      className="text-[9px] font-medium fill-slate-400 select-none"
+                    >
+                      {pt.subLabel}
+                    </text>
                   )}
                 </g>
               );
             })}
           </svg>
 
-          {/* Interactive Floating HUD Tooltip Card on Hover */}
+          {/* Interactive Floating Tooltip Card on Hover */}
           {hoveredTrendIndex !== null && activeTrendData[hoveredTrendIndex] && (
             (() => {
               const pt = activeTrendData[hoveredTrendIndex];
-              const buyVal = getTrendPointVal(pt, 'buy');
-              const sellVal = getTrendPointVal(pt, 'sell');
-              const netVal = buyVal - sellVal;
-              const ncSharePct = ((pt.nc / pt.total_tx) * 100).toFixed(1);
+              const bVal = getPointBuy(pt);
+              const sVal = getPointSell(pt);
+              const wVal = getPointWithdraw(pt);
+              const ncVal = getPointNc(pt);
+              const cx = marginLeft + (hoveredTrendIndex + 0.5) * stepWidth;
+              const leftPercent = Math.min(84, Math.max(16, (cx / svgWidth) * 100));
 
               return (
                 <div
-                  className="absolute z-30 pointer-events-none transition-all duration-150 top-3 bg-slate-900/95 backdrop-blur-md text-white border border-slate-700/80 rounded-2xl p-3 shadow-2xl text-[11px] min-w-[240px]"
-                  style={{
-                    left: `${Math.min(78, Math.max(12, ((marginLeft + (hoveredTrendIndex + 0.5) * stepWidth) / svgWidth) * 100))}%`,
-                    transform: 'translateX(-50%)',
-                  }}
+                  className="absolute top-4 pointer-events-none transition-all duration-150 z-30"
+                  style={{ left: `${leftPercent}%`, transform: 'translateX(-50%)' }}
                 >
-                  <div className="flex items-center justify-between border-b border-slate-700 pb-1.5 mb-2">
-                    <span className="font-black text-amber-300">
-                      {pt.label} {pt.subLabel ? `(${pt.subLabel})` : ''}
-                    </span>
-                    <span className="text-[9.5px] px-1.5 py-0.5 rounded bg-indigo-500/30 text-indigo-200 border border-indigo-400/40 font-bold uppercase">
-                      {trendGranularity} Grain
-                    </span>
-                  </div>
+                  <div className="bg-slate-900/95 backdrop-blur-md text-white px-3.5 py-2.5 rounded-2xl shadow-2xl border border-slate-700/80 text-xs min-w-[190px]">
+                    <div className="flex items-center justify-between pb-1.5 mb-1.5 border-b border-slate-800">
+                      <span className="font-extrabold text-amber-300">{pt.label}</span>
+                      <span className="text-[10px] text-slate-400 font-medium">{pt.subLabel}</span>
+                    </div>
 
-                  {/* Left Axis Clustered Volume */}
-                  <div className="space-y-1 mb-2">
-                    <div className="text-[9.5px] font-bold text-slate-400 uppercase tracking-wider">
-                      Left Axis (Volume &amp; Flow):
-                    </div>
-                    <div className="flex justify-between items-center text-blue-200">
-                      <span>🔵 Buy Turnover:</span>
-                      <strong className="text-white">{buyVal.toLocaleString()} {trendUnitLabel}</strong>
-                    </div>
-                    <div className="flex justify-between items-center text-rose-200">
-                      <span>🔴 Sell Liquidation:</span>
-                      <strong className="text-white">{sellVal.toLocaleString()} {trendUnitLabel}</strong>
-                    </div>
-                    <div className="flex justify-between items-center text-emerald-300 font-bold border-t border-slate-800 pt-1">
-                      <span>⚖️ Net Balance:</span>
-                      <strong className={netVal >= 0 ? 'text-emerald-400' : 'text-rose-400'}>
-                        {netVal >= 0 ? '+' : ''}{netVal.toLocaleString()} {trendUnitLabel}
-                      </strong>
-                    </div>
-                  </div>
+                    <div className="space-y-1">
+                      {showBuyLine && (
+                        <div className="flex items-center justify-between text-[#60a5fa]">
+                          <span className="flex items-center gap-1.5 font-bold">
+                            <span className="w-2 h-2 rounded-full bg-[#0c4ca3]" />
+                            Buy:
+                          </span>
+                          <span className="font-mono font-black">{bVal.toLocaleString()} {trendUnitLabel}</span>
+                        </div>
+                      )}
 
-                  {/* Right Axis Secondary Metrics (Total Tx & Total NC) */}
-                  <div className="space-y-1 border-t border-slate-800 pt-2 bg-slate-800/50 -mx-1.5 px-2 py-1.5 rounded-xl">
-                    <div className="text-[9.5px] font-bold text-indigo-300 uppercase tracking-wider flex justify-between">
-                      <span>Right Axis (Combo Trend):</span>
-                      <span className="text-emerald-300 font-black">{ncSharePct}% NC Ratio</span>
-                    </div>
-                    <div className="flex justify-between items-center text-indigo-200">
-                      <span className="flex items-center gap-1">🟣 Total Transactions:</span>
-                      <strong className="text-white font-black">{pt.total_tx.toLocaleString()} tx</strong>
-                    </div>
-                    <div className="flex justify-between items-center text-emerald-300">
-                      <span className="flex items-center gap-1">🟢 New Customers (NC):</span>
-                      <strong className="text-white font-black">{pt.nc.toLocaleString()} NC</strong>
+                      {showSellLine && (
+                        <div className="flex items-center justify-between text-rose-400">
+                          <span className="flex items-center gap-1.5 font-bold">
+                            <span className="w-2 h-2 rounded-full bg-rose-500" />
+                            Sell:
+                          </span>
+                          <span className="font-mono font-black">{sVal.toLocaleString()} {trendUnitLabel}</span>
+                        </div>
+                      )}
+
+                      {trendMetric === 'tx' && showNcLine && (
+                        <div className="flex items-center justify-between text-emerald-400">
+                          <span className="flex items-center gap-1.5 font-bold">
+                            <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                            New Register:
+                          </span>
+                          <span className="font-mono font-black">{ncVal.toLocaleString()} users</span>
+                        </div>
+                      )}
+
+                      {showWithdrawLine && (
+                        <div className="flex items-center justify-between text-amber-400">
+                          <span className="flex items-center gap-1.5 font-bold">
+                            <span className="w-2 h-2 rounded-full bg-amber-500" />
+                            Withdraw:
+                          </span>
+                          <span className="font-mono font-black">{wVal.toLocaleString()} {trendUnitLabel}</span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1411,7 +954,9 @@ export function DynamicChartsSection({
         </div>
       </div>
 
-      {/* Global View-By Metric Switcher for the Breakdown Cards */}
+      {/* ========================================================================= */}
+      {/* SECTION DIVIDER & GLOBAL METRIC SWITCHER FOR LOWER SECTIONS               */}
+      {/* ========================================================================= */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-2 border-b border-slate-200 gap-2">
         <div className="flex items-center gap-2">
           <BarChart3 className="w-4 h-4 text-[#0c4ca3]" />
@@ -1420,7 +965,7 @@ export function DynamicChartsSection({
           </h3>
         </div>
 
-        {/* Metric Switcher Pills */}
+        {/* Metric Switcher Pills for Activity and Channel Sections */}
         <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-slate-200 shadow-2xs self-start sm:self-auto text-[11px] font-extrabold text-slate-600">
           <span className="text-[10px] text-slate-400 font-bold px-1.5 uppercase">View By:</span>
           <button
@@ -1463,13 +1008,12 @@ export function DynamicChartsSection({
       {/* 2. ACTIVITY CURVES: HOURLY ACTIVITY & DAY ACTIVITY CURVE WITH DATA LABELS */}
       {/* ========================================================================= */}
       {(() => {
-        // Calculate totals for % contribution shares
         const totalDayWeekVal = activeDayOfWeek.reduce((acc, d) => acc + getDayVal(d), 0) || 1;
-        const totalHourlyVal = hourly.reduce((acc, h) => acc + getHourlyVal(h), 0) || 1;
+        const totalHourlyVal = activeHourly.reduce((acc, h) => acc + getHourlyVal(h), 0) || 1;
 
         return (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {/* Card A: Hourly Trading Activity (00:00 - 23:00) with Buy/Sell Filter & % Data Labels */}
+            {/* Card A: Hourly Activity Curve */}
             <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm flex flex-col justify-between">
               <div>
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-3 gap-2">
@@ -1520,7 +1064,7 @@ export function DynamicChartsSection({
 
                 {/* 24-Column Mini Bar Chart with % Contribution Share Data Labels */}
                 <div className="h-48 flex items-end gap-1 sm:gap-1.5 pt-8 pb-2 px-1 border-b border-slate-100">
-                  {hourly.map((h) => {
+                  {activeHourly.map((h) => {
                     const val = getHourlyVal(h);
                     const heightPct = Math.max(4, Math.round((val / maxHourlyVal) * 100));
                     const isPeak = h.hour >= 9 && h.hour <= 16;
@@ -1535,7 +1079,7 @@ export function DynamicChartsSection({
                           <div>{val.toLocaleString()} {unitLabel} (Buy: {h.buy_weight_g}g | Sell: {h.sell_weight_g}g)</div>
                         </div>
 
-                        {/* Top Data Label: % Contribution Share on prominent hours */}
+                        {/* Top Data Label: % Contribution Share */}
                         {isProminent && (
                           <span className={`text-[8.5px] font-black tracking-tighter mb-1 transition-all ${
                             isPeak ? 'text-[#0c4ca3]' : 'text-slate-400'
@@ -1574,7 +1118,7 @@ export function DynamicChartsSection({
               </div>
             </div>
 
-            {/* Card B: Day Activity Curve (Trx) with Data Labels on EVERY Day Bar */}
+            {/* Card B: Day Activity Curve (Trx) */}
             <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm flex flex-col justify-between">
               <div>
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-3 gap-2">
@@ -1623,66 +1167,58 @@ export function DynamicChartsSection({
                   </div>
                 </div>
 
-                {/* 7-Day Day-of-Week Bar Chart with % Contribution Share Data Labels */}
-                <div className="h-48 flex items-end gap-2 sm:gap-3 pt-8 pb-2 px-2 border-b border-slate-100">
+                {/* 7-Column Day of Week Bar Chart */}
+                <div className="h-48 flex items-end gap-2 sm:gap-3 pt-8 pb-2 px-1 border-b border-slate-100">
                   {activeDayOfWeek.map((d) => {
                     const val = getDayVal(d);
-                    const heightPct = Math.max(5, Math.round((val / maxDayVal) * 100));
-                    const isPeakDay = val === maxDayVal;
-                    const sharePct = ((val / totalDayWeekVal) * 100).toFixed(1);
+                    const heightPct = Math.max(8, Math.round((val / maxDayVal) * 100));
+                    const isPeak = d.day_code === 'fri' || d.day_code === 'sat';
+                    const sharePct = Number(((val / totalDayWeekVal) * 100).toFixed(1));
 
                     return (
                       <div key={d.day_code} className="flex-1 flex flex-col items-center h-full justify-end group relative">
-                        {/* Hover Tooltip Insight */}
-                        <div className="absolute -top-14 opacity-0 group-hover:opacity-100 transition-opacity bg-slate-900 text-white text-[10px] py-1.5 px-2 rounded-lg pointer-events-none whitespace-nowrap z-30 shadow-xl border border-slate-700">
-                          <div className="font-bold text-amber-300">{d.day_full} · {sharePct}% Share</div>
-                          <div>{val.toLocaleString()} {unitLabel} (Buy: {d.buy_tx.toLocaleString()} | Sell: {d.sell_tx.toLocaleString()})</div>
+                        {/* Hover Tooltip */}
+                        <div className="absolute -top-12 opacity-0 group-hover:opacity-100 transition-opacity bg-slate-900 text-white text-[10px] py-1 px-2 rounded-lg pointer-events-none whitespace-nowrap z-30 shadow-xl border border-slate-700">
+                          <div className="font-bold text-amber-300">{d.day_full} · {sharePct}% of Week</div>
+                          <div>{val.toLocaleString()} {unitLabel} (Buy: {d.buy_weight_g}g | Sell: {d.sell_weight_g}g)</div>
                         </div>
 
-                        {/* Top Data Label Badge (% Contribution Share) */}
-                        <div className="mb-1.5 text-center">
-                          <span
-                            className={`text-[9.5px] px-1.5 py-0.5 rounded transition-all shadow-2xs ${
-                              isPeakDay
-                                ? 'bg-blue-600 text-white font-black'
-                                : 'bg-slate-100 text-slate-700 border border-slate-200 font-bold'
-                            }`}
-                          >
-                            {isPeakDay ? `🔥 ${sharePct}%` : `${sharePct}%`}
-                          </span>
-                        </div>
+                        {/* Top Data Label */}
+                        <span className={`text-[9px] font-black tracking-tight mb-1 transition-all ${
+                          isPeak ? 'text-[#0c4ca3]' : 'text-slate-500'
+                        }`}>
+                          {sharePct}%
+                        </span>
 
                         {/* Bar */}
                         <div
                           className={`w-full rounded-t-md transition-all group-hover:brightness-110 ${
                             dayTrxType === 'sell'
-                              ? isPeakDay ? 'bg-rose-600' : 'bg-rose-300'
-                              : isPeakDay ? 'bg-gradient-to-t from-[#0c4ca3] to-blue-500' : 'bg-[#0c4ca3]'
+                              ? isPeak ? 'bg-rose-600' : 'bg-rose-300'
+                              : isPeak ? 'bg-[#0c4ca3]' : 'bg-slate-300'
                           }`}
                           style={{ height: `${heightPct}%` }}
                         />
-
-                        {/* Day Label */}
-                        <span className={`text-[10.5px] mt-2 font-bold ${isPeakDay ? 'text-[#0c4ca3] font-black' : 'text-slate-500'}`}>
-                          {d.day_label}
-                        </span>
                       </div>
                     );
                   })}
                 </div>
 
-                {/* X-Axis Labels & Peak Indicator */}
-                <div className="flex justify-between items-center text-[10px] font-bold text-slate-400 mt-2 px-1">
-                  <span>Weekdays Pattern</span>
-                  <span className="text-[#0c4ca3] font-black flex items-center gap-1">
-                    🔥 Friday Peak Velocity (18.7%)
-                  </span>
-                  <span>Weekend Trading</span>
+                {/* X-Axis Labels */}
+                <div className="flex justify-between text-[11px] font-bold text-slate-500 mt-2 px-1">
+                  {activeDayOfWeek.map((d) => (
+                    <span
+                      key={d.day_code}
+                      className={d.day_code === 'fri' ? 'text-[#0c4ca3] font-black' : ''}
+                    >
+                      {d.day_label}
+                    </span>
+                  ))}
                 </div>
               </div>
 
               <div className="pt-2 mt-3 border-t border-slate-100 text-[10.5px] text-slate-500 font-medium flex justify-between">
-                <span>Cycle: <strong>7-Day Weekly Rhythm</strong></span>
+                <span>Pattern: <strong>Friday &amp; Weekend Payday Spikes</strong></span>
                 <span>Active Filter: <strong className="uppercase text-[#0c4ca3]">{dayTrxType} Trx</strong></span>
               </div>
             </div>
@@ -1691,15 +1227,15 @@ export function DynamicChartsSection({
       })()}
 
       {/* ========================================================================= */}
-      {/* 3. GOLD WEIGHT TICKET DISTRIBUTION: RE-BALANCED & REALIGNED COMPACT CARDS */}
+      {/* 3. GOLD WEIGHT TICKET DISTRIBUTION                                        */}
       {/* ========================================================================= */}
-      <div className="bg-white rounded-3xl border border-slate-200 p-4 sm:p-5 shadow-sm">
+      <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-sm">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 mb-3 border-b border-slate-100 gap-2">
           <div className="flex items-center gap-2">
-            <Scale className="w-4 h-4 text-[#e5a812]" />
+            <BarChart3 className="w-4 h-4 text-[#0c4ca3]" />
             <div>
               <h3 className="text-xs font-black uppercase text-slate-800 tracking-wider">
-                Gold Weight Ticket Distribution (Realigned &amp; Balanced)
+                Gold Weight Ticket Distribution
               </h3>
               <p className="text-[11px] text-slate-400 font-medium">
                 Sleek portion breakdown with synchronized order counts and total gold mass distribution
@@ -1765,7 +1301,6 @@ export function DynamicChartsSection({
                 className={`p-3 rounded-2xl border transition-all ${style.cardClass} relative overflow-hidden flex flex-col justify-between`}
               >
                 <div>
-                  {/* Row 1: Bracket, Tier Badge & Share Pill */}
                   <div className="flex items-center justify-between gap-1.5 mb-1.5">
                     <div className="flex items-center gap-1.5 truncate">
                       <span className="text-xs font-black text-slate-900 truncate">
@@ -1780,7 +1315,6 @@ export function DynamicChartsSection({
                     </span>
                   </div>
 
-                  {/* Row 2: Volume Count & Weight Contribution Side-by-Side */}
                   <div className="flex items-baseline justify-between mt-1">
                     <span className="text-base sm:text-lg font-black text-slate-900 tracking-tight">
                       {metricMode === 'weight'
@@ -1793,7 +1327,6 @@ export function DynamicChartsSection({
                   </div>
                 </div>
 
-                {/* Row 3: Slim Progress Bar & Micro Footer */}
                 <div className="mt-2.5 pt-1.5 border-t border-slate-200/60">
                   <div className="w-full bg-slate-200/80 h-1.5 rounded-full overflow-hidden mb-1">
                     <div
@@ -1816,8 +1349,7 @@ export function DynamicChartsSection({
       {/* 4. BANK & BRANCH SETTLEMENT CHANNELS WITH %TRNX / %VALUE & BUY/SELL SIDES */}
       {/* ========================================================================= */}
       {(() => {
-        // Calculate dynamic bank values based on bankMetricType (%trnx vs %value) and bankSideFilter (all vs buy vs sell)
-        const processedBanks = banks.map((b) => {
+        const processedBanks = activeBanks.map((b) => {
           let tx = b.total_tx;
           let amountLak = b.total_amount_lak;
 
@@ -1852,10 +1384,9 @@ export function DynamicChartsSection({
 
         return (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {/* Bank Settlement Distribution with Metric (%trnx vs %value) & Side (Buy/Sell/All) Toggles */}
+            {/* Bank Settlement Distribution */}
             <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm flex flex-col justify-between">
               <div>
-                {/* Header with Title and Risk Badge */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-2.5 gap-2">
                   <div className="flex items-center gap-2">
                     <Landmark className="w-4 h-4 text-[#0c4ca3]" />
@@ -1873,7 +1404,6 @@ export function DynamicChartsSection({
 
                 {/* Sub-Header: Metric Toggle (%trnx vs %value) & Side Toggle (Buy vs Sell vs All) */}
                 <div className="flex flex-wrap items-center justify-between bg-slate-50 p-1.5 rounded-xl border border-slate-100 mb-3 gap-2">
-                  {/* Metric Switcher: % Trnx vs % Value */}
                   <div className="flex items-center gap-1 text-[10px] font-black">
                     <span className="text-slate-400 font-bold px-1 uppercase">Metric:</span>
                     <button
@@ -1900,7 +1430,6 @@ export function DynamicChartsSection({
                     </button>
                   </div>
 
-                  {/* Side Switcher: All vs Buy Side vs Sell Side */}
                   <div className="flex items-center gap-1 text-[10px] font-black">
                     <span className="text-slate-400 font-bold px-1 uppercase">Side:</span>
                     <button
@@ -1979,7 +1508,6 @@ export function DynamicChartsSection({
                 </div>
               </div>
 
-              {/* Dynamic Footer with Top Gateway Dependency */}
               <div className="pt-2 border-t border-slate-100 text-[10.5px] text-slate-500 font-medium flex justify-between mt-3">
                 <span>
                   Primary {bankSideFilter === 'buy' ? 'Buy' : bankSideFilter === 'sell' ? 'Sell' : ''} gateway:{' '}
@@ -2005,7 +1533,7 @@ export function DynamicChartsSection({
                 </div>
 
                 <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
-                  {branches.slice(0, 5).map((br) => {
+                  {activeBranches.slice(0, 5).map((br) => {
                     const val = getBranchVal(br);
                     const barWidth = Math.max(5, Math.round((val / maxBranchVal) * 100));
                     return (
@@ -2030,7 +1558,7 @@ export function DynamicChartsSection({
 
               <div className="pt-2 border-t border-slate-100 text-[10.5px] text-slate-400 font-medium flex justify-between mt-3">
                 <span>Physical Delivery Branches</span>
-                <span>Total Network: <strong>{branches.length} locations</strong></span>
+                <span>Total Network: <strong>{activeBranches.length} locations</strong></span>
               </div>
             </div>
           </div>

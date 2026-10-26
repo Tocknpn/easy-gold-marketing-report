@@ -97,6 +97,8 @@ export function buildDynamicReportFromDailyMetrics(
       sell_weight_g: Number(sWtG.toFixed(2)),
       net_weight_g: Number((bWtG - sWtG).toFixed(2)),
       nc: Number(r.new_customers) || 0,
+      withdraw_tx: Number(r.withdraw_refund_trans) || 0,
+      withdraw_weight_g: Number(((Number(r.withdraw_15g) || 0) * 15.0).toFixed(2)),
     };
   });
 

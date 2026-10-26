@@ -27,8 +27,8 @@ export function DynamicReportView() {
   const [isExporting, setIsExporting] = useState<boolean>(false);
   const [isComparingPoP, setIsComparingPoP] = useState<boolean>(false);
 
-  const [hasExecuted, setHasExecuted] = useState<boolean>(false);
-  const [executionTimestamp, setExecutionTimestamp] = useState<string>('');
+  const [hasExecuted, setHasExecuted] = useState<boolean>(true);
+  const [executionTimestamp, setExecutionTimestamp] = useState<string>(() => new Date().toLocaleTimeString());
 
   const [error, setError] = useState<string | null>(null);
 
@@ -97,6 +97,11 @@ export function DynamicReportView() {
       setHasExecuted(true);
       setExecutionTimestamp(new Date().toLocaleTimeString());
     }
+  }, []);
+
+  // Auto-calculate on mount for default period (this_month)
+  useEffect(() => {
+    fetchReport(filters);
   }, []);
 
   const handleFilterChange = (newFilters: DynamicFilterState) => {
