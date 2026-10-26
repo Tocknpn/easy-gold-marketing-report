@@ -635,7 +635,7 @@ export function ReportingPdfModal({
               onClick={handleSendTestEmail}
               disabled={isSendingTest || isDownloadingPdf}
               className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black text-xs shadow-xs transition-all cursor-pointer disabled:opacity-50"
-              title="Capture 4-page HD landscape report and email to management"
+              title="Capture 5-page HD landscape report and email to management"
             >
               <Send className="w-3.5 h-3.5 text-white" />
               <span>{isSendingTest ? 'Sending PDF...' : 'Email This Report'}</span>
@@ -644,7 +644,7 @@ export function ReportingPdfModal({
               onClick={handleDownloadPdf}
               disabled={isDownloadingPdf || isSendingTest}
               className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs shadow-xs transition-all cursor-pointer disabled:opacity-50"
-              title="Download exact 4-page high-definition landscape PDF file"
+              title="Download exact 5-page high-definition landscape PDF file"
             >
               <Download className="w-3.5 h-3.5 text-white" />
               <span>{isDownloadingPdf ? 'Generating PDF...' : 'Download PDF'}</span>
@@ -735,6 +735,7 @@ export function ReportingPdfModal({
                 comparisonMonthLabel={compMonthLabel}
                 yoyMonthLabel={yoyMonthLabel}
                 asOfDateDisplay={asOfDateDisplay}
+                dailyRows={localDailyRows}
                 targetTrackingData={rrMomData}
                 rrMomData={rrMomData}
                 rrYoyData={rrYoyData}

@@ -94,22 +94,22 @@ export function PdfMtdMetricCard({
   })();
 
   return (
-    <div className="bg-white rounded-xl border border-slate-200/90 p-2.5 shadow-2xs flex flex-col justify-between relative overflow-hidden min-w-0">
+    <div className="bg-white rounded-xl border border-slate-200/90 p-2 shadow-2xs flex flex-col justify-between relative overflow-hidden min-w-0">
       {/* Top Accent Stripe */}
       <div
-        className={`absolute top-0 left-0 right-0 h-1.5 ${isForecastPositive ? 'bg-emerald-500' : isForecastNegative ? 'bg-rose-500' : 'bg-slate-300'
+        className={`absolute top-0 left-0 right-0 h-1 ${isForecastPositive ? 'bg-emerald-500' : isForecastNegative ? 'bg-rose-500' : 'bg-slate-300'
           }`}
       />
 
       {/* 1. HEADER (Strict 1-Line: Icon + Name ... Compact Pace Badge) */}
-      <div className="w-full mb-1.5 pt-0.5 min-w-0">
+      <div className="w-full mb-1 pt-0.5 min-w-0">
         <div className="flex items-center justify-between gap-1 w-full min-w-0 flex-nowrap">
           <div className="flex items-center gap-1.5 min-w-0 shrink">
             <div className="p-0.5 rounded bg-blue-50 text-[#0c4ca3] shrink-0">
               {renderIcon()}
             </div>
             <span
-              className="font-black text-slate-800 text-[12px] truncate whitespace-nowrap"
+              className="font-black text-slate-800 text-[11px] truncate whitespace-nowrap"
               title={cleanLabel}
             >
               {cleanLabel}
@@ -118,7 +118,7 @@ export function PdfMtdMetricCard({
 
           {/* Ahead / Behind Pace Badge */}
           <span
-            className={`text-[9.5px] font-black px-1.5 py-0.5 rounded shrink-0 uppercase whitespace-nowrap ${isAheadOfPace
+            className={`text-[8.5px] font-black px-1.5 py-0.5 rounded shrink-0 uppercase whitespace-nowrap ${isAheadOfPace
                 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                 : 'bg-rose-50 text-rose-700 border border-rose-200'
               }`}
@@ -129,13 +129,13 @@ export function PdfMtdMetricCard({
       </div>
 
       {/* 2. CURRENT MTD ACTUALS */}
-      <div className="flex flex-col items-center justify-center text-center py-1">
-        <div className="text-[26px] font-black text-slate-900 tracking-tight leading-none mb-1 font-sans">
+      <div className="flex flex-col items-center justify-center text-center py-0.5">
+        <div className="text-[21px] font-black text-slate-900 tracking-tight leading-none mb-0.5 font-sans">
           {metric.current_mtd.toLocaleString()}
         </div>
 
         {/* MTD Variance Badge */}
-        <div className="flex items-center justify-center gap-1 font-black text-[11.5px] mb-1">
+        <div className="flex items-center justify-center gap-1 font-black text-[10px] mb-0.5">
           {isMtdPositive && (
             <span className="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
               ▲ +{metric.mtd_variance_percent}%
@@ -151,7 +151,7 @@ export function PdfMtdMetricCard({
           )}
         </div>
 
-        <div className="text-[10px] text-slate-500 font-medium truncate">
+        <div className="text-[9.5px] text-slate-500 font-medium truncate">
           vs. {comparisonMonthLabel} ({metric.comp_mtd.toLocaleString()})
         </div>
       </div>

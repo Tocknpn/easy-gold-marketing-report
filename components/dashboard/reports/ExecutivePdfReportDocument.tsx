@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useMemo } from 'react';
+import { DailyMetricRow, DEFAULT_2026_TARGETS } from '@/lib/constants/targetData';
 import { RunRateComparisonPayload } from '@/lib/types/target.types';
 import { MtdReportPayload } from '@/lib/types/mtd.types';
 import { WeeklyMetricRow, MetricVariances } from '@/lib/types/dashboard.types';
@@ -11,11 +12,11 @@ import { BuyActivitySection } from '@/components/dashboard/BuyActivitySection';
 import { SellActivitySection } from '@/components/dashboard/SellActivitySection';
 import { ExecutivePulseBanner } from '@/components/dashboard/ExecutivePulseBanner';
 import { PdfMtdMetricCard } from './PdfMtdMetricCard';
+import { PdfDailyPerformancePage } from './PdfDailyPerformancePage';
 import { PdfPage, PdfSectionTitle } from './PdfPage';
-import { DEFAULT_2026_TARGETS } from '@/lib/constants/targetData';
 
 /** Total number of fixed A4 landscape pages rendered by the report. */
-export const PDF_TOTAL_PAGES = 4;
+export const PDF_TOTAL_PAGES = 5;
 
 export interface ExecutivePdfReportDocumentProps {
   currentYear: number;
@@ -24,17 +25,18 @@ export interface ExecutivePdfReportDocumentProps {
   comparisonMonthLabel: string;
   yoyMonthLabel: string;
   asOfDateDisplay: string;
-  
-  // Section 1 & 6 & 7: Target & Run-Rate
+  dailyRows?: DailyMetricRow[];
+
+  // Target & Run-Rate
   targetTrackingData: RunRateComparisonPayload;
   rrMomData: RunRateComparisonPayload;
   rrYoyData: RunRateComparisonPayload;
 
-  // Section 2 & 3: MTD Forecast MoM & YoY
+  // MTD Forecast MoM & YoY
   momMtdData: MtdReportPayload;
   yoyMtdData: MtdReportPayload;
 
-  // Section 4 & 5: Weekly WoW Actual & Prorated
+  // Weekly WoW Actual & Prorated
   weeklyCurrentWeek: WeeklyMetricRow;
   weeklyRawWeek?: WeeklyMetricRow;
   weeklyHistory: WeeklyMetricRow[];
@@ -102,6 +104,7 @@ export function ExecutivePdfReportDocument({
   comparisonMonthLabel,
   yoyMonthLabel,
   asOfDateDisplay,
+  dailyRows = [],
   targetTrackingData,
   rrMomData,
   rrYoyData,
@@ -228,11 +231,31 @@ export function ExecutivePdfReportDocument({
       </PdfPage>
 
       {/* ==================================================================== */}
-      {/* PAGE 2: MTD GROWTH & FORECAST (MoM & YoY)                            */}
+      {/* PAGE 2: DAILY PERFORMANCE OVERVIEW (NEW)                             */}
       {/* ==================================================================== */}
       <PdfPage
         id="pdf-page-2"
         pageNo={2}
+        totalPages={PDF_TOTAL_PAGES}
+        badge="Daily Operational Synthesis"
+        subtitle="30-Day Trends & Multi-Window Comparisons"
+        title="Easy Gold Marketing performance — Daily Velocity"
+        asOfDate={asOfDateDisplay}
+        footerNote="Daily Operations & Velocity Overview"
+      >
+        <PdfDailyPerformancePage
+          dailyRows={dailyRows}
+          runRate={targetTrackingData}
+          asOfDate={asOfDateDisplay}
+        />
+      </PdfPage>
+
+      {/* ==================================================================== */}
+      {/* PAGE 3: MTD GROWTH & FORECAST (MoM & YoY)                            */}
+      {/* ==================================================================== */}
+      <PdfPage
+        id="pdf-page-3"
+        pageNo={3}
         totalPages={PDF_TOTAL_PAGES}
         badge="MTD Growth & Forecast"
         subtitle="Month-over-Month & Year-over-Year"
@@ -241,7 +264,7 @@ export function ExecutivePdfReportDocument({
         footerNote="MTD Performance & Forecast Synthesis"
       >
         <div className="space-y-4">
-          {/* Section 2: MTD MoM */}
+          {/* Section 3: MTD MoM */}
           <section className="report-section space-y-2">
             <PdfSectionTitle
               num={2}
@@ -250,7 +273,7 @@ export function ExecutivePdfReportDocument({
             <MtdActivityGrid data={momMtdData} />
           </section>
 
-          {/* Section 3: MTD YoY */}
+          {/* Section 4: MTD YoY */}
           <section className="report-section space-y-2">
             <PdfSectionTitle
               num={3}
@@ -262,11 +285,11 @@ export function ExecutivePdfReportDocument({
       </PdfPage>
 
       {/* ==================================================================== */}
-      {/* PAGE 3: WEEKLY PERFORMANCE ANALYSIS (ACTUAL & 7-DAY PRORATED)        */}
+      {/* PAGE 4: WEEKLY PERFORMANCE ANALYSIS (ACTUAL & 7-DAY PRORATED)        */}
       {/* ==================================================================== */}
       <PdfPage
-        id="pdf-page-3"
-        pageNo={3}
+        id="pdf-page-4"
+        pageNo={4}
         totalPages={PDF_TOTAL_PAGES}
         badge="Weekly Run-Rate Analysis"
         subtitle="Weekly Momentum & WoW Sparklines"
@@ -275,7 +298,7 @@ export function ExecutivePdfReportDocument({
         footerNote="Weekly Performance Synthesis"
       >
         <div className="space-y-5">
-          {/* Section 4: Weekly Report (Actual Backend Week) */}
+          {/* Section 5: Weekly Report (Actual Backend Week) */}
           <section className="report-section space-y-2.5">
             <PdfSectionTitle
               num={4}
@@ -310,7 +333,7 @@ export function ExecutivePdfReportDocument({
             </div>
           </section>
 
-          {/* Section 5: Weekly Report (7-Day Prorated Estimate) */}
+          {/* Section 6: Weekly Report (7-Day Prorated Estimate) */}
           <section className="report-section space-y-2.5">
             <PdfSectionTitle
               num={5}
@@ -348,11 +371,11 @@ export function ExecutivePdfReportDocument({
       </PdfPage>
 
       {/* ==================================================================== */}
-      {/* PAGE 4: INSTITUTIONAL MONTHLY RUN RATE (RR) TABLES MoM & YoY         */}
+      {/* PAGE 5: INSTITUTIONAL MONTHLY RUN RATE (RR) TABLES MoM & YoY         */}
       {/* ==================================================================== */}
       <PdfPage
-        id="pdf-page-4"
-        pageNo={4}
+        id="pdf-page-5"
+        pageNo={5}
         totalPages={PDF_TOTAL_PAGES}
         badge="Monthly Run-Rate Projections"
         subtitle="Financial Landing & Same-Period Comparisons"
@@ -361,7 +384,7 @@ export function ExecutivePdfReportDocument({
         footerNote="Monthly Projections & Same-Period Comparisons"
       >
         <div className="space-y-5">
-          {/* Section 6: Monthly RR Table MoM */}
+          {/* Section 7: Monthly RR Table MoM */}
           <section className="report-section space-y-2.5">
             <PdfSectionTitle
               num={6}
@@ -378,7 +401,7 @@ export function ExecutivePdfReportDocument({
             </div>
           </section>
 
-          {/* Section 7: Monthly RR Table YoY */}
+          {/* Section 8: Monthly RR Table YoY */}
           <section className="report-section space-y-2.5">
             <PdfSectionTitle
               num={7}
