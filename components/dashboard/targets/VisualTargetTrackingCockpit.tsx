@@ -20,11 +20,13 @@ interface VisualTargetTrackingCockpitProps {
   showEst?: boolean;
   /** Suppress internal header when embedded inside a section that already renders a header */
   hideHeader?: boolean;
+  /** Controls slot to combine month selector and cutoff slider into the same card border */
+  filterControls?: React.ReactNode;
 }
 
 const fmt = (n: number) => Math.round(n).toLocaleString();
 
-export function VisualTargetTrackingCockpit({ data, showEst = true, hideHeader = false }: VisualTargetTrackingCockpitProps) {
+export function VisualTargetTrackingCockpit({ data, showEst = true, hideHeader = false, filterControls }: VisualTargetTrackingCockpitProps) {
   const {
     current_month_label,
     display_as_of_date,
@@ -51,18 +53,31 @@ export function VisualTargetTrackingCockpit({ data, showEst = true, hideHeader =
   };
 
   return (
-    <div className="w-full space-y-4">
-      {/* Visual Cockpit Header */}
+    <div className="bg-white rounded-3xl border border-slate-300/90 shadow-xs p-4 sm:p-5 lg:p-6 space-y-4">
+      {/* Visual Cockpit Header with Unified Controls */}
       {!hideHeader && (
-        <div className="flex items-baseline justify-between pb-2 border-b border-slate-200">
-          <div>
-            <h2 className="text-xl sm:text-2xl font-black text-[#0c4ca3] tracking-tight">
-              {current_month_label}&apos;26 Performance - Vs Target
-            </h2>
-            <p className="text-xs text-slate-500 font-bold">
-              Data up to date {display_as_of_date}
-            </p>
+        <div className="space-y-3.5 pb-4 border-b border-slate-200">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-blue-50 text-[#0c4ca3] flex items-center justify-center border border-blue-200 shrink-0">
+                <TargetIcon className="w-5 h-5 font-black" />
+              </div>
+              <div>
+                <h2 className="text-xl sm:text-2xl font-black text-[#0c4ca3] tracking-tight">
+                  {current_month_label}&apos;26 Performance - Vs Target
+                </h2>
+                <p className="text-xs text-slate-500 font-bold">
+                  Data up to date {display_as_of_date}
+                </p>
+              </div>
+            </div>
           </div>
+
+          {filterControls && (
+            <div className="pt-2 border-t border-slate-100">
+              {filterControls}
+            </div>
+          )}
         </div>
       )}
 

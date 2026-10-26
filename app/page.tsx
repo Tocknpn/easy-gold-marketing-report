@@ -49,7 +49,8 @@ import {
   Maximize2,
   Minimize2,
   FileSpreadsheet,
-  FileText
+  FileText,
+  Menu
 } from 'lucide-react';
 
 import { DEFAULT_MTD_PAYLOAD } from '@/lib/constants/mtdData';
@@ -540,52 +541,221 @@ export default function DashboardPage() {
     <div className="min-h-screen bg-[#f3f5f9] text-slate-900 flex flex-col select-none">
       {/* Main Executive Report Content Area */}
       <div className="flex-1 flex flex-col p-3 sm:p-5 lg:p-6 overflow-x-hidden min-w-0">
-        {/* Tier 1: Brand Logo & Executive Controls Bar (Never wraps below tabs) */}
-        <header className="flex items-center justify-between pb-3.5 mb-3 border-b border-slate-200/90 gap-3 min-w-0">
-          {/* Left: Brand Identity */}
-          <div className="flex items-center gap-3 select-none shrink-0">
-            <div>
-              <div className="flex items-baseline gap-1 font-black leading-none">
-                <span className="text-xl sm:text-2xl text-brand-gold tracking-wider font-black">EASY</span>
-                <span className="text-xl sm:text-2xl text-brand-navy tracking-wider font-black">GOLD</span>
-              </div>
-              <div className="text-xs font-semibold text-slate-500 tracking-wider mt-0.5 uppercase">
-                by KHAMPHOUVONG
+        {/* Tier 1: Brand Logo & Executive Reporting Tabs & Sandwich Menu */}
+        <header className="flex flex-col xl:flex-row xl:items-center justify-between pb-3 mb-3.5 border-b border-slate-200/90 gap-3 min-w-0">
+          {/* Left & Center: Brand Identity + Integrated Navigation Tabs */}
+          <div className="flex items-center gap-3 sm:gap-4 min-w-0 flex-1 overflow-x-auto scrollbar-none">
+            {/* Brand Logo */}
+            <div className="flex items-center gap-3 select-none shrink-0">
+              <div>
+                <div className="flex items-baseline gap-1 font-black leading-none">
+                  <span className="text-xl sm:text-2xl text-brand-gold tracking-wider font-black">EASY</span>
+                  <span className="text-xl sm:text-2xl text-brand-navy tracking-wider font-black">GOLD</span>
+                </div>
+                <div className="text-[10px] font-semibold text-slate-500 tracking-wider mt-0.5 uppercase">
+                  by KHAMPHOUVONG
+                </div>
               </div>
             </div>
-            <div className="hidden md:block h-6 w-px bg-slate-200/90" />
-            <div className="hidden md:block">
-              <span className="text-xs font-bold text-slate-800 tracking-tight block">
-                Executive BI &amp; Marketing Intelligence
-              </span>
-              <span className="text-xs text-slate-500 block">
-                Real-Time Sales Operations &amp; Performance Analytics
-              </span>
-            </div>
+
+            <div className="hidden xl:block h-6 w-px bg-slate-200/90 shrink-0" />
+
+            {/* Reporting Navigation Tabs Bar */}
+            <nav aria-label="Reporting Views Navigation" className="min-w-0 flex-1 overflow-x-auto scrollbar-none">
+              <div
+                role="tablist"
+                aria-label="Executive Reporting Sections"
+                className="flex items-center bg-white p-1 rounded-xl border border-slate-300/80 shadow-xs flex-nowrap overflow-x-auto gap-1 scrollbar-none"
+              >
+                {/* 1. Business Target Tracking */}
+                <button
+                  role="tab"
+                  id="tab-targets"
+                  aria-selected={activeReportTab === 'targets'}
+                  aria-controls="panel-targets"
+                  tabIndex={activeReportTab === 'targets' ? 0 : -1}
+                  onClick={() => handleTabChange('targets')}
+                  onKeyDown={(e) => handleTabKeyDown(e, 'targets')}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-all cursor-pointer shrink-0 whitespace-nowrap focus:outline-hidden focus:ring-2 focus:ring-brand-navy ${
+                    activeReportTab === 'targets'
+                      ? 'bg-brand-navy text-white shadow-xs'
+                      : 'text-slate-700 hover:text-slate-900 hover:bg-slate-50'
+                  }`}
+                >
+                  <Target className="w-4 h-4 text-brand-gold" />
+                  <span>Business Target Tracking</span>
+                </button>
+
+                {/* 2. MTD Forecast */}
+                <button
+                  role="tab"
+                  id="tab-mtd"
+                  aria-selected={activeReportTab === 'mtd'}
+                  aria-controls="panel-mtd"
+                  tabIndex={activeReportTab === 'mtd' ? 0 : -1}
+                  onClick={() => handleTabChange('mtd')}
+                  onKeyDown={(e) => handleTabKeyDown(e, 'mtd')}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-all cursor-pointer shrink-0 whitespace-nowrap focus:outline-hidden focus:ring-2 focus:ring-brand-navy ${
+                    activeReportTab === 'mtd'
+                      ? 'bg-brand-navy text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                  }`}
+                >
+                  <TrendingUp className="w-4 h-4" />
+                  <span>MTD Forecast</span>
+                </button>
+
+                {/* 3. WoW Trends */}
+                <button
+                  role="tab"
+                  id="tab-weekly"
+                  aria-selected={activeReportTab === 'weekly'}
+                  aria-controls="panel-weekly"
+                  tabIndex={activeReportTab === 'weekly' ? 0 : -1}
+                  onClick={() => handleTabChange('weekly')}
+                  onKeyDown={(e) => handleTabKeyDown(e, 'weekly')}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-all cursor-pointer shrink-0 whitespace-nowrap focus:outline-hidden focus:ring-2 focus:ring-brand-navy ${
+                    activeReportTab === 'weekly'
+                      ? 'bg-brand-navy text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                  }`}
+                >
+                  <BarChart3 className="w-4 h-4" />
+                  <span>WoW Trends</span>
+                </button>
+
+                {/* 4. Daily Performance MKT */}
+                <button
+                  role="tab"
+                  id="tab-daily"
+                  aria-selected={false}
+                  aria-controls="panel-daily"
+                  tabIndex={-1}
+                  onClick={() => handleTabChange('daily')}
+                  onKeyDown={(e) => handleTabKeyDown(e, 'daily')}
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-all cursor-pointer shrink-0 whitespace-nowrap focus:outline-hidden focus:ring-2 focus:ring-brand-navy text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+                >
+                  <Activity className="w-4 h-4" />
+                  <span>Daily Performance MKT</span>
+                  <span className="px-1.5 py-0.5 rounded-md text-[10px] font-black bg-emerald-100 text-emerald-700 uppercase">New</span>
+                </button>
+
+                {/* 5. Campaign Tracking */}
+                <button
+                  role="tab"
+                  id="tab-campaign"
+                  aria-selected={activeReportTab === 'campaign'}
+                  aria-controls="panel-campaign"
+                  tabIndex={activeReportTab === 'campaign' ? 0 : -1}
+                  onClick={() => handleTabChange('campaign')}
+                  onKeyDown={(e) => handleTabKeyDown(e, 'campaign')}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-all cursor-pointer shrink-0 whitespace-nowrap focus:outline-hidden focus:ring-2 focus:ring-brand-navy ${
+                    activeReportTab === 'campaign'
+                      ? 'bg-brand-navy text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                  }`}
+                >
+                  <Target className="w-4 h-4" />
+                  <span>Campaign Tracking</span>
+                </button>
+
+                {/* 6. Dynamic BI */}
+                <button
+                  role="tab"
+                  id="tab-dynamic"
+                  aria-selected={activeReportTab === 'dynamic'}
+                  aria-controls="panel-dynamic"
+                  tabIndex={activeReportTab === 'dynamic' ? 0 : -1}
+                  onClick={() => handleTabChange('dynamic')}
+                  onKeyDown={(e) => handleTabKeyDown(e, 'dynamic')}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-all cursor-pointer shrink-0 whitespace-nowrap focus:outline-hidden focus:ring-2 focus:ring-brand-navy ${
+                    activeReportTab === 'dynamic'
+                      ? 'bg-brand-navy text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                  }`}
+                >
+                  <SlidersHorizontal className="w-4 h-4" />
+                  <span>Dynamic BI</span>
+                </button>
+
+                {/* 7. Custom Pivot Profile */}
+                <button
+                  role="tab"
+                  id="tab-pivot"
+                  aria-selected={activeReportTab === 'pivot'}
+                  aria-controls="panel-pivot"
+                  tabIndex={activeReportTab === 'pivot' ? 0 : -1}
+                  onClick={() => handleTabChange('pivot')}
+                  onKeyDown={(e) => handleTabKeyDown(e, 'pivot')}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-all cursor-pointer shrink-0 whitespace-nowrap focus:outline-hidden focus:ring-2 focus:ring-brand-navy ${
+                    activeReportTab === 'pivot'
+                      ? 'bg-brand-navy text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                  }`}
+                >
+                  <Table2 className="w-4 h-4" />
+                  <span>Custom Pivot Profile</span>
+                </button>
+              </div>
+            </nav>
           </div>
 
-          {/* Right Header Options Bar: Telemetry Popover + Profile */}
-          <div className="flex items-center gap-2 sm:gap-2.5 shrink-0 justify-end flex-wrap">
-            {/* Grouped Telemetry & System Diagnostics Popover */}
+          {/* Right: Sandwich Options Button (Menu) */}
+          <div className="flex items-center gap-2 shrink-0 justify-end self-end xl:self-center">
             <div className="relative" ref={telemetryPopoverRef}>
               <button
                 onClick={() => setIsTelemetryPopoverOpen((prev) => !prev)}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
+                className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
                   isTelemetryPopoverOpen
                     ? 'bg-slate-100 border-slate-400 text-slate-900 shadow-xs'
                     : 'bg-white border-slate-300 hover:border-slate-400 text-slate-700 shadow-xs hover:bg-slate-50'
                 }`}
-                title="System Health, Edge Cache & Data Freshness Diagnostics"
+                title="Account, Telemetry & Diagnostics Menu"
               >
                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
-                <span className="hidden sm:inline">Telemetry &amp; Audit</span>
+                <Menu className="w-4 h-4 text-slate-700 shrink-0" />
+                <div className="flex items-center gap-1.5 text-left">
+                  <span className="font-black text-slate-800 hidden sm:inline max-w-[100px] truncate">
+                    {currentUser ? (currentUser.full_name || currentUser.email.split('@')[0]) : 'Sign In'}
+                  </span>
+                  <span className="text-[9.5px] font-black px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 uppercase">
+                    {currentUser ? currentUser.role : 'Guest'}
+                  </span>
+                </div>
                 <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${isTelemetryPopoverOpen ? 'rotate-180' : ''}`} />
               </button>
 
-              {/* Popover Dropdown Panel */}
+              {/* Sandwich Popover Panel */}
               {isTelemetryPopoverOpen && (
                 <div className="absolute right-0 top-full mt-2 w-80 sm:w-88 bg-white border border-slate-200/95 rounded-2xl shadow-xl z-50 p-4 space-y-3.5 animate-in fade-in zoom-in-95 duration-150">
-                  <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                  {/* User Profile Header Card */}
+                  <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-9 h-9 rounded-xl bg-brand-navy text-brand-gold font-black text-sm flex items-center justify-center shrink-0">
+                        {currentUser ? currentUser.email.charAt(0).toUpperCase() : 'U'}
+                      </div>
+                      <div>
+                        <span className="block text-xs font-black text-slate-900 leading-tight">
+                          {currentUser ? (currentUser.full_name || currentUser.email.split('@')[0]) : 'Guest User'}
+                        </span>
+                        <span className="block text-[11px] text-slate-500 truncate max-w-[160px]">
+                          {currentUser ? currentUser.email : 'Not signed in'}
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setIsTelemetryPopoverOpen(false);
+                        setIsAuthModalOpen(true);
+                      }}
+                      className="px-2.5 py-1 rounded-lg border border-slate-200 hover:bg-slate-50 text-[11px] font-bold text-slate-700 transition-all cursor-pointer"
+                    >
+                      {currentUser ? 'Switch / Profile' : 'Sign In'}
+                    </button>
+                  </div>
+
+                  {/* System Telemetry & Freshness */}
+                  <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <div className="w-6 h-6 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold">
                         <Activity className="w-3.5 h-3.5" />
@@ -599,7 +769,7 @@ export default function DashboardPage() {
 
                   {/* Freshness Badge Inside Popover */}
                   <div>
-                    <label className="text-xs font-bold text-slate-500 block mb-1.5 uppercase tracking-wider">
+                    <label className="text-[10px] font-black text-slate-500 block mb-1 uppercase tracking-wider">
                       Data Currency &amp; Cache
                     </label>
                     <FreshnessBadge
@@ -612,20 +782,20 @@ export default function DashboardPage() {
                   {/* Architecture Stats */}
                   <div className="grid grid-cols-2 gap-2 text-xs bg-slate-50 p-2.5 rounded-xl border border-slate-200/80 font-mono tabular-nums">
                     <div>
-                      <span className="text-slate-500 block text-xs font-sans">Query Architecture</span>
-                      <span className="font-bold text-slate-900">Dual-Tier Fast-Path</span>
+                      <span className="text-slate-500 block text-[10px] font-sans font-bold">Query Architecture</span>
+                      <span className="font-bold text-slate-900 text-xs">Dual-Tier Fast-Path</span>
                     </div>
                     <div>
-                      <span className="text-slate-500 block text-xs font-sans">Row Capacity</span>
-                      <span className="font-bold text-slate-900">1.4M+ Rows (Indexed)</span>
+                      <span className="text-slate-500 block text-[10px] font-sans font-bold">Row Capacity</span>
+                      <span className="font-bold text-slate-900 text-xs">1.4M+ Rows (Indexed)</span>
                     </div>
                     <div>
-                      <span className="text-slate-500 block text-xs font-sans">Edge POPs</span>
-                      <span className="font-bold text-emerald-700">Cloudflare 300+</span>
+                      <span className="text-slate-500 block text-[10px] font-sans font-bold">Edge POPs</span>
+                      <span className="font-bold text-emerald-700 text-xs">Cloudflare 300+</span>
                     </div>
                     <div>
-                      <span className="text-slate-500 block text-xs font-sans">DB Latency</span>
-                      <span className="font-bold text-slate-900">&lt; 10ms RPC</span>
+                      <span className="text-slate-500 block text-[10px] font-sans font-bold">DB Latency</span>
+                      <span className="font-bold text-slate-900 text-xs">&lt; 10ms RPC</span>
                     </div>
                   </div>
 
@@ -678,31 +848,28 @@ export default function DashboardPage() {
                 </div>
               )}
             </div>
-
-            {/* User Account / Profile Badge button */}
-            <button
-              onClick={() => setIsAuthModalOpen(true)}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white border border-slate-300 hover:border-slate-400 text-slate-700 shadow-xs transition-all hover:bg-slate-50 cursor-pointer"
-              title="Manage Account & Reporting Profiles"
-            >
-              <div className="w-6 h-6 rounded-lg bg-brand-navy text-brand-gold font-black text-xs flex items-center justify-center">
-                {currentUser ? currentUser.email.charAt(0).toUpperCase() : 'U'}
-              </div>
-              <div className="text-left hidden sm:block">
-                <span className="block text-xs font-bold text-slate-800 leading-tight truncate max-w-[120px]">
-                  {currentUser ? (currentUser.full_name || currentUser.email.split('@')[0]) : 'Sign In'}
-                </span>
-                <span className="block text-xs font-bold text-emerald-600 uppercase tracking-tight leading-tight">
-                  {currentUser ? currentUser.role : 'Guest Mode'}
-                </span>
-              </div>
-            </button>
           </div>
         </header>
 
-        {/* Quick Brief Top line performance: only showing on Business Target (homepage) */}
+        {/* Weekly Summary Error Notice with Retry */}
+        {weeklyError && (
+          <div className="mb-3.5 p-3.5 rounded-2xl bg-amber-50 border border-amber-300 text-amber-900 text-xs flex items-center justify-between gap-3 shadow-xs">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+              <span>{weeklyError}</span>
+            </div>
+            <button
+              onClick={() => fetchWeeklySummary()}
+              className="px-3 py-1.5 rounded-xl bg-brand-navy text-white font-bold hover:bg-brand-navyDark transition-all shrink-0 cursor-pointer shadow-xs"
+            >
+              Retry Weekly
+            </button>
+          </div>
+        )}
+
+        {/* TAB 0: MONTHLY RUN-RATE & 2026 TARGET TRACKING */}
         {activeReportTab === 'targets' && (
-          <div className="mb-3.5">
+          <div role="tabpanel" id="panel-targets" aria-labelledby="tab-targets" tabIndex={0} className="focus:outline-hidden space-y-4">
             <ExecutivePulseBanner
               targetMonthLabel={targetPacingStats.monthLabel}
               targetPacePct={targetPacingStats.avgPace}
@@ -721,167 +888,6 @@ export default function DashboardPage() {
               isPartialWeek={activeWeeklyMetrics?.isPartial ?? true}
               onNavigateTab={(tab) => handleTabChange(tab)}
             />
-          </div>
-        )}
-
-        {/* Weekly Summary Error Notice with Retry */}
-        {weeklyError && (
-          <div className="mb-3.5 p-3.5 rounded-2xl bg-amber-50 border border-amber-300 text-amber-900 text-xs flex items-center justify-between gap-3 shadow-xs">
-            <div className="flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
-              <span>{weeklyError}</span>
-            </div>
-            <button
-              onClick={() => fetchWeeklySummary()}
-              className="px-3 py-1.5 rounded-xl bg-brand-navy text-white font-bold hover:bg-brand-navyDark transition-all shrink-0 cursor-pointer shadow-xs"
-            >
-              Retry Weekly
-            </button>
-          </div>
-        )}
-
-        {/* Tier 2: Executive Navigation Tabs Bar (Accessible, Scrollable on Mobile <400px) */}
-        <nav aria-label="Reporting Views Navigation" className="mb-4">
-          <div
-            role="tablist"
-            aria-label="Executive Reporting Sections"
-            className="flex items-center bg-white p-1 rounded-xl border border-slate-300/80 shadow-xs flex-nowrap overflow-x-auto max-w-full gap-1 scrollbar-none"
-          >
-            {/* 1. Business Target Tracking */}
-            <button
-              role="tab"
-              id="tab-targets"
-              aria-selected={activeReportTab === 'targets'}
-              aria-controls="panel-targets"
-              tabIndex={activeReportTab === 'targets' ? 0 : -1}
-              onClick={() => handleTabChange('targets')}
-              onKeyDown={(e) => handleTabKeyDown(e, 'targets')}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-all cursor-pointer shrink-0 whitespace-nowrap focus:outline-hidden focus:ring-2 focus:ring-brand-navy ${
-                activeReportTab === 'targets'
-                  ? 'bg-brand-navy text-white shadow-xs'
-                  : 'text-slate-700 hover:text-slate-900 hover:bg-slate-50'
-              }`}
-            >
-              <Target className="w-4 h-4 text-brand-gold" />
-              <span>Business Target Tracking</span>
-            </button>
-
-            {/* 2. MTD Forecast */}
-            <button
-              role="tab"
-              id="tab-mtd"
-              aria-selected={activeReportTab === 'mtd'}
-              aria-controls="panel-mtd"
-              tabIndex={activeReportTab === 'mtd' ? 0 : -1}
-              onClick={() => handleTabChange('mtd')}
-              onKeyDown={(e) => handleTabKeyDown(e, 'mtd')}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-all cursor-pointer shrink-0 whitespace-nowrap focus:outline-hidden focus:ring-2 focus:ring-brand-navy ${
-                activeReportTab === 'mtd'
-                  ? 'bg-brand-navy text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-              }`}
-            >
-              <TrendingUp className="w-4 h-4" />
-              <span>MTD Forecast</span>
-            </button>
-
-            {/* 3. WoW Trends */}
-            <button
-              role="tab"
-              id="tab-weekly"
-              aria-selected={activeReportTab === 'weekly'}
-              aria-controls="panel-weekly"
-              tabIndex={activeReportTab === 'weekly' ? 0 : -1}
-              onClick={() => handleTabChange('weekly')}
-              onKeyDown={(e) => handleTabKeyDown(e, 'weekly')}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-all cursor-pointer shrink-0 whitespace-nowrap focus:outline-hidden focus:ring-2 focus:ring-brand-navy ${
-                activeReportTab === 'weekly'
-                  ? 'bg-brand-navy text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-              }`}
-            >
-              <BarChart3 className="w-4 h-4" />
-              <span>WoW Trends</span>
-            </button>
-
-            {/* 4. Daily Performance MKT */}
-            <button
-              role="tab"
-              id="tab-daily"
-              aria-selected={false}
-              aria-controls="panel-daily"
-              tabIndex={-1}
-              onClick={() => handleTabChange('daily')}
-              onKeyDown={(e) => handleTabKeyDown(e, 'daily')}
-              className="flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-all cursor-pointer shrink-0 whitespace-nowrap focus:outline-hidden focus:ring-2 focus:ring-brand-navy text-slate-600 hover:text-slate-900 hover:bg-slate-50"
-            >
-              <Activity className="w-4 h-4" />
-              <span>Daily Performance MKT</span>
-              <span className="px-1.5 py-0.5 rounded-md text-[10px] font-black bg-emerald-100 text-emerald-700 uppercase">New</span>
-            </button>
-
-            {/* 5. Campaign Tracking */}
-            <button
-              role="tab"
-              id="tab-campaign"
-              aria-selected={activeReportTab === 'campaign'}
-              aria-controls="panel-campaign"
-              tabIndex={activeReportTab === 'campaign' ? 0 : -1}
-              onClick={() => handleTabChange('campaign')}
-              onKeyDown={(e) => handleTabKeyDown(e, 'campaign')}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-all cursor-pointer shrink-0 whitespace-nowrap focus:outline-hidden focus:ring-2 focus:ring-brand-navy ${
-                activeReportTab === 'campaign'
-                  ? 'bg-brand-navy text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-              }`}
-            >
-              <Target className="w-4 h-4" />
-              <span>Campaign Tracking</span>
-            </button>
-
-            {/* 6. Dynamic BI */}
-            <button
-              role="tab"
-              id="tab-dynamic"
-              aria-selected={activeReportTab === 'dynamic'}
-              aria-controls="panel-dynamic"
-              tabIndex={activeReportTab === 'dynamic' ? 0 : -1}
-              onClick={() => handleTabChange('dynamic')}
-              onKeyDown={(e) => handleTabKeyDown(e, 'dynamic')}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-all cursor-pointer shrink-0 whitespace-nowrap focus:outline-hidden focus:ring-2 focus:ring-brand-navy ${
-                activeReportTab === 'dynamic'
-                  ? 'bg-brand-navy text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-              }`}
-            >
-              <SlidersHorizontal className="w-4 h-4" />
-              <span>Dynamic BI</span>
-            </button>
-
-            {/* 7. Custom Pivot Profile */}
-            <button
-              role="tab"
-              id="tab-pivot"
-              aria-selected={activeReportTab === 'pivot'}
-              aria-controls="panel-pivot"
-              tabIndex={activeReportTab === 'pivot' ? 0 : -1}
-              onClick={() => handleTabChange('pivot')}
-              onKeyDown={(e) => handleTabKeyDown(e, 'pivot')}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-all cursor-pointer shrink-0 whitespace-nowrap focus:outline-hidden focus:ring-2 focus:ring-brand-navy ${
-                activeReportTab === 'pivot'
-                  ? 'bg-brand-navy text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-              }`}
-            >
-              <Table2 className="w-4 h-4" />
-              <span>Custom Pivot Profile</span>
-            </button>
-          </div>
-        </nav>
-
-        {/* TAB 0: MONTHLY RUN-RATE & 2026 TARGET TRACKING */}
-        {activeReportTab === 'targets' && (
-          <div role="tabpanel" id="panel-targets" aria-labelledby="tab-targets" tabIndex={0} className="focus:outline-hidden">
             <TargetReportView />
           </div>
         )}

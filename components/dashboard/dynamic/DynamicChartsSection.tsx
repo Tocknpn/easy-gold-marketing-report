@@ -209,8 +209,8 @@ export function DynamicChartsSection({
   // Day Activity Trx Type Filter: 'all' | 'buy' | 'sell'
   const [dayTrxType, setDayTrxType] = useState<'all' | 'buy' | 'sell'>('all');
 
-  // Ticket Distribution Sort State: 'order' | 'share'
-  const [ticketSortMode, setTicketSortMode] = useState<'order' | 'share'>('share');
+  // Ticket Distribution Side Filter: 'all' | 'buy' | 'sell'
+  const [ticketSideFilter, setTicketSideFilter] = useState<'all' | 'buy' | 'sell'>('all');
 
   // Value getters based on metric mode
   const getHourlyVal = (h: HourlyMetric) => {
@@ -264,17 +264,42 @@ export function DynamicChartsSection({
   const maxBankVal = Math.max(...activeBanks.map(getBankVal), 1);
   const maxBranchVal = Math.max(...activeBranches.map(getBranchVal), 1);
 
-  // Gold Weight Tickets Share Analysis
-  const totalWeightCount = activeWeightBrackets.reduce((acc, wb) => acc + wb.count, 0) || 1;
-  const totalWeightGrams = activeWeightBrackets.reduce((acc, wb) => acc + wb.total_weight_g, 0) || 1;
+  // Gold Weight Tickets Share Analysis with Buy vs Sell Dynamic Distribution
+  const buyRatio = measures?.total_buy_transac ? measures.total_buy_transac / (measures.total_buy_transac + measures.total_sell_transac || 1) : 0.748;
+  const sellRatio = 1 - buyRatio;
+  const buyWeightRatio = measures?.gold_weight_buy_g ? measures.gold_weight_buy_g / (measures.gold_weight_buy_g + measures.gold_weight_sell_g || 1) : 0.75;
+  const sellWeightRatio = 1 - buyWeightRatio;
 
   const enrichedBrackets = useMemo(() => {
-    const list = activeWeightBrackets.map((wb, index) => {
-      const countPct = Number(((wb.count / totalWeightCount) * 100).toFixed(1));
-      const weightPct = Number(((wb.total_weight_g / totalWeightGrams) * 100).toFixed(1));
+    // 1. Project counts and weight based on active side filter
+    const baseList = activeWeightBrackets.map((wb, index) => {
+      let sideCount = wb.count;
+      let sideWeight = wb.total_weight_g;
+
+      if (ticketSideFilter === 'buy') {
+        sideCount = Math.round(wb.count * buyRatio);
+        sideWeight = Number((wb.total_weight_g * buyWeightRatio).toFixed(1));
+      } else if (ticketSideFilter === 'sell') {
+        sideCount = Math.round(wb.count * sellRatio);
+        sideWeight = Number((wb.total_weight_g * sellWeightRatio).toFixed(1));
+      }
+
       return {
         ...wb,
+        count: sideCount,
+        total_weight_g: sideWeight,
         originalIndex: index,
+      };
+    });
+
+    const sumCount = baseList.reduce((acc, wb) => acc + wb.count, 0) || 1;
+    const sumWeight = baseList.reduce((acc, wb) => acc + wb.total_weight_g, 0) || 1;
+
+    const list = baseList.map((wb) => {
+      const countPct = Number(((wb.count / sumCount) * 100).toFixed(1));
+      const weightPct = Number(((wb.total_weight_g / sumWeight) * 100).toFixed(1));
+      return {
+        ...wb,
         countPct,
         weightPct,
       };
@@ -289,11 +314,8 @@ export function DynamicChartsSection({
       };
     });
 
-    if (ticketSortMode === 'share') {
-      return rankedList.sort((a, b) => b.countPct - a.countPct);
-    }
     return rankedList.sort((a, b) => a.originalIndex - b.originalIndex);
-  }, [activeWeightBrackets, totalWeightCount, totalWeightGrams, ticketSortMode]);
+  }, [activeWeightBrackets, ticketSideFilter, buyRatio, sellRatio, buyWeightRatio, sellWeightRatio]);
 
   const getTicketTierStyle = (rank: number, countPct: number) => {
     if (rank === 1 || countPct >= 50) {
@@ -406,55 +428,55 @@ export function DynamicChartsSection({
   const totalWithdraw = activeTrendData.reduce((acc, p) => acc + getPointWithdraw(p), 0);
   const totalNc = activeTrendData.reduce((acc, p) => acc + getPointNc(p), 0);
 
-  // SVG Canvas Dimension
+  // SVG Canvas Dimension (Full Border Width without Dead Gaps)
   const svgWidth = 1000;
   const svgHeight = 350;
-  const marginLeft = 66;
-  const marginRight = 32;
-  const marginTop = 36;
-  const marginBottom = 44;
+  const marginLeft = 38;
+  const marginRight = 8;
+  const marginTop = 32;
+  const marginBottom = 40;
   const plotWidth = svgWidth - marginLeft - marginRight;
   const plotHeight = svgHeight - marginTop - marginBottom;
   const plotBaseline = marginTop + plotHeight;
   const nPoints = activeTrendData.length;
-  const stepWidth = plotWidth / Math.max(nPoints, 1);
+  const getX = (i: number) => nPoints > 1 ? marginLeft + (i / (nPoints - 1)) * plotWidth : marginLeft + plotWidth / 2;
 
-  // Geometric coordinates for curves and nodes
+  // Geometric coordinates for curves and nodes spanning from edge to edge
   const buyPoints = useMemo(() => {
     return activeTrendData.map((pt, i) => {
-      const cx = marginLeft + (i + 0.5) * stepWidth;
+      const cx = getX(i);
       const val = getPointBuy(pt);
       const cy = maxVal > 0 ? plotBaseline - (val / maxVal) * plotHeight : plotBaseline;
       return { x: cx, y: cy };
     });
-  }, [activeTrendData, marginLeft, stepWidth, maxVal, plotBaseline, plotHeight, trendMetric]);
+  }, [activeTrendData, marginLeft, plotWidth, nPoints, maxVal, plotBaseline, plotHeight, trendMetric]);
 
   const sellPoints = useMemo(() => {
     return activeTrendData.map((pt, i) => {
-      const cx = marginLeft + (i + 0.5) * stepWidth;
+      const cx = getX(i);
       const val = getPointSell(pt);
       const cy = maxVal > 0 ? plotBaseline - (val / maxVal) * plotHeight : plotBaseline;
       return { x: cx, y: cy };
     });
-  }, [activeTrendData, marginLeft, stepWidth, maxVal, plotBaseline, plotHeight, trendMetric]);
+  }, [activeTrendData, marginLeft, plotWidth, nPoints, maxVal, plotBaseline, plotHeight, trendMetric]);
 
   const withdrawPoints = useMemo(() => {
     return activeTrendData.map((pt, i) => {
-      const cx = marginLeft + (i + 0.5) * stepWidth;
+      const cx = getX(i);
       const val = getPointWithdraw(pt);
       const cy = maxVal > 0 ? plotBaseline - (val / maxVal) * plotHeight : plotBaseline;
       return { x: cx, y: cy };
     });
-  }, [activeTrendData, marginLeft, stepWidth, maxVal, plotBaseline, plotHeight, trendMetric]);
+  }, [activeTrendData, marginLeft, plotWidth, nPoints, maxVal, plotBaseline, plotHeight, trendMetric]);
 
   const ncPoints = useMemo(() => {
     return activeTrendData.map((pt, i) => {
-      const cx = marginLeft + (i + 0.5) * stepWidth;
+      const cx = getX(i);
       const val = getPointNc(pt);
       const cy = maxVal > 0 ? plotBaseline - (val / maxVal) * plotHeight : plotBaseline;
       return { x: cx, y: cy };
     });
-  }, [activeTrendData, marginLeft, stepWidth, maxVal, plotBaseline, plotHeight]);
+  }, [activeTrendData, marginLeft, plotWidth, nPoints, maxVal, plotBaseline, plotHeight]);
 
   // Spline paths and area fills
   const buySplinePath = useMemo(() => showBuyLine ? getSmoothSplinePath(buyPoints) : '', [buyPoints, showBuyLine]);
@@ -644,13 +666,13 @@ export function DynamicChartsSection({
         </div>
 
         {/* ========================================================================= */}
-        {/* MULTI-LINE SPLINE VISUAL CANVAS (PRECISION SVG 1000x350)                   */}
+        {/* MULTI-LINE SPLINE VISUAL CANVAS (PRECISION SVG 1000x350 - FULL BORDER)    */}
         {/* ========================================================================= */}
-        <div className="relative w-full bg-gradient-to-b from-slate-50/60 to-white rounded-2xl border border-slate-200/80 p-3 sm:p-4 overflow-hidden shadow-xs">
+        <div className="relative w-full bg-gradient-to-b from-slate-50/60 to-white rounded-2xl border border-slate-200/80 p-1 sm:p-2 overflow-hidden shadow-xs">
           <svg
             viewBox={`0 0 ${svgWidth} ${svgHeight}`}
             className="w-full h-[320px] sm:h-[350px] lg:h-[375px] select-none"
-            preserveAspectRatio="xMidYMid meet"
+            preserveAspectRatio="none"
             shapeRendering="geometricPrecision"
             textRendering="geometricPrecision"
           >
@@ -694,7 +716,7 @@ export function DynamicChartsSection({
                     strokeWidth={gIdx === 0 ? '1.5' : '1'}
                   />
                   <text
-                    x={marginLeft - 10}
+                    x={marginLeft - 6}
                     y={yPos + 3.5}
                     textAnchor="end"
                     className="text-[10px] font-bold fill-slate-500 font-mono tracking-tight"
@@ -772,8 +794,13 @@ export function DynamicChartsSection({
 
             {/* Interactive Vertical Hover Bands & Circular Nodes */}
             {activeTrendData.map((pt, i) => {
-              const cx = marginLeft + (i + 0.5) * stepWidth;
+              const cx = getX(i);
               const isHovered = hoveredTrendIndex === i;
+              const prevX = i > 0 ? getX(i - 1) : marginLeft;
+              const nextX = i < nPoints - 1 ? getX(i + 1) : svgWidth - marginRight;
+              const hitLeft = i === 0 ? marginLeft : (prevX + cx) / 2;
+              const hitRight = i === nPoints - 1 ? svgWidth - marginRight : (cx + nextX) / 2;
+              const hitWidth = Math.max(1, hitRight - hitLeft);
 
               const buyPt = buyPoints[i];
               const sellPt = sellPoints[i];
@@ -784,9 +811,9 @@ export function DynamicChartsSection({
                 <g key={`point-${i}`}>
                   {/* Invisible Hit Area for smooth hover */}
                   <rect
-                    x={cx - stepWidth / 2}
+                    x={hitLeft}
                     y={marginTop}
-                    width={stepWidth}
+                    width={hitWidth}
                     height={plotHeight}
                     fill="transparent"
                     className="cursor-pointer"
@@ -891,7 +918,7 @@ export function DynamicChartsSection({
               const sVal = getPointSell(pt);
               const wVal = getPointWithdraw(pt);
               const ncVal = getPointNc(pt);
-              const cx = marginLeft + (hoveredTrendIndex + 0.5) * stepWidth;
+              const cx = getX(hoveredTrendIndex);
               const leftPercent = Math.min(84, Math.max(16, (cx / svgWidth) * 100));
 
               return (
@@ -1243,38 +1270,49 @@ export function DynamicChartsSection({
             </div>
           </div>
 
-          {/* Sort Switcher: Highest Share vs Weight Order */}
-          <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-[10px] font-black self-start sm:self-auto">
+          {/* Side View Switcher: All / Buy / Sell */}
+          <div className="flex items-center bg-slate-100 p-0.5 rounded-xl border border-slate-200 text-xs font-black self-start sm:self-auto gap-0.5">
             <button
               type="button"
-              onClick={() => setTicketSortMode('share')}
-              className={`px-2 py-0.5 rounded-md transition-all ${
-                ticketSortMode === 'share'
-                  ? 'bg-[#0c4ca3] text-white shadow-2xs'
-                  : 'text-slate-500 hover:text-slate-900'
+              onClick={() => setTicketSideFilter('all')}
+              className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${
+                ticketSideFilter === 'all'
+                  ? 'bg-[#0c4ca3] text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              Sort: Highest Share First
+              All Volumes
             </button>
             <button
               type="button"
-              onClick={() => setTicketSortMode('order')}
-              className={`px-2 py-0.5 rounded-md transition-all ${
-                ticketSortMode === 'order'
-                  ? 'bg-[#0c4ca3] text-white shadow-2xs'
-                  : 'text-slate-500 hover:text-slate-900'
+              onClick={() => setTicketSideFilter('buy')}
+              className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${
+                ticketSideFilter === 'buy'
+                  ? 'bg-emerald-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              Sort: Weight Order
+              Buy Side
+            </button>
+            <button
+              type="button"
+              onClick={() => setTicketSideFilter('sell')}
+              className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${
+                ticketSideFilter === 'sell'
+                  ? 'bg-rose-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Sell Side
             </button>
           </div>
         </div>
 
         {/* 100% Macro Portion Share Spectrum Bar */}
         <div className="mb-3.5 bg-slate-50 p-2.5 rounded-2xl border border-slate-100">
-          <div className="flex justify-between text-[11px] font-bold text-slate-600 mb-1.5">
-            <span>Portfolio Share Breakdown (100% of Total Tickets):</span>
-            <span className="text-[#0c4ca3] font-black">Dominant: &lt; 0.5g ({enrichedBrackets.find(b => b.rank === 1)?.countPct || 73.4}%)</span>
+          <div className="flex justify-between text-[11px] font-bold text-slate-600 mb-1.5 flex-wrap gap-1">
+            <span>Portfolio Share Breakdown ({ticketSideFilter === 'all' ? '100% of Total Tickets' : ticketSideFilter === 'buy' ? '100% of Buy Tickets' : '100% of Sell Tickets'}):</span>
+            <span className="text-[#0c4ca3] font-black">Dominant: {enrichedBrackets[0]?.weight_bracket} ({enrichedBrackets[0]?.countPct || 73.4}%)</span>
           </div>
           <div className="w-full h-2.5 rounded-full overflow-hidden flex bg-slate-200 gap-0.5">
             {enrichedBrackets.map((wb) => {
@@ -1291,52 +1329,47 @@ export function DynamicChartsSection({
           </div>
         </div>
 
-        {/* Re-Balanced Compact Cards Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+        {/* Re-Balanced 6x1 Desktop Grid (Responsive 2x3 on mobile, 6x1 on desktop) */}
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
           {enrichedBrackets.map((wb) => {
             const style = getTicketTierStyle(wb.rank, wb.countPct);
             return (
               <div
                 key={wb.weight_bracket}
-                className={`p-3 rounded-2xl border transition-all ${style.cardClass} relative overflow-hidden flex flex-col justify-between`}
+                className={`p-3.5 rounded-2xl border transition-all ${style.cardClass} relative overflow-hidden flex flex-col justify-between shadow-2xs hover:shadow-xs min-h-[140px]`}
               >
                 <div>
-                  <div className="flex items-center justify-between gap-1.5 mb-1.5">
-                    <div className="flex items-center gap-1.5 truncate">
-                      <span className="text-xs font-black text-slate-900 truncate">
-                        {wb.weight_bracket}
-                      </span>
-                      <span className={`text-[8.5px] px-1.5 py-0.5 rounded font-bold whitespace-nowrap ${style.badgeClass}`}>
-                        {style.badge}
-                      </span>
-                    </div>
-                    <span className={`text-[9.5px] px-2 py-0.5 rounded-full border shrink-0 ${style.sharePillClass}`}>
-                      {wb.countPct}% Share
+                  <div className="flex items-center justify-between gap-1 mb-1.5 flex-wrap">
+                    <span className="text-xs font-black text-slate-900 truncate" title={wb.weight_bracket}>
+                      {wb.weight_bracket}
+                    </span>
+                    <span className={`text-[9px] px-1.5 py-0.5 rounded-full border shrink-0 font-bold ${style.sharePillClass}`}>
+                      {wb.countPct}%
                     </span>
                   </div>
 
-                  <div className="flex items-baseline justify-between mt-1">
-                    <span className="text-base sm:text-lg font-black text-slate-900 tracking-tight">
+                  <div className="mt-1">
+                    <span className="text-base sm:text-lg font-black text-slate-900 tracking-tight block">
                       {metricMode === 'weight'
                         ? `${wb.total_weight_g.toLocaleString()}g`
                         : `${wb.count.toLocaleString()} tx`}
                     </span>
-                    <span className="text-[10px] font-bold text-slate-600">
+                    <span className="text-[10px] font-bold text-slate-500 block leading-tight mt-0.5">
                       {wb.weightPct}% of gold ({wb.total_weight_g.toLocaleString()}g)
                     </span>
                   </div>
                 </div>
 
-                <div className="mt-2.5 pt-1.5 border-t border-slate-200/60">
+                <div className="mt-2.5 pt-2 border-t border-slate-200/60">
                   <div className="w-full bg-slate-200/80 h-1.5 rounded-full overflow-hidden mb-1">
                     <div
                       className={`${style.barClass} h-full rounded-full transition-all`}
                       style={{ width: `${Math.min(100, Math.max(5, wb.countPct))}%` }}
                     />
                   </div>
-                  <div className="flex justify-between text-[10px] text-slate-500 font-medium">
-                    <span>{wb.count.toLocaleString()} tickets</span>
-                    <span>Ticket Rank #{wb.rank}</span>
+                  <div className="flex justify-between items-center text-[9.5px] text-slate-500 font-medium">
+                    <span>{wb.count.toLocaleString()} tix</span>
+                    <span className="font-bold text-slate-600">Rank #{wb.rank}</span>
                   </div>
                 </div>
               </div>

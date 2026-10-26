@@ -56,6 +56,8 @@ interface DynamicFilterBarProps {
   onExportCsv?: () => void;
   isExporting?: boolean;
   hasExecuted?: boolean;
+  isComparingPoP?: boolean;
+  onToggleComparingPoP?: () => void;
 }
 
 export function DynamicFilterBar({
@@ -67,6 +69,8 @@ export function DynamicFilterBar({
   onExportCsv,
   isExporting,
   hasExecuted,
+  isComparingPoP,
+  onToggleComparingPoP,
 }: DynamicFilterBarProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [activeDropdown, setActiveDropdown] = useState<'banks' | 'branches' | 'txTypes' | null>(null);
@@ -335,9 +339,24 @@ export function DynamicFilterBar({
             </span>
           )}
 
+          {onToggleComparingPoP && (
+            <button
+              type="button"
+              onClick={onToggleComparingPoP}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black border transition-all cursor-pointer ${
+                isComparingPoP
+                  ? 'bg-emerald-700 text-white border-emerald-800 shadow-xs'
+                  : 'bg-white text-emerald-800 border-emerald-300 hover:bg-emerald-50'
+              }`}
+              title="Toggle Period-over-Period (PoP) comparison deltas"
+            >
+              <span>{isComparingPoP ? '⚡ PoP: ON' : 'Compare vs Prior Period'}</span>
+            </button>
+          )}
+
           <button
             onClick={() => setIsExpanded(!isExpanded)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border border-slate-300 text-slate-700 hover:bg-slate-50 transition-all"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border border-slate-300 text-slate-700 hover:bg-slate-50 transition-all cursor-pointer"
           >
             <Filter className="w-3.5 h-3.5 text-[#0c4ca3]" />
             <span>{isExpanded ? 'Hide Slicers' : 'Advanced Slicers'}</span>

@@ -23,8 +23,8 @@ const getDayCap = (month: number, latestCapMonth: number = 10, latestCapDay: num
   month === latestCapMonth ? latestCapDay : getDaysInMonth(year, month);
 
 const selectClass =
-  'w-full bg-slate-50 border border-slate-300 rounded-xl px-2.5 py-1.5 text-xs font-black text-slate-800 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-500';
-const labelClass = 'text-[10px] font-black uppercase text-slate-500 tracking-wider';
+  'w-full bg-slate-50 border border-slate-300 hover:border-slate-400 rounded-xl px-3 py-2 text-sm font-black text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#0c4ca3] transition-all cursor-pointer shadow-2xs';
+const labelClass = 'text-xs font-black uppercase text-slate-600 tracking-wider';
 
 interface CutoffSliderProps {
   month: number;
@@ -43,24 +43,24 @@ function CutoffSlider({ month, day, onChange, timeGonePct, latestCapDay, latestC
   const quick = [11, 15, 19].filter((d) => d < cap);
 
   return (
-    <div className="flex flex-col gap-1 sm:col-span-2">
-      <div className="flex items-center justify-between">
+    <div className="flex flex-col gap-1.5 sm:col-span-2">
+      <div className="flex items-center justify-between flex-wrap gap-1">
         <label className={labelClass}>
-          As-Of Cutoff Day (Elapsed: {day} / {total} days = {timeGonePct}%)
+          As-Of Cutoff Day (Elapsed: <span className="text-slate-900 font-black">{day} / {total} days</span> = <span className="text-[#0c4ca3] font-black">{timeGonePct}%</span>)
         </label>
-        <div className="flex items-center gap-1 text-[10px] font-bold">
+        <div className="flex items-center gap-1.5 text-xs font-bold">
           {quick.map((d) => (
             <button
               key={d}
               onClick={() => onChange(d)}
-              className={`px-1.5 py-0.5 rounded ${day === d ? 'bg-[#0c4ca3] text-white' : 'bg-slate-100 text-slate-700'}`}
+              className={`px-2 py-0.5 rounded-lg transition-all cursor-pointer ${day === d ? 'bg-[#0c4ca3] text-white shadow-xs' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'}`}
             >
               Day {d}
             </button>
           ))}
           <button
             onClick={() => onChange(cap)}
-            className={`px-1.5 py-0.5 rounded ${day === cap ? 'bg-[#0c4ca3] text-white' : 'bg-slate-100 text-slate-700'}`}
+            className={`px-2.5 py-0.5 rounded-lg transition-all cursor-pointer ${day === cap ? 'bg-[#0c4ca3] text-white shadow-xs' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'}`}
           >
             {isCurrent ? `Latest (D${cap})` : 'Full Month'}
           </button>
@@ -73,9 +73,9 @@ function CutoffSlider({ month, day, onChange, timeGonePct, latestCapDay, latestC
           max={cap}
           value={day}
           onChange={(e) => onChange(Math.min(cap, parseInt(e.target.value, 10)))}
-          className="w-full accent-[#0c4ca3] cursor-pointer"
+          className="w-full accent-[#0c4ca3] cursor-pointer h-2 bg-slate-200 rounded-lg"
         />
-        <span className="font-mono font-black text-xs text-[#0c4ca3] w-8 text-right shrink-0">
+        <span className="font-mono font-black text-xs text-[#0c4ca3] px-2 py-0.5 rounded-lg bg-blue-50 border border-blue-200 shrink-0">
           D{day}
         </span>
       </div>
@@ -228,42 +228,40 @@ export function TargetReportView() {
 
 
       {/* ==================================================================== */}
-      {/* SECTION 1: TARGET TRACKING                                           */}
+      {/* SECTION 1: TARGET TRACKING (UNIFIED IN SINGLE CARD BORDER)           */}
       {/* ==================================================================== */}
       <section className="space-y-3">
-        <div className="bg-white rounded-2xl border border-slate-300/80 shadow-xs p-3.5 sm:p-4 space-y-3">
-          <div className="flex items-center gap-2 text-sm font-black text-slate-900">
-            <TargetIcon className="w-4 h-4 text-[#0c4ca3]" />
-            <span>Target Tracking</span>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-slate-100">
-            <div className="flex flex-col gap-1">
-              <label className={labelClass}>Month (2026)</label>
-              <select
-                value={tgtMonth}
-                onChange={(e) => handleTgtMonth(parseInt(e.target.value, 10))}
-                className={selectClass}
-              >
-                {selectableMonths.map((m) => (
-                  <option key={`tgt-${m.name}`} value={m.value}>
-                    {m.name} 2026
-                  </option>
-                ))}
-              </select>
+        <VisualTargetTrackingCockpit
+          data={tgtData}
+          showEst={showEst}
+          filterControls={
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 items-end">
+              <div className="flex flex-col gap-1.5">
+                <label className={labelClass}>Select Month (2026)</label>
+                <select
+                  value={tgtMonth}
+                  onChange={(e) => handleTgtMonth(parseInt(e.target.value, 10))}
+                  className={selectClass}
+                >
+                  {selectableMonths.map((m) => (
+                    <option key={`tgt-${m.name}`} value={m.value}>
+                      {m.name} 2026
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <CutoffSlider
+                month={tgtMonth}
+                day={tgtDay}
+                onChange={setTgtDay}
+                timeGonePct={tgtData.time_gone_pct}
+                latestCapDay={latestDay}
+                latestCapMonth={latestMonth}
+                year={currentYear}
+              />
             </div>
-            <CutoffSlider
-              month={tgtMonth}
-              day={tgtDay}
-              onChange={setTgtDay}
-              timeGonePct={tgtData.time_gone_pct}
-              latestCapDay={latestDay}
-              latestCapMonth={latestMonth}
-              year={currentYear}
-            />
-          </div>
-        </div>
-
-        <VisualTargetTrackingCockpit data={tgtData} showEst={showEst} />
+          }
+        />
       </section>
 
       {/* ==================================================================== */}

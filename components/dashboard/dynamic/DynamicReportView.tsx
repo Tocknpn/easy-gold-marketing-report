@@ -141,6 +141,8 @@ export function DynamicReportView() {
         onExportCsv={handleExportCsv}
         isExporting={isExporting}
         hasExecuted={hasExecuted}
+        isComparingPoP={isComparingPoP}
+        onToggleComparingPoP={() => setIsComparingPoP(!isComparingPoP)}
       />
 
       {/* 2. Content: Error State OR Empty State OR Live Results */}
@@ -187,44 +189,6 @@ export function DynamicReportView() {
         </div>
       ) : (
         <div className="space-y-4 animate-in fade-in duration-200">
-          {/* Live Execution Feedback Badge with PoP Toggle & Export */}
-          <div className="flex items-center justify-between bg-emerald-50/80 border border-emerald-200 rounded-2xl px-4 py-2.5 text-xs text-emerald-900 font-medium flex-wrap gap-2">
-            <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-              <span>
-                <strong>Live Supabase Dynamic Aggregation:</strong> Window: <strong>{filters.startDate} to {filters.endDate}</strong> | Status: <strong>{filters.status}</strong>
-              </span>
-            </div>
-            <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
-              {/* Period over Period (PoP) Toggle */}
-              <button
-                onClick={() => setIsComparingPoP(!isComparingPoP)}
-                className={`text-xs font-black px-2.5 py-1 rounded-lg border transition-all cursor-pointer flex items-center gap-1 ${
-                  isComparingPoP 
-                    ? 'bg-emerald-700 text-white border-emerald-800 shadow-2xs' 
-                    : 'bg-white text-emerald-800 border-emerald-300 hover:bg-emerald-100'
-                }`}
-                title="Toggle Period-over-Period (PoP) comparison deltas"
-              >
-                <span>{isComparingPoP ? '⚡ PoP Comparison: ON' : 'Compare vs Prior Period'}</span>
-              </button>
-
-              <button
-                onClick={handleExportCsv}
-                disabled={isExporting}
-                className="flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-black bg-brand-gold hover:bg-brand-goldDark text-slate-950 shadow-xs transition-all cursor-pointer font-sans"
-                title="Export report data to CSV"
-              >
-                <FileSpreadsheet className="w-3.5 h-3.5 text-slate-950" />
-                <span>{isExporting ? 'Exporting...' : 'Export CSV'}</span>
-              </button>
-
-              <span className="text-emerald-700 text-[11px] hidden sm:inline">Computed at {executionTimestamp}</span>
-            </div>
-          </div>
-
-
-
           {/* 2. Executive KPI Ribbon (Platform, Buy, Sell, Withdraw, Pricing & Stats) */}
           <DynamicKpiRibbon measures={reportData.dax_measures} isComparingPoP={isComparingPoP} />
 
