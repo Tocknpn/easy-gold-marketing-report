@@ -301,19 +301,14 @@ export function ReportingPdfModal({
           width: 1440,
           height: 1018,
           windowWidth: 1440,
-          windowHeight: 1018,
           onclone: (clonedDoc) => {
             const style = clonedDoc.createElement('style');
             style.textContent = `
               *, *::before, *::after {
                 animation: none !important;
                 transition: none !important;
-                letter-spacing: normal !important;
                 -webkit-font-smoothing: antialiased !important;
                 text-rendering: geometricPrecision !important;
-              }
-              body, div, span, p, h1, h2, h3, h4, header, section, footer {
-                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
               }
               .pdf-page-container {
                 box-shadow: none !important;
@@ -326,7 +321,7 @@ export function ReportingPdfModal({
                 display: inline-block;
                 overflow: visible !important;
               }
-              /* Prevent sparkline chart text clipping */
+              /* Prevent chart text clipping */
               svg text {
                 overflow: visible !important;
               }

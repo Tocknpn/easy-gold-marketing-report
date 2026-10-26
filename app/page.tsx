@@ -258,6 +258,11 @@ export default function DashboardPage() {
         resolvedTab = storedTab;
       }
 
+      const isPdfRequested = searchParams.get('pdf_modal') === '1' || searchParams.get('export') === 'pdf';
+      if (isPdfRequested) {
+        setIsReportingPdfModalOpen(true);
+      }
+
       setActiveReportTab(resolvedTab);
 
       // Keep URL clean and synchronized

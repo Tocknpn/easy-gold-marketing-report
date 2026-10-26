@@ -278,7 +278,7 @@ export function PdfDailyPerformancePage({
 
         {/* Compact Target Tracking Table */}
         <div className="flex-1 min-h-0 flex flex-col justify-between py-1">
-          <div className="grid grid-cols-[1.5fr_1.1fr_1.5fr_0.9fr_0.9fr] gap-x-1.5 pb-1 text-[8.5px] font-black uppercase tracking-wider text-slate-400 border-b border-slate-100">
+          <div className="grid grid-cols-[1.6fr_1.2fr_1.6fr_1fr_1fr] gap-x-2 pb-1.5 text-[9px] font-black uppercase tracking-wider text-slate-400 border-b border-slate-100">
             <span>Metric</span>
             <span className="text-right">This Month</span>
             <span>Hit So Far</span>
@@ -286,7 +286,7 @@ export function PdfDailyPerformancePage({
             <span className="text-center">YTD Hit</span>
           </div>
 
-          <div className="space-y-1">
+          <div className="space-y-1.5">
             {mt.metrics.map((m) => {
               const y = ytd.metrics.find((q) => q.id === m.id);
               const c = hitColor(m.est_target_hit_pct);
@@ -294,7 +294,7 @@ export function PdfDailyPerformancePage({
               return (
                 <div
                   key={m.id}
-                  className="grid grid-cols-[1.5fr_1.1fr_1.5fr_0.9fr_0.9fr] gap-x-1.5 items-center rounded-lg px-1 py-0.5 odd:bg-slate-50 text-[10px]"
+                  className="grid grid-cols-[1.6fr_1.2fr_1.6fr_1fr_1fr] gap-x-2 items-center rounded-lg px-1.5 py-1 odd:bg-slate-50 text-[10.5px]"
                 >
                   <div className="font-bold text-slate-800 truncate">
                     {targetMetricNames[m.id] ?? m.label}
@@ -302,15 +302,15 @@ export function PdfDailyPerformancePage({
 
                   <div className="text-right tabular-nums leading-tight">
                     <span className="font-black text-slate-900">{fmtInt(m.actual)}</span>
-                    <span className="text-[8px] text-slate-400 block">/ {fmtInt(m.target)}</span>
+                    <span className="text-[8.5px] text-slate-400 block">/ {fmtInt(m.target)}</span>
                   </div>
 
                   {/* Progress Bar with Benchmark */}
-                  <div className="relative h-3.5 rounded-full bg-slate-100 overflow-hidden">
+                  <div className="relative h-4 rounded-full bg-slate-100 overflow-hidden">
                     <div
-                      className="h-full rounded-full flex items-center justify-end pr-1 text-[8px] font-black text-white"
+                      className="h-full rounded-full flex items-center justify-end pr-1.5 text-[8.5px] font-black text-white"
                       style={{
-                        width: `${Math.min(100, Math.max(14, m.current_pct))}%`,
+                        width: `${Math.min(100, Math.max(22, m.current_pct))}%`,
                         background: c,
                       }}
                     >
@@ -324,12 +324,12 @@ export function PdfDailyPerformancePage({
 
                   <div className="text-center leading-tight font-black" style={{ color: c }}>
                     {m.est_target_hit_pct}%
-                    <span className="text-[7.5px] block font-bold">{hitLabel(m.est_target_hit_pct)}</span>
+                    <span className="text-[8px] block font-bold">{hitLabel(m.est_target_hit_pct)}</span>
                   </div>
 
                   <div className="text-center leading-tight font-black" style={{ color: yc }}>
                     {y ? `${y.current_pct}%` : '–'}
-                    <span className="text-[7.5px] block text-slate-400 font-semibold">
+                    <span className="text-[8px] block text-slate-400 font-semibold">
                       {y ? `Est ${y.est_year_end_pct}%` : ''}
                     </span>
                   </div>

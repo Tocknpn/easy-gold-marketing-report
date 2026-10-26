@@ -235,24 +235,27 @@ export function ExecutivePulseBanner({
             </span>
             <ChevronRight className="w-3.5 h-3.5 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
           </div>
-          <div className="flex items-baseline justify-between mt-1">
-            <div className="flex items-baseline gap-1.5">
-              <span className="text-xl sm:text-2xl font-black font-sans tabular-nums text-slate-900 tracking-tight">
-                {weeklyVolumeBaht.toLocaleString()} Baht
+          <div className="flex items-baseline justify-between mt-1 flex-wrap gap-1">
+            <div className="flex items-baseline gap-1">
+              <span className="text-lg sm:text-xl font-black font-sans tabular-nums text-slate-900 tracking-tight">
+                {weeklyVolumeBaht.toLocaleString()}
               </span>
-              <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-md border ${
+              <span className="text-xs font-bold text-slate-500">Baht</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <span className={`text-[9.5px] font-black px-1.5 py-0.5 rounded-md border ${
                 isWeeklyPositive 
                   ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
                   : 'bg-slate-100 text-slate-700 border-slate-300'
               }`}>
                 {isWeeklyPositive ? `+${weeklyWoWVariance}%` : `${weeklyWoWVariance}%`} WoW
               </span>
+              {isPartialWeek && (
+                <span className="text-[9px] font-black font-mono text-amber-600 bg-amber-50 border border-amber-200 px-1 py-0.5 rounded">
+                  Partial
+                </span>
+              )}
             </div>
-            {isPartialWeek && (
-              <span className="text-[9.5px] font-black font-mono text-amber-600 bg-amber-50 border border-amber-200 px-1 py-0.5 rounded">
-                Partial
-              </span>
-            )}
           </div>
           <p className="text-[10.5px] text-slate-600 font-medium mt-1.5 line-clamp-1">
             Retail buy activity accounts for volume

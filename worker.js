@@ -1874,6 +1874,32 @@ async function handleCronTrigger(env, forceRun = false) {
       ? s.target_emails.split(',').map((e) => e.trim()).filter(Boolean)
       : ['management@easygold.la'];
 
+    // 1. If GITHUB_PAT configured, trigger GitHub Action to generate vector PDF via headless Chromium
+    const ghRepo = env.GITHUB_REPO || 'Tocknpn/easy-gold-marketing-report';
+    if (env.GITHUB_PAT) {
+      try {
+        const ghRes = await fetch(`https://api.github.com/repos/${ghRepo}/actions/workflows/daily-bi-report.yml/dispatches`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${env.GITHUB_PAT}`,
+            Accept: 'application/vnd.github.v3+json',
+            'User-Agent': 'Easy-Gold-Cloudflare-Worker',
+          },
+          body: JSON.stringify({ ref: 'main', inputs: { force: String(forceRun) } }),
+        });
+        if (ghRes.ok) {
+          return {
+            triggered: true,
+            method: 'github_actions_chromium',
+            reportDate: todayDate,
+            message: 'Dispatched automated Chromium workflow with vector PDF attachment',
+          };
+        }
+      } catch (ghErr) {
+        console.warn('GitHub Action trigger failed, using direct gateway fallback:', ghErr);
+      }
+    }
+
     const dispatchResult = await executeEmailDispatch({
       env,
       recipientList: emailList,

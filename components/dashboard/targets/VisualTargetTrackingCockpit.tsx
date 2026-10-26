@@ -113,11 +113,11 @@ export function VisualTargetTrackingCockpit({ data, showEst = true, hideHeader =
                     </div>
 
                     {/* Metric Label */}
-                    <div className="w-28 sm:w-32 shrink-0 leading-tight">
+                    <div className="w-36 sm:w-40 shrink-0 leading-tight">
                       <span className="text-xs font-bold text-slate-800 line-clamp-1 block">
                         {metric.label}
                       </span>
-                      <span className="text-[9px] font-mono font-medium text-slate-500 block">
+                      <span className="text-[9.5px] font-mono font-medium text-slate-500 block">
                         {fmt(metric.actual)} / {fmt(metric.target)}
                       </span>
                     </div>
@@ -253,11 +253,11 @@ export function VisualTargetTrackingCockpit({ data, showEst = true, hideHeader =
                     </div>
 
                     {/* Metric Label */}
-                    <div className="w-28 sm:w-32 shrink-0 leading-tight">
+                    <div className="w-36 sm:w-40 shrink-0 leading-tight">
                       <span className="text-xs font-bold text-slate-800 line-clamp-1 block">
                         {metric.label}
                       </span>
-                      <span className="text-[9px] font-mono font-medium text-slate-500 block">
+                      <span className="text-[9.5px] font-mono font-medium text-slate-500 block">
                         {fmt(metric.ytd_actual)} / {fmt(metric.ytd_target)}
                       </span>
                     </div>

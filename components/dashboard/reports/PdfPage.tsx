@@ -96,20 +96,9 @@ export function PdfPage({
         </div>
       </header>
 
-      {/* Page Body (auto-fit, uniform scale only — never distorts) */}
-      <div ref={bodyRef} className="flex-1 min-h-0 overflow-hidden">
-        <div
-          ref={innerRef}
-          style={
-            fit < 1
-              ? {
-                  transform: `scale(${fit})`,
-                  transformOrigin: 'top left',
-                  width: `${100 / fit}%`,
-                }
-              : undefined
-          }
-        >
+      {/* Page Body (natural, crisp 1:1 unscaled layout) */}
+      <div ref={bodyRef} className="flex-1 min-h-0 flex flex-col justify-between overflow-hidden">
+        <div ref={innerRef} className="w-full flex-1 min-h-0 flex flex-col justify-between">
           {children}
         </div>
       </div>
