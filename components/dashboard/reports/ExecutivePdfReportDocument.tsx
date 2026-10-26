@@ -187,13 +187,10 @@ export function ExecutivePdfReportDocument({
         id="pdf-page-1"
         pageNo={1}
         totalPages={PDF_TOTAL_PAGES}
-        badge="Official BI Synthesis"
-        subtitle="Executive Briefing & Targets"
         title="Easy Gold Marketing performance"
         asOfDate={asOfDateDisplay}
-        footerNote="Official Executive Synthesis"
       >
-        <div className="space-y-5">
+        <div className="space-y-3.5">
           {/* Executive Pulse Banner */}
           <div className="report-section">
             <ExecutivePulseBanner
@@ -216,32 +213,22 @@ export function ExecutivePdfReportDocument({
             />
           </div>
 
-          {/* Section 1: Performance Vs Target Cockpit */}
-          <section className="report-section space-y-2.5">
-            <PdfSectionTitle
-              num={1}
-              title={`${currentMonthLabel} Performance - Vs Target`}
-              subtitle="(Current Month MTD target Hit + YTD target Hit)"
-            />
-            <div className="bg-slate-50/50 p-2.5 rounded-xl border border-slate-200/90">
-              <VisualTargetTrackingCockpit data={targetTrackingData} showEst={true} hideHeader={true} />
-            </div>
+          {/* Section 1: Performance Vs Target Cockpit with native header */}
+          <section className="report-section">
+            <VisualTargetTrackingCockpit data={targetTrackingData} showEst={true} hideHeader={false} />
           </section>
         </div>
       </PdfPage>
 
       {/* ==================================================================== */}
-      {/* PAGE 2: DAILY PERFORMANCE OVERVIEW (NEW)                             */}
+      {/* PAGE 2: DAILY PERFORMANCE OVERVIEW                                   */}
       {/* ==================================================================== */}
       <PdfPage
         id="pdf-page-2"
         pageNo={2}
         totalPages={PDF_TOTAL_PAGES}
-        badge="Daily Operational Synthesis"
-        subtitle="30-Day Trends & Multi-Window Comparisons"
         title="Easy Gold Marketing performance — Daily Velocity"
         asOfDate={asOfDateDisplay}
-        footerNote="Daily Operations & Velocity Overview"
       >
         <PdfDailyPerformancePage
           dailyRows={dailyRows}
@@ -257,14 +244,11 @@ export function ExecutivePdfReportDocument({
         id="pdf-page-3"
         pageNo={3}
         totalPages={PDF_TOTAL_PAGES}
-        badge="MTD Growth & Forecast"
-        subtitle="Month-over-Month & Year-over-Year"
         title="Easy Gold Marketing performance — MTD Forecast"
         asOfDate={asOfDateDisplay}
-        footerNote="MTD Performance & Forecast Synthesis"
       >
         <div className="space-y-4">
-          {/* Section 3: MTD MoM */}
+          {/* Section 2: MTD MoM */}
           <section className="report-section space-y-2">
             <PdfSectionTitle
               num={2}
@@ -273,7 +257,7 @@ export function ExecutivePdfReportDocument({
             <MtdActivityGrid data={momMtdData} />
           </section>
 
-          {/* Section 4: MTD YoY */}
+          {/* Section 3: MTD YoY */}
           <section className="report-section space-y-2">
             <PdfSectionTitle
               num={3}
@@ -291,21 +275,18 @@ export function ExecutivePdfReportDocument({
         id="pdf-page-4"
         pageNo={4}
         totalPages={PDF_TOTAL_PAGES}
-        badge="Weekly Run-Rate Analysis"
-        subtitle="Weekly Momentum & WoW Sparklines"
         title="Easy Gold Marketing performance — Weekly Velocity"
         asOfDate={asOfDateDisplay}
-        footerNote="Weekly Performance Synthesis"
       >
-        <div className="space-y-5">
-          {/* Section 5: Weekly Report (Actual Backend Week) */}
-          <section className="report-section space-y-2.5">
+        <div className="space-y-4">
+          {/* Section 4: Weekly Report (Actual Backend Week) */}
+          <section className="report-section space-y-2">
             <PdfSectionTitle
               num={4}
               title={`Weekly report of ${selectedWeekLabel} (${elapsedDays} day${elapsedDays > 1 ? 's' : ''} gone)`}
               subtitle="Current week actuals recorded in database (clean 5-week sparklines)"
             />
-            <div className="grid grid-cols-3 gap-3.5 w-full items-stretch">
+            <div className="grid grid-cols-3 gap-4 w-full items-stretch">
               <div className="w-full flex flex-col">
                 <PlatformOverviewSection
                   currentWeek={weeklyRawWeek || weeklyCurrentWeek}
@@ -333,14 +314,14 @@ export function ExecutivePdfReportDocument({
             </div>
           </section>
 
-          {/* Section 6: Weekly Report (7-Day Prorated Estimate) */}
-          <section className="report-section space-y-2.5">
+          {/* Section 5: Weekly Report (7-Day Prorated Estimate) */}
+          <section className="report-section space-y-2">
             <PdfSectionTitle
               num={5}
               title={`Weekly report of ${selectedWeekLabel} (7-Day Prorated Estimate)`}
               subtitle="Paced 7-day run-rate estimate equalized for apples-to-apples comparison against past full weeks"
             />
-            <div className="grid grid-cols-3 gap-3.5 w-full items-stretch">
+            <div className="grid grid-cols-3 gap-4 w-full items-stretch">
               <div className="w-full flex flex-col">
                 <PlatformOverviewSection
                   currentWeek={weeklyCurrentWeek}
@@ -377,21 +358,18 @@ export function ExecutivePdfReportDocument({
         id="pdf-page-5"
         pageNo={5}
         totalPages={PDF_TOTAL_PAGES}
-        badge="Monthly Run-Rate Projections"
-        subtitle="Financial Landing & Same-Period Comparisons"
         title="Easy Gold Marketing performance — Monthly RR Tables"
         asOfDate={asOfDateDisplay}
-        footerNote="Monthly Projections & Same-Period Comparisons"
       >
-        <div className="space-y-5">
-          {/* Section 7: Monthly RR Table MoM */}
-          <section className="report-section space-y-2.5">
+        <div className="space-y-4">
+          {/* Section 6: Monthly RR Table MoM */}
+          <section className="report-section space-y-2">
             <PdfSectionTitle
               num={6}
               title={`Monthly RR Table ${currentMonthLabel} vs ${comparisonMonthLabel}`}
               subtitle="Projected Landing & Same-Period Cutoff MoM Comparison"
             />
-            <div className="bg-slate-50/40 p-2 rounded-xl border border-slate-200">
+            <div className="bg-slate-50/40 p-2.5 rounded-xl border border-slate-200">
               <ClassicRunRateTables 
                 data={rrMomData} 
                 curYear={currentYear}
@@ -401,14 +379,14 @@ export function ExecutivePdfReportDocument({
             </div>
           </section>
 
-          {/* Section 8: Monthly RR Table YoY */}
-          <section className="report-section space-y-2.5">
+          {/* Section 7: Monthly RR Table YoY */}
+          <section className="report-section space-y-2">
             <PdfSectionTitle
               num={7}
               title={`Monthly RR Table ${currentMonthLabel} vs ${yoyMonthLabel}`}
               subtitle={`Year-over-Year (YoY) Full Landing & Same-Period Comparison against ${currentYear - 1}`}
             />
-            <div className="bg-slate-50/40 p-2 rounded-xl border border-slate-200">
+            <div className="bg-slate-50/40 p-2.5 rounded-xl border border-slate-200">
               <ClassicRunRateTables 
                 data={rrYoyData} 
                 curYear={currentYear}
@@ -420,11 +398,11 @@ export function ExecutivePdfReportDocument({
         </div>
       </PdfPage>
 
-      {/* Pure High-Definition Landscape Print Stylesheet */}
+      {/* Pure High-Definition 16:9 Widescreen Presentation Print Stylesheet */}
       <style jsx global>{`
         @media print {
           @page {
-            size: A4 landscape;
+            size: 1920px 1080px;
             margin: 0;
           }
           body {
@@ -446,7 +424,7 @@ export function ExecutivePdfReportDocument({
             position: absolute !important;
             left: 0 !important;
             top: 0 !important;
-            width: 100% !important;
+            width: 1920px !important;
             padding: 0 !important;
             margin: 0 !important;
             overflow: visible !important;
@@ -456,11 +434,11 @@ export function ExecutivePdfReportDocument({
             padding: 0 !important;
             margin: 0 !important;
           }
-          /* Each page is laid out at 1440 x 1018px; zoom maps it onto 297mm (1123px @96dpi) */
+          /* 16:9 Presentation Slide Canvas (1920 x 1080px) */
           .pdf-page-container {
-            width: 1440px !important;
-            height: 1018px !important;
-            zoom: 0.78;
+            width: 1920px !important;
+            height: 1080px !important;
+            zoom: 1 !important;
             page-break-after: always !important;
             break-after: page !important;
             page-break-inside: avoid !important;

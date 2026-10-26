@@ -92,7 +92,7 @@ async function main() {
   let pdfBase64 = null;
   try {
     const page = await browser.newPage();
-    await page.setViewport({ width: 1440, height: 1018, deviceScaleFactor: 2 });
+    await page.setViewport({ width: 1920, height: 1080, deviceScaleFactor: 2 });
     
     console.log(`[*] Navigating to ${TARGET_URL}...`);
     await page.goto(TARGET_URL, { waitUntil: 'networkidle0', timeout: 60000 });
@@ -102,10 +102,10 @@ async function main() {
     // Allow SVG animations, fonts, and render cycles to settle
     await new Promise(r => setTimeout(r, 2000));
 
-    console.log('[*] Generating native A4 landscape vector PDF...');
+    console.log('[*] Generating native 16:9 widescreen presentation vector PDF...');
     const pdfBuffer = await page.pdf({
-      format: 'A4',
-      landscape: true,
+      width: '1920px',
+      height: '1080px',
       printBackground: true,
       margin: { top: 0, right: 0, bottom: 0, left: 0 },
       preferCSSPageSize: true

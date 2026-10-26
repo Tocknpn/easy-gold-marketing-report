@@ -250,7 +250,7 @@ export function ReportingPdfModal({
         previewContainer.style.position = 'fixed';
         previewContainer.style.top = '0px';
         previewContainer.style.left = '0px';
-        previewContainer.style.width = '1440px';
+        previewContainer.style.width = '1920px';
         previewContainer.style.padding = '0px';
         previewContainer.style.zIndex = '-9999';
         previewContainer.style.opacity = '1';
@@ -268,16 +268,16 @@ export function ReportingPdfModal({
       const html2canvas = (await import('html2canvas')).default;
       const { jsPDF } = await import('jspdf');
 
-      // Initialize jsPDF in A4 Landscape (297mm x 210mm)
+      // Initialize jsPDF in 16:9 Widescreen Presentation Slide format (338.67mm x 190.5mm)
       const pdf = new jsPDF({
         orientation: 'landscape',
         unit: 'mm',
-        format: 'a4',
+        format: [338.67, 190.5],
         compress: true,
       });
 
-      const pdfWidth = pdf.internal.pageSize.getWidth(); // 297mm
-      const pdfHeight = pdf.internal.pageSize.getHeight(); // 210mm
+      const pdfWidth = pdf.internal.pageSize.getWidth(); // 338.67mm
+      const pdfHeight = pdf.internal.pageSize.getHeight(); // 190.5mm
 
       // Dynamically discover all pdf pages via data-pdf-page attribute
       const pageElements = Array.from(document.querySelectorAll<HTMLElement>('[data-pdf-page]'));
@@ -289,18 +289,18 @@ export function ReportingPdfModal({
         const pageElem = pageElements[i];
 
         if (i > 0) {
-          pdf.addPage('a4', 'landscape');
+          pdf.addPage([338.67, 190.5], 'landscape');
         }
 
-        // Render at high-definition scale (scale 2.0 = crisp vector-like clarity)
+        // Render at high-definition scale (scale 2.0 = crisp vector-like clarity @ 3840x2160)
         const canvas = await html2canvas(pageElem, {
           scale: 2.0,
           useCORS: true,
           logging: false,
           backgroundColor: '#ffffff',
-          width: 1440,
-          height: 1018,
-          windowWidth: 1440,
+          width: 1920,
+          height: 1080,
+          windowWidth: 1920,
           onclone: (clonedDoc) => {
             const style = clonedDoc.createElement('style');
             style.textContent = `
@@ -341,7 +341,7 @@ export function ReportingPdfModal({
         const offsetX = (pdfWidth - renderWidth) / 2;
         const offsetY = (pdfHeight - renderHeight) / 2;
 
-        const imgData = canvas.toDataURL('image/jpeg', 0.93);
+        const imgData = canvas.toDataURL('image/jpeg', 0.96);
         pdf.addImage(imgData, 'JPEG', offsetX, offsetY, renderWidth, renderHeight, undefined, 'FAST');
       }
 
