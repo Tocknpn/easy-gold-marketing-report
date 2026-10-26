@@ -7,17 +7,39 @@ import { DailyMetricRow } from '@/lib/constants/targetData';
 export type LiveStatus = 'loading' | 'live' | 'polling' | 'error';
 
 const POLL_MS = 5 * 60 * 1000;
-const PAGE = 1000; // PostgREST default max rows per request
+const PAGE = 1000;
+const CACHE_KEY = 'easy_gold_summary_daily_metrics_cache';
+let memoryRowsCache: DailyMetricRow[] = [];
+
+function getInitialRows(): DailyMetricRow[] {
+  if (memoryRowsCache.length > 0) return memoryRowsCache;
+  if (typeof window !== 'undefined') {
+    try {
+      const stored = localStorage.getItem(CACHE_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          memoryRowsCache = parsed;
+          return parsed;
+        }
+      }
+    } catch {
+      // ignore JSON errors
+    }
+  }
+  return [];
+}
 
 /**
  * Loads summary_daily_metrics and keeps it fresh:
+ *  - Instant hydration from memory / localStorage cache (0ms waiting screen)
  *  - Supabase Realtime (needs sql/47_enable_realtime_daily_metrics.sql)
  *  - 5 minute polling fallback, so the wall screen never goes stale
  */
 export function useLiveDailyMetrics() {
-  const [rows, setRows] = useState<DailyMetricRow[]>([]);
-  const [status, setStatus] = useState<LiveStatus>('loading');
-  const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
+  const [rows, setRows] = useState<DailyMetricRow[]>(getInitialRows);
+  const [status, setStatus] = useState<LiveStatus>(() => (memoryRowsCache.length > 0 ? 'live' : 'loading'));
+  const [updatedAt, setUpdatedAt] = useState<Date | null>(() => (memoryRowsCache.length > 0 ? new Date() : null));
   const realtimeOk = useRef(false);
   const reloadTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -37,15 +59,23 @@ export function useLiveDailyMetrics() {
         if (data.length < PAGE) break;
       }
       if (all.length > 0) {
+        memoryRowsCache = all;
         setRows(all);
         setUpdatedAt(new Date());
         setStatus(realtimeOk.current ? 'live' : 'polling');
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem(CACHE_KEY, JSON.stringify(all));
+          } catch {
+            // ignore storage quota errors
+          }
+        }
       } else {
-        setStatus('error');
+        setStatus((prev) => (memoryRowsCache.length > 0 ? prev : 'error'));
       }
     } catch (e) {
       console.warn('Daily Performance: failed to load summary_daily_metrics', e);
-      setStatus((prev) => (prev === 'loading' ? 'error' : prev));
+      setStatus((prev) => (memoryRowsCache.length > 0 ? prev : 'error'));
     }
   }, []);
 

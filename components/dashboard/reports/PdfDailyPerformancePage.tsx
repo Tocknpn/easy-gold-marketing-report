@@ -116,7 +116,7 @@ export function PdfDailyPerformancePage({
     { id: 'sell_weight_g', label: 'Sell Weight (Baht)', div: 15 },
     { id: 'sell_transactions', label: 'Sell Transactions', div: 1 },
     { id: 'new_customer', label: 'New Register', div: 1 },
-    { id: 'withdraw_refund', label: 'Withdraw + Refund', div: 1 },
+    { id: 'withdraw_15g', label: 'Withdraw (15g)', div: 1 },
     { id: 'total_transactions', label: 'Total Transactions', div: 1 },
   ]
     .map((t) => {

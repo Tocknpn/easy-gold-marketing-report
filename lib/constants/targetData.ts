@@ -210,6 +210,7 @@ export function calculateRunRateComparison(
   let cur_buy_tx: number;
   let cur_sell_tx: number;
   let cur_with_ref: number;
+  let cur_withdraw_15g: number = 0;
   let cur_tot_tx: number;
   let cur_nc: number;
 
@@ -220,6 +221,7 @@ export function calculateRunRateComparison(
   let comp_same_buy_tx: number;
   let comp_same_sell_tx: number;
   let comp_same_with_ref: number;
+  let comp_same_withdraw_15g: number = 0;
   let comp_same_tot_tx: number;
   let comp_same_nc: number;
 
@@ -230,6 +232,7 @@ export function calculateRunRateComparison(
   let comp_full_buy_tx: number;
   let comp_full_sell_tx: number;
   let comp_full_with_ref: number;
+  let comp_full_withdraw_15g: number = 0;
   let comp_full_tot_tx: number;
   let comp_full_nc: number;
 
@@ -248,7 +251,7 @@ export function calculateRunRateComparison(
     const compFullCutStr = `${compYear}-${pad(compMonth)}-${pad(totalDaysCompMonth)}`;
 
     const sumSubset = (predicate: (r: DailyMetricRow) => boolean) => {
-      let b_tx = 0, s_tx = 0, n_c = 0, t_tx = 0, w_ref = 0;
+      let b_tx = 0, s_tx = 0, n_c = 0, t_tx = 0, w_ref = 0, w_15 = 0;
       let b_wt = 0, s_wt = 0, b_val = 0, s_val = 0;
 
       for (const r of dailyRows) {
@@ -260,6 +263,9 @@ export function calculateRunRateComparison(
         const wr = r.withdraw_refund_trans !== undefined && Number(r.withdraw_refund_trans) > 0
           ? Number(r.withdraw_refund_trans)
           : Math.max(0, tt - bt - st - ncRow);
+
+        const w15 = Number(r.withdraw_15g || 0);
+        w_15 += w15;
 
         let bw = Number(r.buy_weight_g || 0);
         if (bw <= 0 && r.buy_weight_15g) {
@@ -297,6 +303,7 @@ export function calculateRunRateComparison(
         nc: n_c,
         tot_tx: t_tx,
         with_ref: w_ref,
+        withdraw_15g: Math.round(w_15 * 100) / 100,
         buy_wt: Math.round(b_wt),
         sell_wt: Math.round(s_wt),
         buy_val: Math.round(b_val),
@@ -314,6 +321,7 @@ export function calculateRunRateComparison(
     cur_nc = curAgg.nc;
     cur_tot_tx = curAgg.tot_tx;
     cur_with_ref = curAgg.with_ref;
+    cur_withdraw_15g = curAgg.withdraw_15g;
     cur_buy_wt = curAgg.buy_wt;
     cur_sell_wt = curAgg.sell_wt;
     cur_buy_val = curAgg.buy_val;
@@ -324,6 +332,7 @@ export function calculateRunRateComparison(
     comp_same_nc = compSameAgg.nc;
     comp_same_tot_tx = compSameAgg.tot_tx;
     comp_same_with_ref = compSameAgg.with_ref;
+    comp_same_withdraw_15g = compSameAgg.withdraw_15g;
     comp_same_buy_wt = compSameAgg.buy_wt;
     comp_same_sell_wt = compSameAgg.sell_wt;
     comp_same_buy_val = compSameAgg.buy_val;
@@ -334,6 +343,7 @@ export function calculateRunRateComparison(
     comp_full_nc = compFullAgg.nc;
     comp_full_tot_tx = compFullAgg.tot_tx;
     comp_full_with_ref = compFullAgg.with_ref;
+    comp_full_withdraw_15g = compFullAgg.withdraw_15g;
     comp_full_buy_wt = compFullAgg.buy_wt;
     comp_full_sell_wt = compFullAgg.sell_wt;
     comp_full_buy_val = compFullAgg.buy_val;
@@ -483,6 +493,16 @@ export function calculateRunRateComparison(
       comp_same: comp_same_nc,
       target_val: currTarget.target_nc,
       target_for_same: compTarget.target_nc,
+    },
+    {
+      id: 'withdraw_15g',
+      label: 'Withdraw (15g)',
+      section: 'neutral',
+      format: 'number',
+      comp_full: comp_full_withdraw_15g,
+      cur_mtd: cur_withdraw_15g,
+      comp_same: comp_same_withdraw_15g,
+      target_val: undefined,
     },
     {
       id: 'withdraw_refund',

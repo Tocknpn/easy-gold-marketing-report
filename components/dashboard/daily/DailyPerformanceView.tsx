@@ -176,7 +176,7 @@ function MtdVsLastMonth({ data }: { data: RunRateComparisonPayload }) {
     { id: 'sell_weight_g', label: 'Sell Weight (Baht)', div: 15 },
     { id: 'sell_transactions', label: 'Sell Transactions', div: 1 },
     { id: 'new_customer', label: 'New Register', div: 1 },
-    { id: 'withdraw_refund', label: 'Withdraw + Refund', div: 1 },
+    { id: 'withdraw_15g', label: 'Withdraw (15g)', div: 1 },
     { id: 'total_transactions', label: 'Total Transactions', div: 1 },
   ]
     .map((t) => {
@@ -488,28 +488,26 @@ export function DailyPerformanceView({ onBack }: { onBack: () => void }) {
             <div className="h-full grid grid-cols-[minmax(0,0.86fr)_minmax(0,1.14fr)] gap-[0.8em] min-h-0">
               <div className="flex flex-col justify-between min-h-0 gap-[0.55em]">
                 {/* Buy section card container */}
-                <div className="rounded-xl border border-blue-200/90 bg-gradient-to-br from-blue-50/40 via-white to-slate-50/30 p-[0.55em] space-y-[0.35em] shadow-2xs">
-                  <div className="px-0.5">
-                    <HeroNumber
-                      title="Buy"
-                      value={series.buy.cmp.latest}
-                      yesterdayPct={series.buy.cmp.rows[0].pct}
-                      accent={BRAND}
-                    />
-                  </div>
+                <div className="rounded-xl border border-blue-200/90 bg-gradient-to-br from-blue-50/40 via-white to-slate-50/30 p-[0.45em] space-y-[0.3em] shadow-2xs">
+                  <HeroNumber
+                    title="Buy"
+                    value={series.buy.cmp.latest}
+                    yesterdayPct={series.buy.cmp.rows[0].pct}
+                    accent={BRAND}
+                    horizontalBar
+                  />
                   <ComparePanel rows={series.buy.cmp.rows} />
                 </div>
 
                 {/* Sell section card container */}
-                <div className="rounded-xl border border-amber-200/90 bg-gradient-to-br from-amber-50/40 via-white to-slate-50/30 p-[0.55em] space-y-[0.35em] shadow-2xs">
-                  <div className="px-0.5">
-                    <HeroNumber
-                      title="Sell"
-                      value={series.sell.cmp.latest}
-                      yesterdayPct={series.sell.cmp.rows[0].pct}
-                      accent={GOLD}
-                    />
-                  </div>
+                <div className="rounded-xl border border-amber-200/90 bg-gradient-to-br from-amber-50/40 via-white to-slate-50/30 p-[0.45em] space-y-[0.3em] shadow-2xs">
+                  <HeroNumber
+                    title="Sell"
+                    value={series.sell.cmp.latest}
+                    yesterdayPct={series.sell.cmp.rows[0].pct}
+                    accent={GOLD}
+                    horizontalBar
+                  />
                   <ComparePanel rows={series.sell.cmp.rows} />
                 </div>
               </div>
