@@ -1012,5 +1012,62 @@ export function calculateFilteredReport(
       total_weight_g: Number((wb.total_weight_g * factor).toFixed(1)),
       total_amount_lak: Math.round(wb.total_amount_lak * factor),
     })),
+    day_of_week: (() => {
+      const dowDefs = [
+        { code: 'mon', label: 'Mon', full: 'Monday', weight: 0.13, buyRatio: 0.72, sellRatio: 0.28 },
+        { code: 'tue', label: 'Tue', full: 'Tuesday', weight: 0.125, buyRatio: 0.72, sellRatio: 0.28 },
+        { code: 'wed', label: 'Wed', full: 'Wednesday', weight: 0.135, buyRatio: 0.72, sellRatio: 0.28 },
+        { code: 'thu', label: 'Thu', full: 'Thursday', weight: 0.14, buyRatio: 0.72, sellRatio: 0.28 },
+        { code: 'fri', label: 'Fri', full: 'Friday (Payday)', weight: 0.19, buyRatio: 0.74, sellRatio: 0.26 },
+        { code: 'sat', label: 'Sat', full: 'Saturday', weight: 0.17, buyRatio: 0.75, sellRatio: 0.25 },
+        { code: 'sun', label: 'Sun', full: 'Sunday', weight: 0.11, buyRatio: 0.69, sellRatio: 0.31 },
+      ];
+
+      const dowCounts: Record<number, number> = { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 };
+      let startD = new Date(filters.startDate + 'T00:00:00Z');
+      const endD = new Date(filters.endDate + 'T00:00:00Z');
+      if (isNaN(startD.getTime())) startD = new Date('2026-10-01T00:00:00Z');
+      let loops = 0;
+      const curD = new Date(startD);
+      while (curD <= endD && loops < 370) {
+        dowCounts[curD.getUTCDay()] = (dowCounts[curD.getUTCDay()] || 0) + 1;
+        curD.setUTCDate(curD.getUTCDate() + 1);
+        loops++;
+      }
+
+      const dowDayCounts = [
+        Math.max(1, dowCounts[1] || 1), // Mon
+        Math.max(1, dowCounts[2] || 1), // Tue
+        Math.max(1, dowCounts[3] || 1), // Wed
+        Math.max(1, dowCounts[4] || 1), // Thu
+        Math.max(1, dowCounts[5] || 1), // Fri
+        Math.max(1, dowCounts[6] || 1), // Sat
+        Math.max(1, dowCounts[0] || 1), // Sun
+      ];
+
+      const totalWeightedSum = dowDefs.reduce((acc, d, i) => acc + d.weight * dowDayCounts[i], 0) || 1;
+
+      return dowDefs.map((def, i) => {
+        const dayShare = (def.weight * dowDayCounts[i]) / totalWeightedSum;
+        const dayTotalTx = Math.max(1, Math.round(scaledTotalTx * dayShare));
+        const dayBuyTx = Math.round(dayTotalTx * def.buyRatio);
+        const daySellTx = Math.max(0, dayTotalTx - dayBuyTx);
+        const dayBuyWtG = Number((scaledBuyWeightG * dayShare * (def.buyRatio / 0.72)).toFixed(1));
+        const daySellWtG = Number((scaledSellWeightG * dayShare * (def.sellRatio / 0.28)).toFixed(1));
+        const dayAmountLak = Math.round((scaledRevenueBuyLak + scaledRevenueSellLak) * dayShare);
+
+        return {
+          day_code: def.code,
+          day_label: def.label,
+          day_full: def.full,
+          total_tx: dayTotalTx,
+          buy_tx: dayBuyTx,
+          sell_tx: daySellTx,
+          buy_weight_g: dayBuyWtG,
+          sell_weight_g: daySellWtG,
+          total_amount_lak: dayAmountLak,
+        };
+      });
+    })(),
   };
 }

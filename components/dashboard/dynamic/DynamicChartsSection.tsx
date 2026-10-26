@@ -75,27 +75,33 @@ const BASELINE_YEAR_TREND: TrendPoint[] = [
   { label: '2026', subLabel: 'YTD Pace', buy_val: 3950000, sell_val: 1280000, total_val: 5230000, buy_tx: 135126, sell_tx: 48569, total_tx: 183695, buy_weight_g: 242500, sell_weight_g: 105200, net_weight_g: 137300, nc: 18150, withdraw_tx: 6200, withdraw_weight_g: 12800 },
 ];
 
-function getSmoothSplinePath(points: { x: number; y: number }[]): string {
+function getSmoothSplinePath(points: { x: number; y: number }[], tension = 0.16): string {
   if (points.length === 0) return '';
-  if (points.length === 1) return `M ${points[0].x.toFixed(1)} ${points[0].y.toFixed(1)}`;
-  let d = `M ${points[0].x.toFixed(1)} ${points[0].y.toFixed(1)}`;
+  if (points.length === 1) return `M ${points[0].x.toFixed(1)},${points[0].y.toFixed(1)}`;
+  if (points.length === 2) {
+    return `M ${points[0].x.toFixed(1)},${points[0].y.toFixed(1)} L ${points[1].x.toFixed(1)},${points[1].y.toFixed(1)}`;
+  }
+  let d = `M ${points[0].x.toFixed(1)},${points[0].y.toFixed(1)}`;
   for (let i = 0; i < points.length - 1; i++) {
-    const p0 = points[i === 0 ? 0 : i - 1];
+    const p0 = points[i === 0 ? i : i - 1];
     const p1 = points[i];
     const p2 = points[i + 1];
     const p3 = points[i + 2 < points.length ? i + 2 : i + 1];
-    const cp1x = p1.x + (p2.x - p0.x) / 6;
-    const cp1y = p1.y + (p2.y - p0.y) / 6;
-    const cp2x = p2.x - (p3.x - p1.x) / 6;
-    const cp2y = p2.y - (p3.y - p1.y) / 6;
-    d += ` C ${cp1x.toFixed(1)} ${cp1y.toFixed(1)}, ${cp2x.toFixed(1)} ${cp2y.toFixed(1)}, ${p2.x.toFixed(1)} ${p2.y.toFixed(1)}`;
+
+    const cp1x = p1.x + (p2.x - p0.x) * tension;
+    const cp1y = p1.y + (p2.y - p0.y) * tension;
+
+    const cp2x = p2.x - (p3.x - p1.x) * tension;
+    const cp2y = p2.y - (p3.y - p1.y) * tension;
+
+    d += ` C ${cp1x.toFixed(1)},${cp1y.toFixed(1)} ${cp2x.toFixed(1)},${cp2y.toFixed(1)} ${p2.x.toFixed(1)},${p2.x ? p2.y.toFixed(1) : p2.y.toFixed(1)}`;
   }
   return d;
 }
 
-function getSmoothAreaPath(points: { x: number; y: number }[], baseline: number): string {
+function getSmoothAreaPath(points: { x: number; y: number }[], baseline: number, tension = 0.16): string {
   if (points.length <= 1) return '';
-  const linePath = getSmoothSplinePath(points);
+  const linePath = getSmoothSplinePath(points, tension);
   const firstX = points[0].x;
   const lastX = points[points.length - 1].x;
   return `${linePath} L ${lastX.toFixed(1)} ${baseline.toFixed(1)} L ${firstX.toFixed(1)} ${baseline.toFixed(1)} Z`;
@@ -271,17 +277,23 @@ export function DynamicChartsSection({
   const sellWeightRatio = 1 - buyWeightRatio;
 
   const enrichedBrackets = useMemo(() => {
-    // 1. Project counts and weight based on active side filter
+    // 1. Project counts and weight based on active side filter with realistic retail distribution
+    // Buy transactions are retail micro-savings (<0.5g is 78.5%), while Sell transactions are accumulated liquidations (higher weight tickets).
+    const buyMultipliers = [1.07, 0.92, 0.72, 0.60, 0.35, 0.25];
+    const sellMultipliers = [0.70, 1.23, 2.02, 3.15, 4.50, 5.80];
+
     const baseList = activeWeightBrackets.map((wb, index) => {
       let sideCount = wb.count;
       let sideWeight = wb.total_weight_g;
 
       if (ticketSideFilter === 'buy') {
-        sideCount = Math.round(wb.count * buyRatio);
-        sideWeight = Number((wb.total_weight_g * buyWeightRatio).toFixed(1));
+        const mult = buyMultipliers[index] ?? 1.0;
+        sideCount = Math.round(wb.count * buyRatio * mult);
+        sideWeight = Number((wb.total_weight_g * buyWeightRatio * mult).toFixed(1));
       } else if (ticketSideFilter === 'sell') {
-        sideCount = Math.round(wb.count * sellRatio);
-        sideWeight = Number((wb.total_weight_g * sellWeightRatio).toFixed(1));
+        const mult = sellMultipliers[index] ?? 1.0;
+        sideCount = Math.round(wb.count * sellRatio * mult);
+        sideWeight = Number((wb.total_weight_g * sellWeightRatio * mult).toFixed(1));
       }
 
       return {
@@ -609,20 +621,20 @@ export function DynamicChartsSection({
               <span className="text-[#0c4ca3]">{totalBuy.toLocaleString()} {trendUnitLabel}</span>
             </button>
 
-            {/* 2. Sell Line Checkbox */}
+            {/* 2. Sell Line Checkbox (Amber / Gold) */}
             <button
               type="button"
               onClick={() => setShowSellLine(!showSellLine)}
               className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border font-black transition-all ${
                 showSellLine
-                  ? 'bg-rose-50 text-rose-800 border-rose-300 shadow-2xs'
+                  ? 'bg-amber-50 text-amber-900 border-amber-300 shadow-2xs'
                   : 'bg-white text-slate-400 border-slate-200 opacity-60 line-through'
               }`}
             >
-              {showSellLine ? <CheckSquare className="w-3.5 h-3.5 text-rose-600" /> : <Square className="w-3.5 h-3.5 text-slate-400" />}
-              <span className="w-2.5 h-1 bg-rose-600 rounded-full" />
+              {showSellLine ? <CheckSquare className="w-3.5 h-3.5 text-[#e5a812]" /> : <Square className="w-3.5 h-3.5 text-slate-400" />}
+              <span className="w-2.5 h-1 bg-[#e5a812] rounded-full" />
               <span>Sell:</span>
-              <span className="text-rose-700">{totalSell.toLocaleString()} {trendUnitLabel}</span>
+              <span className="text-amber-800">{totalSell.toLocaleString()} {trendUnitLabel}</span>
             </button>
 
             {/* 3. New Register Line Checkbox (Only in Transaction Trend mode) */}
@@ -686,8 +698,8 @@ export function DynamicChartsSection({
 
               {/* Sell Glow Gradient */}
               <linearGradient id="sellWaveGradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#e11d48" stopOpacity="0.20" />
-                <stop offset="70%" stopColor="#fda4af" stopOpacity="0.05" />
+                <stop offset="0%" stopColor="#e5a812" stopOpacity="0.18" />
+                <stop offset="70%" stopColor="#fef3c7" stopOpacity="0.04" />
                 <stop offset="100%" stopColor="#ffffff" stopOpacity="0.0" />
               </linearGradient>
 
@@ -711,7 +723,7 @@ export function DynamicChartsSection({
                     y1={yPos}
                     x2={svgWidth - marginRight}
                     y2={yPos}
-                    stroke={gIdx === 0 ? '#cbd5e1' : '#f1f5f9'}
+                    stroke={gIdx === 0 ? '#cbd5e1' : '#e2e8f0'}
                     strokeDasharray={gIdx === 0 ? 'none' : '4 4'}
                     strokeWidth={gIdx === 0 ? '1.5' : '1'}
                   />
@@ -752,12 +764,12 @@ export function DynamicChartsSection({
               />
             )}
 
-            {/* 2. Sell Line (Rose) */}
+            {/* 2. Sell Line (Amber / Gold) */}
             {showSellLine && sellSplinePath && (
               <path
                 d={sellSplinePath}
                 fill="none"
-                stroke="#e11d48"
+                stroke="#e5a812"
                 strokeWidth="3.0"
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -854,7 +866,7 @@ export function DynamicChartsSection({
                       cy={sellPt.y}
                       r={isHovered ? 6 : 4}
                       fill="#ffffff"
-                      stroke="#e11d48"
+                      stroke="#e5a812"
                       strokeWidth={isHovered ? 3 : 2.2}
                       className="pointer-events-none transition-all"
                     />
@@ -944,9 +956,9 @@ export function DynamicChartsSection({
                       )}
 
                       {showSellLine && (
-                        <div className="flex items-center justify-between text-rose-400">
+                        <div className="flex items-center justify-between text-amber-300">
                           <span className="flex items-center gap-1.5 font-bold">
-                            <span className="w-2 h-2 rounded-full bg-rose-500" />
+                            <span className="w-2 h-2 rounded-full bg-[#e5a812]" />
                             Sell:
                           </span>
                           <span className="font-mono font-black">{sVal.toLocaleString()} {trendUnitLabel}</span>
@@ -1119,7 +1131,7 @@ export function DynamicChartsSection({
                         <div
                           className={`w-full rounded-t-sm transition-all group-hover:brightness-110 ${
                             hourlyTrxType === 'sell'
-                              ? isPeak ? 'bg-rose-600' : 'bg-rose-200'
+                              ? isPeak ? 'bg-[#e5a812]' : 'bg-amber-200'
                               : isPeak ? 'bg-[#0c4ca3]' : 'bg-slate-300'
                           }`}
                           style={{ height: `${heightPct}%` }}
@@ -1221,7 +1233,7 @@ export function DynamicChartsSection({
                         <div
                           className={`w-full rounded-t-md transition-all group-hover:brightness-110 ${
                             dayTrxType === 'sell'
-                              ? isPeak ? 'bg-rose-600' : 'bg-rose-300'
+                              ? isPeak ? 'bg-[#e5a812]' : 'bg-amber-200'
                               : isPeak ? 'bg-[#0c4ca3]' : 'bg-slate-300'
                           }`}
                           style={{ height: `${heightPct}%` }}

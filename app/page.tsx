@@ -528,14 +528,6 @@ export default function DashboardPage() {
     );
   }
 
-  // Daily Performance MKT: full-screen wall display. No header, banner or tab bar.
-  if (activeReportTab === 'daily') {
-    return (
-      <DailyPerformanceView
-        onBack={() => handleTabChange(lastNormalTabRef.current)}
-      />
-    );
-  }
 
   return (
     <div className="min-h-screen bg-[#f3f5f9] text-slate-900 flex flex-col select-none">
@@ -628,16 +620,19 @@ export default function DashboardPage() {
                 <button
                   role="tab"
                   id="tab-daily"
-                  aria-selected={false}
+                  aria-selected={activeReportTab === 'daily'}
                   aria-controls="panel-daily"
-                  tabIndex={-1}
+                  tabIndex={activeReportTab === 'daily' ? 0 : -1}
                   onClick={() => handleTabChange('daily')}
                   onKeyDown={(e) => handleTabKeyDown(e, 'daily')}
-                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-all cursor-pointer shrink-0 whitespace-nowrap focus:outline-hidden focus:ring-2 focus:ring-brand-navy text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-all cursor-pointer shrink-0 whitespace-nowrap focus:outline-hidden focus:ring-2 focus:ring-brand-navy ${
+                    activeReportTab === 'daily'
+                      ? 'bg-brand-navy text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                  }`}
                 >
                   <Activity className="w-4 h-4" />
                   <span>Daily Performance MKT</span>
-                  <span className="px-1.5 py-0.5 rounded-md text-[10px] font-black bg-emerald-100 text-emerald-700 uppercase">New</span>
                 </button>
 
                 {/* 5. Campaign Tracking */}
@@ -953,11 +948,6 @@ export default function DashboardPage() {
                   <span className="text-xs text-slate-500 font-medium font-mono tabular-nums">
                     Period: {activeWeeklyMetrics?.currentWeek.start_date} to {activeWeeklyMetrics?.currentWeek.end_date}
                   </span>
-                  <span className="text-slate-300">•</span>
-                  <span className="text-xs font-bold font-mono tabular-nums text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 flex items-center gap-1">
-                    <Database className="w-3.5 h-3.5" />
-                    {sortedHistory.length} Weeks in Database
-                  </span>
                 </div>
               </div>
 
@@ -998,22 +988,6 @@ export default function DashboardPage() {
                   </button>
                 </div>
 
-                {/* Quick Pills for Recent Weeks */}
-                <div className="hidden sm:flex items-center gap-1 border-l border-slate-200 pl-2">
-                  {recentPills.map((w) => (
-                    <button
-                      key={w.week_label}
-                      onClick={() => setSelectedWeekLabel(w.week_label)}
-                      className={`px-2 py-0.5 rounded-md text-xs font-bold font-mono tabular-nums transition-all ${
-                        selectedWeekLabel === w.week_label
-                          ? 'bg-brand-navy text-white shadow-xs'
-                          : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                      }`}
-                    >
-                      {w.week_label}
-                    </button>
-                  ))}
-                </div>
 
                 {/* In-Progress Partial Week Elapsed & Prorated Run-Rate Toggle */}
                 {activeWeeklyMetrics?.isPartial && (
@@ -1036,33 +1010,6 @@ export default function DashboardPage() {
                   </div>
                 )}
 
-                {/* Report Density / Scale Switcher */}
-                <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200 ml-1">
-                  <button
-                    onClick={() => setDensityMode('comfortable')}
-                    className={`px-2 py-0.5 rounded text-xs font-bold transition-all flex items-center gap-1 ${
-                      densityMode === 'comfortable'
-                        ? 'bg-white text-slate-900 shadow-2xs'
-                        : 'text-slate-500 hover:text-slate-800'
-                    }`}
-                    title="Standard Balanced Card Scale"
-                  >
-                    <Maximize2 className="w-3 h-3 text-[#0c4ca3]" />
-                    <span className="hidden sm:inline">Standard</span>
-                  </button>
-                  <button
-                    onClick={() => setDensityMode('compact')}
-                    className={`px-2 py-0.5 rounded text-[11px] font-black transition-all flex items-center gap-1 ${
-                      densityMode === 'compact'
-                        ? 'bg-white text-slate-900 shadow-2xs'
-                        : 'text-slate-500 hover:text-slate-800'
-                    }`}
-                    title="Compact Trading Floor Density (Fits on 1 Screen)"
-                  >
-                    <Minimize2 className="w-3 h-3 text-[#0c4ca3]" />
-                    <span className="hidden sm:inline">Compact</span>
-                  </button>
-                </div>
 
                 <button
                   onClick={fetchWeeklySummary}
@@ -1140,6 +1087,13 @@ export default function DashboardPage() {
                 </section>
               </main>
             ) : null}
+          </div>
+        )}
+
+        {/* TAB 4: DAILY PERFORMANCE MKT */}
+        {activeReportTab === 'daily' && (
+          <div role="tabpanel" id="panel-daily" aria-labelledby="tab-daily" tabIndex={0} className="focus:outline-hidden">
+            <DailyPerformanceView />
           </div>
         )}
 

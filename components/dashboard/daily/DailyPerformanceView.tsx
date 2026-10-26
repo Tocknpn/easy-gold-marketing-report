@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react';
+import { Activity, ArrowLeft, ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react';
 import {
   DEFAULT_2026_TARGETS,
   calculateRunRateComparison,
@@ -288,7 +288,7 @@ function MtdVsLastMonth({ data }: { data: RunRateComparisonPayload }) {
 /* ------------------------------------------------------------------ */
 /* Main screen                                                         */
 /* ------------------------------------------------------------------ */
-export function DailyPerformanceView({ onBack }: { onBack: () => void }) {
+export function DailyPerformanceView({ onBack }: { onBack?: () => void } = {}) {
   const { rows, status, updatedAt, reload } = useLiveDailyMetrics();
   const [picked, setPicked] = useState<string | null>(null);
   const [now, setNow] = useState<Date>(() => new Date());
@@ -360,54 +360,39 @@ export function DailyPerformanceView({ onBack }: { onBack: () => void }) {
   const statusColor = status === 'live' || status === 'polling' ? '#34d399' : status === 'loading' ? '#fbbf24' : '#f87171';
 
   return (
-    <div
-      className="h-screen w-screen overflow-hidden flex flex-col select-none text-slate-900"
-      style={{
-        fontSize: 'clamp(9px, min(0.8vw, 1.45vh), 21px)',
-        background: 'linear-gradient(160deg, #dfe9f8 0%, #eef3fb 45%, #e3edf9 100%)',
-      }}
-    >
-      {/* ---------- slim top bar: the only chrome on this screen ---------- */}
-      <div
-        className="flex items-center justify-between gap-4 px-[1em] py-[0.55em] text-white shrink-0"
-        style={{ background: `linear-gradient(90deg, #0a3f87 0%, ${BRAND} 55%, #2f7be0 100%)` }}
-      >
-        <div className="flex items-center gap-[0.9em] min-w-0">
-          <button
-            onClick={onBack}
-            className="flex items-center gap-1.5 rounded-lg bg-white/15 hover:bg-white/25 transition-colors px-[0.8em] py-[0.35em] font-bold cursor-pointer"
-            title="Back to other reports"
-          >
-            <ArrowLeft className="w-[1.2em] h-[1.2em]" />
-            <span>Back</span>
-          </button>
-          <h1 className="text-[1.5em] font-black tracking-tight whitespace-nowrap">
-            Daily Performance <span style={{ color: GOLD }}>MKT</span>
-          </h1>
+    <div className="flex flex-col select-none text-slate-900 gap-3 min-w-0">
+      {/* ---------- Clean Integrated Day Filter & Status Control Bar ---------- */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-white rounded-2xl border border-slate-200/90 shadow-xs">
+        {/* Left: Title & Active Day Badge */}
+        <div className="flex items-center gap-2.5 flex-wrap">
+          <div className="w-8 h-8 rounded-xl bg-blue-50 text-[#0c4ca3] flex items-center justify-center border border-blue-200">
+            <Activity className="w-4 h-4 font-black" />
+          </div>
+          <div>
+            <h1 className="text-base sm:text-lg font-black text-slate-900 tracking-tight flex items-center gap-2">
+              <span>Daily Performance</span>
+              <span className="text-[#e5a812]">MKT</span>
+              <span className="text-xs font-mono font-bold px-2.5 py-0.5 rounded-lg bg-slate-100 text-slate-700 border border-slate-200">
+                {selected ? formatLongDate(selected) : '–'}
+              </span>
+            </h1>
+            <p className="text-[11px] font-semibold text-slate-400">
+              {isLatest ? 'Viewing latest operational day' : 'Viewing historical day data'}
+            </p>
+          </div>
         </div>
 
-        {/* day picker */}
-        <div className="flex items-center gap-[0.5em]">
+        {/* Center: Day Selector Navigation (No overlap) */}
+        <div className="flex items-center gap-1.5 bg-slate-50 px-2.5 py-1.5 rounded-xl border border-slate-200/90 self-start sm:self-auto flex-wrap">
           <button
             onClick={() => step(-1)}
-            className="rounded-lg bg-white/15 hover:bg-white/25 p-[0.35em] cursor-pointer disabled:opacity-30"
+            className="p-1 rounded-md text-slate-600 hover:bg-slate-200 disabled:opacity-30 cursor-pointer transition-colors"
             disabled={!selected || !firstDate || selected <= firstDate}
-            aria-label="Previous day"
+            title="Previous Day"
           >
-            <ChevronLeft className="w-[1.3em] h-[1.3em]" />
+            <ChevronLeft className="w-4 h-4" />
           </button>
-          <div className="text-center leading-tight min-w-[14em]">
-            <div className="text-[1.25em] font-black">{selected ? formatLongDate(selected) : '–'}</div>
-            <div className="text-[0.8em] font-semibold text-white/80">{isLatest ? 'Latest day' : 'Viewing an earlier day'}</div>
-          </div>
-          <button
-            onClick={() => step(1)}
-            className="rounded-lg bg-white/15 hover:bg-white/25 p-[0.35em] cursor-pointer disabled:opacity-30"
-            disabled={!selected || !latestDate || selected >= latestDate}
-            aria-label="Next day"
-          >
-            <ChevronRight className="w-[1.3em] h-[1.3em]" />
-          </button>
+
           <input
             type="date"
             value={selected ?? ''}
@@ -418,34 +403,48 @@ export function DailyPerformanceView({ onBack }: { onBack: () => void }) {
               if (!v) return;
               if (map.has(v)) setPicked(v === latestDate ? null : v);
             }}
-            className="rounded-lg bg-white/15 hover:bg-white/25 text-white font-bold px-[0.6em] py-[0.3em] [color-scheme:dark] cursor-pointer"
+            className="text-xs font-bold font-mono text-slate-800 bg-white border border-slate-300 rounded-lg px-2.5 py-1 hover:bg-slate-50 transition-colors cursor-pointer focus:outline-none focus:ring-1 focus:ring-brand-navy"
             aria-label="Pick a day"
           />
+
+          <button
+            onClick={() => step(1)}
+            className="p-1 rounded-md text-slate-600 hover:bg-slate-200 disabled:opacity-30 cursor-pointer transition-colors"
+            disabled={!selected || !latestDate || selected >= latestDate}
+            title="Next Day"
+          >
+            <ChevronRight className="w-4 h-4" />
+          </button>
+
           <button
             onClick={() => setPicked(null)}
             disabled={isLatest}
-            className="rounded-lg px-[0.8em] py-[0.35em] font-black cursor-pointer disabled:opacity-40"
-            style={{ background: GOLD, color: '#1b2a41' }}
+            className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              isLatest
+                ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                : 'bg-[#e5a812] text-slate-900 shadow-2xs hover:bg-[#d89e10]'
+            }`}
           >
             Latest
           </button>
         </div>
 
-        <div className="flex items-center gap-[0.9em] text-right shrink-0">
-          <div className="flex items-center gap-1.5 font-bold">
+        {/* Right: Live Telemetry & Quick Refresh */}
+        <div className="flex items-center gap-3 self-end sm:self-auto">
+          <div className="flex items-center gap-1.5 text-xs font-bold text-slate-600">
             <span className="inline-block w-2.5 h-2.5 rounded-full" style={{ background: statusColor }} />
             <span>{statusText}</span>
           </div>
-          <div className="text-[1.6em] font-black tabular-nums leading-none">
+          <span className="text-xs font-black font-mono text-slate-400 tabular-nums">
             {now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
-          </div>
+          </span>
           <button
             onClick={() => reload()}
-            className="rounded-lg bg-white/15 hover:bg-white/25 p-[0.4em] cursor-pointer"
+            className="p-1.5 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors cursor-pointer border border-slate-200"
             title="Refresh now"
             aria-label="Refresh now"
           >
-            <RefreshCw className="w-[1.1em] h-[1.1em]" />
+            <RefreshCw className="w-3.5 h-3.5" />
           </button>
         </div>
       </div>
@@ -456,7 +455,7 @@ export function DailyPerformanceView({ onBack }: { onBack: () => void }) {
           {status === 'error' ? 'Cannot load data. Retrying automatically…' : 'Loading latest performance…'}
         </div>
       ) : (
-        <main className="flex-1 min-h-0 grid grid-cols-[minmax(0,5fr)_minmax(0,7fr)] grid-rows-[minmax(0,1.12fr)_minmax(0,0.88fr)] gap-[0.7em] p-[0.7em]">
+        <main className="grid grid-cols-1 xl:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] gap-3.5 items-stretch">
           {/* 1. New register */}
           <Panel no={1} title="New Register" hint="Last 30 days">
             <div className="h-full flex flex-col justify-between min-h-0">
