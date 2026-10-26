@@ -916,7 +916,7 @@ export default {
       }
 
       const shouldAutoSync = config.auto_sync_max_date !== false;
-      const baseAsOfDate = shouldAutoSync ? maxDbDate : (config.data_update_on || config.as_of_date || maxDbDate);
+      const baseAsOfDate = config.data_update_on || (shouldAutoSync ? maxDbDate : (config.as_of_date || maxDbDate));
       const startDate = config.campaign_date_start || '2026-08-24';
       const endDate = config.campaign_date_end || '2026-12-25';
 

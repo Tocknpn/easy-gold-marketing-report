@@ -9,7 +9,7 @@ import {
   deleteCampaignSetup,
   INITIAL_PRESET_CAMPAIGNS 
 } from '@/lib/storage/campaignStorage';
-import { computeCampaignAnalytics, computeBackwardDates } from '@/lib/campaign/campaignEngine';
+import { computeCampaignAnalytics, computeBackwardDates, calculateDateDiffDays } from '@/lib/campaign/campaignEngine';
 import { createClient } from '@/lib/supabase/client';
 import { 
   CampaignCardItem, 
@@ -230,15 +230,17 @@ export function CampaignTrackingView({
             || ((targetCamp.auto_sync_max_date !== false && dbLatestDate) 
               ? dbLatestDate 
               : (targetCamp.data_update_on || dbLatestDate || '2026-10-21'));
+          const totalDays = calculateDateDiffDays(targetCamp.campaign_date_start, targetCamp.campaign_date_end);
           const isEnded = new Date(asOf).getTime() >= new Date(targetCamp.campaign_date_end).getTime();
           const effectiveCutoff = isEnded ? targetCamp.campaign_date_end : asOf;
-          const backwardWindow = computeBackwardDates(targetCamp.campaign_date_start, 59);
+          const elapsedDays = isEnded ? totalDays : calculateDateDiffDays(targetCamp.campaign_date_start, effectiveCutoff);
+          const backwardWindow = computeBackwardDates(targetCamp.campaign_date_start, elapsedDays, totalDays);
 
           const { data: rpcData } = await supabase.rpc('get_campaign_actual_metrics', {
             p_start_date: targetCamp.campaign_date_start,
             p_as_of_date: effectiveCutoff,
-            p_backward_start: targetCamp.same_period_backward_start || backwardWindow.start,
-            p_backward_end: targetCamp.same_period_backward_end || backwardWindow.end,
+            p_backward_start: backwardWindow.start,
+            p_backward_end: backwardWindow.end,
             p_cond_type: isWeight ? 'weight_gte' : 'amount_gte',
             p_cond_op: condOp,
             p_cond_val: condVal > 0 ? condVal : (rules.length === 0 ? 0 : 100000),
@@ -278,6 +280,55 @@ export function CampaignTrackingView({
             const finalNc = Number(rpcData.mtd_new_customers) > 0 
               ? Number(rpcData.mtd_new_customers) 
               : ((ncCount !== null && ncCount !== undefined && ncCount > 0) ? ncCount : 0);
+
+            // Construct dynamic SQL script for Supabase query bridge
+            const bList = targetCamp.bank && targetCamp.bank !== 'all' ? targetCamp.bank.split(',').map((b: string) => b.trim()).filter(Boolean) : [];
+            const bankSql = bList.length === 1 
+              ? `\n  AND bank ILIKE '%${bList[0]}%'` 
+              : bList.length > 1 
+              ? `\n  AND (${bList.map((b: string) => `bank ILIKE '%${b}%'`).join(' OR ')})` 
+              : '';
+            let condSql = '';
+            for (const r of rules) {
+              const col = r.metric === 'weight' ? 'gold_weight' : 'total_amount';
+              if (r.operator === 'between') {
+                condSql += `\n  AND ${col} >= ${r.value} AND ${col} <= ${r.max_value || r.value}`;
+              } else if (r.operator === '<=') {
+                condSql += `\n  AND ${col} <= ${r.value}`;
+              } else if (r.operator === '==') {
+                condSql += `\n  AND ${col} = ${r.value}`;
+              } else {
+                condSql += `\n  AND ${col} >= ${r.value}`;
+              }
+            }
+            const dynamicScript = `-- ============================================================================
+-- CAMPAIGN INTELLIGENCE: ${targetCamp.campaign_name || 'Campaign Target'}
+-- Rule: ${targetCamp.condition_label || 'Buy trans'} | Bank: ${(targetCamp.bank || 'ALL').toUpperCase()}
+-- ============================================================================
+
+-- 1. Actual MTD Performance (${targetCamp.campaign_date_start} to ${effectiveCutoff})
+SELECT 
+    COUNT(*) AS ec_actual_mtd,
+    COUNT(DISTINCT phone) AS unique_customers_mtd,
+    ROUND(COALESCE(SUM(gold_weight), 0)::numeric, 1) AS mtd_buy_weight_g,
+    ROUND(COALESCE(SUM(total_amount), 0)::numeric / 1000000.0, 1) AS mtd_buy_value_mil_lak
+FROM public.monthly_data
+WHERE created_at >= '${targetCamp.campaign_date_start}'
+  AND created_at <= '${effectiveCutoff} 23:59:59'
+  AND status IN ('ສໍາເລັດ', 'ສຳເລັດ')
+  AND transaction_type = '${targetCamp.tx_type || 'BUY_GOLD'}'${bankSql}${condSql};
+
+-- 2. Equal Backward Benchmark Baseline (${backwardWindow.start} to ${backwardWindow.end}, ${elapsedDays} days)
+SELECT 
+    COUNT(*) AS buy_trans_backward,
+    ROUND(COALESCE(SUM(gold_weight), 0)::numeric, 1) AS buy_weight_g_backward,
+    ROUND(COALESCE(SUM(total_amount), 0)::numeric / 1000000.0, 1) AS buy_value_lak_backward
+FROM public.monthly_data
+WHERE created_at >= '${backwardWindow.start}'
+  AND created_at <= '${backwardWindow.end} 23:59:59'
+  AND status IN ('ສໍາເລັດ', 'ສຳເລັດ')
+  AND transaction_type = '${targetCamp.tx_type || 'BUY_GOLD'}'${bankSql}${condSql};`;
+
             payload = {
               ec_actual_mtd: Number(rpcData.mtd_transac) || 0,
               nc_actual_mtd: finalNc,
@@ -289,7 +340,7 @@ export function CampaignTrackingView({
               backward_ticket: Number(rpcData.backward_transac) > 0 ? Number((Number(rpcData.backward_gold_weight_g) / Number(rpcData.backward_transac)).toFixed(1)) : 2.8,
               backward_nc: Number(rpcData.backward_new_customers) || 0,
               max_db_date: asOf,
-              sql_script: targetCamp.sql_script,
+              sql_script: dynamicScript,
             };
           }
         } catch (dbErr) {
@@ -475,6 +526,10 @@ export function CampaignTrackingView({
       }
     }
 
+    const totalDays = calculateDateDiffDays(camp.campaign_date_start, camp.campaign_date_end);
+    const elapsedDays = isEnded ? totalDays : calculateDateDiffDays(camp.campaign_date_start, effectiveCutoff);
+    const backwardWindow = computeBackwardDates(camp.campaign_date_start, elapsedDays, totalDays);
+
     return `-- ============================================================================
 -- CAMPAIGN INTELLIGENCE: ${camp.campaign_name || 'Campaign Target'}
 -- Rule: ${camp.condition_label || 'Buy trans'} | Bank: ${(camp.bank || 'ALL').toUpperCase()}
@@ -489,6 +544,17 @@ SELECT
 FROM public.monthly_data
 WHERE created_at >= '${camp.campaign_date_start}'
   AND created_at <= '${effectiveCutoff} 23:59:59'
+  AND status IN ('ສໍາເລັດ', 'ສຳເລັດ')
+  AND transaction_type = '${camp.tx_type || 'BUY_GOLD'}'${bankFilter}${condFilter};
+
+-- 2. Equal Backward Benchmark Baseline (${backwardWindow.start} to ${backwardWindow.end}, ${elapsedDays} days)
+SELECT 
+    COUNT(*) AS buy_trans_backward,
+    ROUND(COALESCE(SUM(gold_weight), 0)::numeric, 1) AS buy_weight_g_backward,
+    ROUND(COALESCE(SUM(total_amount), 0)::numeric / 1000000.0, 1) AS buy_value_lak_backward
+FROM public.monthly_data
+WHERE created_at >= '${backwardWindow.start}'
+  AND created_at <= '${backwardWindow.end} 23:59:59'
   AND status IN ('ສໍາເລັດ', 'ສຳເລັດ')
   AND transaction_type = '${camp.tx_type || 'BUY_GOLD'}'${bankFilter}${condFilter};`;
   }, [currentTargetCampaign, latestDataDate]);
@@ -1073,7 +1139,11 @@ WHERE created_at >= '${camp.campaign_date_start}'
 
                 <button
                   onClick={() => {
-                    const currentDisplaySql = (liveData?.sql_script && !liveData.sql_script.includes('2026-10-19') && !liveData.sql_script.includes('2026-10-18')) ? liveData.sql_script : defaultGeneratedSql;
+                    const isSqlCurrent = liveData?.sql_script 
+                      && !liveData.sql_script.includes('2026-10-19') 
+                      && !liveData.sql_script.includes('2026-10-18')
+                      && liveData.sql_script.includes(latestDataDate);
+                    const currentDisplaySql = isSqlCurrent ? liveData.sql_script : defaultGeneratedSql;
                     handleCopySql(currentDisplaySql);
                   }}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold border border-slate-700 transition-colors cursor-pointer"
@@ -1099,7 +1169,7 @@ WHERE created_at >= '${camp.campaign_date_start}'
             {showSqlScript && (
               <div className="relative">
                 <pre className="text-[11px] font-mono text-emerald-400 bg-slate-950 p-3.5 rounded-xl overflow-x-auto whitespace-pre border border-slate-800/80 leading-relaxed max-h-56">
-                  {(liveData?.sql_script && !liveData.sql_script.includes('2026-10-19') && !liveData.sql_script.includes('2026-10-18')) ? liveData.sql_script : defaultGeneratedSql}
+                  {(liveData?.sql_script && !liveData.sql_script.includes('2026-10-19') && !liveData.sql_script.includes('2026-10-18') && liveData.sql_script.includes(latestDataDate)) ? liveData.sql_script : defaultGeneratedSql}
                 </pre>
               </div>
             )}

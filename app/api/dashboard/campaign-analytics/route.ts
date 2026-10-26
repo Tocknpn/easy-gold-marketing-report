@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const asOfDate = config.auto_sync_max_date !== false ? (maxDbDateStr || config.data_update_on || '2026-10-21') : (config.data_update_on || maxDbDateStr || '2026-10-21');
+    const asOfDate = config.data_update_on || (config.auto_sync_max_date !== false ? (maxDbDateStr || '2026-10-21') : (maxDbDateStr || '2026-10-21'));
 
     // 2. Timeline calculations
     const totalDays = calculateDateDiffDays(config.campaign_date_start, config.campaign_date_end);
@@ -128,7 +128,7 @@ SELECT
 FROM public.monthly_data
 WHERE created_at >= '${config.campaign_date_start}'
   AND created_at <= '${effectiveCutoffDate} 23:59:59'
-  AND status = 'ສໍາເລັດ'
+  AND status IN ('ສໍາເລັດ', 'ສຳເລັດ')
   AND transaction_type = '${txType}'${bankSql}${condSql};
 
 -- 2. Equal Backward Benchmark Baseline (${backwardWindow.start} to ${backwardWindow.end}, ${elapsedDays || totalDays} days)
@@ -139,7 +139,7 @@ SELECT
 FROM public.monthly_data
 WHERE created_at >= '${backwardWindow.start}'
   AND created_at <= '${backwardWindow.end} 23:59:59'
-  AND status = 'ສໍາເລັດ'
+  AND status IN ('ສໍາເລັດ', 'ສຳເລັດ')
   AND transaction_type = '${txType}'${bankSql}${condSql};`;
 
     let liveAgg: any = null;
