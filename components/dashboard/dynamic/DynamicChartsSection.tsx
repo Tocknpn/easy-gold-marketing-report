@@ -75,36 +75,53 @@ const BASELINE_YEAR_TREND: TrendPoint[] = [
   { label: '2026', subLabel: 'YTD Pace', buy_val: 3950000, sell_val: 1280000, total_val: 5230000, buy_tx: 135126, sell_tx: 48569, total_tx: 183695, buy_weight_g: 242500, sell_weight_g: 105200, net_weight_g: 137300, nc: 18150, withdraw_tx: 6200, withdraw_weight_g: 12800 },
 ];
 
-function getSmoothSplinePath(points: { x: number; y: number }[], tension = 0.16): string {
+function getSmoothSplinePath(points: { x: number; y: number }[]): string {
   if (points.length === 0) return '';
   if (points.length === 1) return `M ${points[0].x.toFixed(1)},${points[0].y.toFixed(1)}`;
   if (points.length === 2) {
     return `M ${points[0].x.toFixed(1)},${points[0].y.toFixed(1)} L ${points[1].x.toFixed(1)},${points[1].y.toFixed(1)}`;
   }
+
+  // Smooth natural cubic spline with tangent clamping (prevents weird overshoot/sag)
   let d = `M ${points[0].x.toFixed(1)},${points[0].y.toFixed(1)}`;
   for (let i = 0; i < points.length - 1; i++) {
-    const p0 = points[i === 0 ? i : i - 1];
+    const p0 = i > 0 ? points[i - 1] : points[i];
     const p1 = points[i];
     const p2 = points[i + 1];
-    const p3 = points[i + 2 < points.length ? i + 2 : i + 1];
+    const p3 = i < points.length - 2 ? points[i + 2] : p2;
 
-    const cp1x = p1.x + (p2.x - p0.x) * tension;
-    const cp1y = p1.y + (p2.y - p0.y) * tension;
+    const dx = p2.x - p1.x;
+    const dy = p2.y - p1.y;
 
-    const cp2x = p2.x - (p3.x - p1.x) * tension;
-    const cp2y = p2.y - (p3.y - p1.y) * tension;
+    // Controlled tangents
+    let m1 = (p2.y - p0.y) / (p2.x - p0.x || 1);
+    let m2 = (p3.y - p1.y) / (p3.x - p1.x || 1);
 
-    d += ` C ${cp1x.toFixed(1)},${cp1y.toFixed(1)} ${cp2x.toFixed(1)},${cp2y.toFixed(1)} ${p2.x.toFixed(1)},${p2.x ? p2.y.toFixed(1) : p2.y.toFixed(1)}`;
+    // Clamp slopes when adjacent points flat or extrema
+    if (Math.abs(dy) < 0.001) {
+      m1 = 0;
+      m2 = 0;
+    } else {
+      if (m1 * dy <= 0) m1 = 0;
+      if (m2 * dy <= 0) m2 = 0;
+    }
+
+    const cp1x = p1.x + dx / 3;
+    const cp1y = p1.y + (m1 * dx) / 3;
+    const cp2x = p2.x - dx / 3;
+    const cp2y = p2.y - (m2 * dx) / 3;
+
+    d += ` C ${cp1x.toFixed(1)},${cp1y.toFixed(1)} ${cp2x.toFixed(1)},${cp2y.toFixed(1)} ${p2.x.toFixed(1)},${p2.y.toFixed(1)}`;
   }
   return d;
 }
 
-function getSmoothAreaPath(points: { x: number; y: number }[], baseline: number, tension = 0.16): string {
+function getSmoothAreaPath(points: { x: number; y: number }[], baseline: number): string {
   if (points.length <= 1) return '';
-  const linePath = getSmoothSplinePath(points, tension);
+  const linePath = getSmoothSplinePath(points);
   const firstX = points[0].x;
   const lastX = points[points.length - 1].x;
-  return `${linePath} L ${lastX.toFixed(1)} ${baseline.toFixed(1)} L ${firstX.toFixed(1)} ${baseline.toFixed(1)} Z`;
+  return `${linePath} L ${lastX.toFixed(1)},${baseline.toFixed(1)} L ${firstX.toFixed(1)},${baseline.toFixed(1)} Z`;
 }
 
 interface NiceScale {
@@ -115,9 +132,9 @@ interface NiceScale {
 
 function getNiceScale(rawMax: number, targetTicks = 5): NiceScale {
   if (rawMax <= 0) {
-    return { max: 100, ticks: [0, 25, 50, 75, 100], step: 25 };
+    return { max: 20000, ticks: [0, 5000, 10000, 15000, 20000], step: 5000 };
   }
-  const safeMax = Math.max(rawMax * 1.08, 10);
+  const safeMax = Math.max(rawMax * 1.05, 10);
   const rawStep = safeMax / (targetTicks - 1);
   const exponent = Math.floor(Math.log10(rawStep));
   const magnitude = Math.pow(10, exponent);
@@ -148,7 +165,7 @@ function formatAxisTick(val: number): string {
   }
   if (Math.abs(val) >= 1_000) {
     const k = val / 1_000;
-    return `${k % 1 === 0 ? k.toFixed(0) : k.toFixed(1)}k`;
+    return `${k % 1 === 0 ? k.toFixed(0) : k.toFixed(1)}K`;
   }
   return val.toLocaleString();
 }
@@ -440,13 +457,13 @@ export function DynamicChartsSection({
   const totalWithdraw = activeTrendData.reduce((acc, p) => acc + getPointWithdraw(p), 0);
   const totalNc = activeTrendData.reduce((acc, p) => acc + getPointNc(p), 0);
 
-  // SVG Canvas Dimension (Full Border Width without Dead Gaps)
-  const svgWidth = 1000;
-  const svgHeight = 350;
-  const marginLeft = 38;
-  const marginRight = 8;
-  const marginTop = 32;
-  const marginBottom = 40;
+  // SVG Canvas Dimension (Full Border Width without Dead Gaps matching viewBox="0 0 1200 320")
+  const svgWidth = 1200;
+  const svgHeight = 320;
+  const marginLeft = 48;
+  const marginRight = 16;
+  const marginTop = 24;
+  const marginBottom = 36;
   const plotWidth = svgWidth - marginLeft - marginRight;
   const plotHeight = svgHeight - marginTop - marginBottom;
   const plotBaseline = marginTop + plotHeight;
@@ -601,74 +618,74 @@ export function DynamicChartsSection({
         </div>
 
         {/* Interactive Legend with Checkboxes to Select/Deselect Lines */}
-        <div className="flex flex-wrap items-center justify-between bg-slate-50/90 border border-slate-200/90 rounded-2xl p-2.5 sm:p-3 mb-4 gap-2 text-xs">
+        <div className="flex flex-wrap items-center justify-between bg-slate-50/80 border border-slate-200/80 rounded-2xl p-2.5 sm:p-3 mb-4 gap-2 text-xs">
           <div className="flex flex-wrap items-center gap-2.5">
             <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Lines (Click to toggle):</span>
             
-            {/* 1. Buy Line Checkbox */}
+            {/* 1. Buy Line Checkbox (Blue: #3b82f6) */}
             <button
               type="button"
               onClick={() => setShowBuyLine(!showBuyLine)}
               className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border font-black transition-all ${
                 showBuyLine
-                  ? 'bg-blue-50 text-[#0c4ca3] border-blue-300 shadow-2xs'
+                  ? 'bg-blue-50 text-blue-700 border-blue-300 shadow-2xs'
                   : 'bg-white text-slate-400 border-slate-200 opacity-60 line-through'
               }`}
             >
-              {showBuyLine ? <CheckSquare className="w-3.5 h-3.5 text-[#0c4ca3]" /> : <Square className="w-3.5 h-3.5 text-slate-400" />}
-              <span className="w-2.5 h-1 bg-[#0c4ca3] rounded-full" />
+              {showBuyLine ? <CheckSquare className="w-3.5 h-3.5 text-blue-600" /> : <Square className="w-3.5 h-3.5 text-slate-400" />}
+              <span className="w-2.5 h-1 bg-blue-500 rounded-full" />
               <span>Buy:</span>
-              <span className="text-[#0c4ca3]">{totalBuy.toLocaleString()} {trendUnitLabel}</span>
+              <span className="text-blue-700">{totalBuy.toLocaleString()} {trendUnitLabel}</span>
             </button>
 
-            {/* 2. Sell Line Checkbox (Amber / Gold) */}
+            {/* 2. Sell Line Checkbox (Orange: #f97316) */}
             <button
               type="button"
               onClick={() => setShowSellLine(!showSellLine)}
               className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border font-black transition-all ${
                 showSellLine
-                  ? 'bg-amber-50 text-amber-900 border-amber-300 shadow-2xs'
+                  ? 'bg-orange-50 text-orange-800 border-orange-300 shadow-2xs'
                   : 'bg-white text-slate-400 border-slate-200 opacity-60 line-through'
               }`}
             >
-              {showSellLine ? <CheckSquare className="w-3.5 h-3.5 text-[#e5a812]" /> : <Square className="w-3.5 h-3.5 text-slate-400" />}
-              <span className="w-2.5 h-1 bg-[#e5a812] rounded-full" />
+              {showSellLine ? <CheckSquare className="w-3.5 h-3.5 text-orange-500" /> : <Square className="w-3.5 h-3.5 text-slate-400" />}
+              <span className="w-2.5 h-1 bg-orange-500 rounded-full" />
               <span>Sell:</span>
-              <span className="text-amber-800">{totalSell.toLocaleString()} {trendUnitLabel}</span>
+              <span className="text-orange-800">{totalSell.toLocaleString()} {trendUnitLabel}</span>
             </button>
 
-            {/* 3. New Register Line Checkbox (Only in Transaction Trend mode) */}
+            {/* 3. New Register Line Checkbox (Green: #10b981) */}
             {trendMetric === 'tx' && (
               <button
                 type="button"
                 onClick={() => setShowNcLine(!showNcLine)}
                 className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border font-black transition-all ${
                   showNcLine
-                    ? 'bg-emerald-50 text-emerald-900 border-emerald-300 shadow-2xs'
+                    ? 'bg-emerald-50 text-emerald-800 border-emerald-300 shadow-2xs'
                     : 'bg-white text-slate-400 border-slate-200 opacity-60 line-through'
                 }`}
               >
                 {showNcLine ? <CheckSquare className="w-3.5 h-3.5 text-emerald-600" /> : <Square className="w-3.5 h-3.5 text-slate-400" />}
-                <span className="w-2.5 h-1 bg-emerald-600 rounded-full" />
+                <span className="w-2.5 h-1 bg-emerald-500 rounded-full" />
                 <span>New Register:</span>
                 <span className="text-emerald-700">{totalNc.toLocaleString()} users</span>
               </button>
             )}
 
-            {/* 4. Withdraw Line Checkbox */}
+            {/* 4. Withdraw Line Checkbox (Purple / Violet: #a855f7) */}
             <button
               type="button"
               onClick={() => setShowWithdrawLine(!showWithdrawLine)}
               className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border font-black transition-all ${
                 showWithdrawLine
-                  ? 'bg-amber-50 text-amber-900 border-amber-300 shadow-2xs'
+                  ? 'bg-purple-50 text-purple-800 border-purple-300 shadow-2xs'
                   : 'bg-white text-slate-400 border-slate-200 opacity-60 line-through'
               }`}
             >
-              {showWithdrawLine ? <CheckSquare className="w-3.5 h-3.5 text-amber-600" /> : <Square className="w-3.5 h-3.5 text-slate-400" />}
-              <span className="w-2.5 h-1 bg-amber-600 rounded-full" />
+              {showWithdrawLine ? <CheckSquare className="w-3.5 h-3.5 text-purple-600" /> : <Square className="w-3.5 h-3.5 text-slate-400" />}
+              <span className="w-2.5 h-1 bg-purple-500 rounded-full" />
               <span>Withdraw:</span>
-              <span className="text-amber-700">{totalWithdraw.toLocaleString()} {trendUnitLabel}</span>
+              <span className="text-purple-700">{totalWithdraw.toLocaleString()} {trendUnitLabel}</span>
             </button>
           </div>
 
@@ -678,35 +695,42 @@ export function DynamicChartsSection({
         </div>
 
         {/* ========================================================================= */}
-        {/* MULTI-LINE SPLINE VISUAL CANVAS (PRECISION SVG 1000x350 - FULL BORDER)    */}
+        {/* MULTI-LINE SPLINE VISUAL CANVAS (CLEAN 1200x320 SVG - PIC2 REFERENCE STYLE) */}
         {/* ========================================================================= */}
-        <div className="relative w-full bg-gradient-to-b from-slate-50/60 to-white rounded-2xl border border-slate-200/80 p-1 sm:p-2 overflow-hidden shadow-xs">
+        <div className="relative w-full bg-slate-50/30 rounded-2xl border border-slate-200/70 p-2 sm:p-3 overflow-hidden shadow-2xs">
           <svg
-            viewBox={`0 0 ${svgWidth} ${svgHeight}`}
-            className="w-full h-[320px] sm:h-[350px] lg:h-[375px] select-none"
-            preserveAspectRatio="none"
+            viewBox="0 0 1200 320"
+            className="w-full h-auto select-none overflow-visible"
+            style={{ minHeight: '260px', maxHeight: '380px' }}
             shapeRendering="geometricPrecision"
             textRendering="geometricPrecision"
           >
             <defs>
-              {/* Buy Glow Gradient */}
-              <linearGradient id="buyWaveGradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#0c4ca3" stopOpacity="0.22" />
-                <stop offset="70%" stopColor="#38bdf8" stopOpacity="0.05" />
+              {/* Buy Soft Blue Gradient Area */}
+              <linearGradient id="refBuyGradient" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.25" />
+                <stop offset="60%" stopColor="#60a5fa" stopOpacity="0.08" />
                 <stop offset="100%" stopColor="#ffffff" stopOpacity="0.0" />
               </linearGradient>
 
-              {/* Sell Glow Gradient */}
-              <linearGradient id="sellWaveGradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#e5a812" stopOpacity="0.18" />
-                <stop offset="70%" stopColor="#fef3c7" stopOpacity="0.04" />
+              {/* Sell Soft Orange Gradient Area */}
+              <linearGradient id="refSellGradient" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#f97316" stopOpacity="0.20" />
+                <stop offset="60%" stopColor="#fdba74" stopOpacity="0.06" />
                 <stop offset="100%" stopColor="#ffffff" stopOpacity="0.0" />
               </linearGradient>
 
-              {/* Withdraw Glow Gradient */}
-              <linearGradient id="withdrawWaveGradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#f59e0b" stopOpacity="0.18" />
-                <stop offset="70%" stopColor="#fde68a" stopOpacity="0.04" />
+              {/* New Register Soft Green Gradient Area */}
+              <linearGradient id="refNcGradient" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#10b981" stopOpacity="0.18" />
+                <stop offset="60%" stopColor="#6ee7b7" stopOpacity="0.05" />
+                <stop offset="100%" stopColor="#ffffff" stopOpacity="0.0" />
+              </linearGradient>
+
+              {/* Withdraw Soft Purple Gradient Area */}
+              <linearGradient id="refWithdrawGradient" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#a855f7" stopOpacity="0.16" />
+                <stop offset="60%" stopColor="#d8b4fe" stopOpacity="0.04" />
                 <stop offset="100%" stopColor="#ffffff" stopOpacity="0.0" />
               </linearGradient>
             </defs>
@@ -723,15 +747,15 @@ export function DynamicChartsSection({
                     y1={yPos}
                     x2={svgWidth - marginRight}
                     y2={yPos}
-                    stroke={gIdx === 0 ? '#cbd5e1' : '#e2e8f0'}
+                    stroke="#f1f5f9"
                     strokeDasharray={gIdx === 0 ? 'none' : '4 4'}
-                    strokeWidth={gIdx === 0 ? '1.5' : '1'}
+                    strokeWidth={gIdx === 0 ? '1.2' : '1'}
                   />
                   <text
-                    x={marginLeft - 6}
-                    y={yPos + 3.5}
+                    x={marginLeft - 8}
+                    y={yPos + 4}
                     textAnchor="end"
-                    className="text-[10px] font-bold fill-slate-500 font-mono tracking-tight"
+                    className="text-[11px] font-medium fill-slate-400 select-none font-sans"
                   >
                     {formatAxisTick(tickVal)}
                   </text>
@@ -739,72 +763,74 @@ export function DynamicChartsSection({
               );
             })}
 
-            {/* Translucent Area Fills Under Spline Curves */}
+            {/* Layered Translucent Area Fills (Pic2 stacking order) */}
             {showBuyLine && buySplineArea && (
-              <path d={buySplineArea} fill="url(#buyWaveGradient)" className="pointer-events-none" />
+              <path d={buySplineArea} fill="url(#refBuyGradient)" className="pointer-events-none" />
             )}
             {showSellLine && sellSplineArea && (
-              <path d={sellSplineArea} fill="url(#sellWaveGradient)" className="pointer-events-none" />
+              <path d={sellSplineArea} fill="url(#refSellGradient)" className="pointer-events-none" />
+            )}
+            {trendMetric === 'tx' && showNcLine && (
+              <path d={getSmoothAreaPath(ncPoints, plotBaseline)} fill="url(#refNcGradient)" className="pointer-events-none" />
             )}
             {showWithdrawLine && withdrawSplineArea && (
-              <path d={withdrawSplineArea} fill="url(#withdrawWaveGradient)" className="pointer-events-none" />
+              <path d={withdrawSplineArea} fill="url(#refWithdrawGradient)" className="pointer-events-none" />
             )}
 
-            {/* Spline Lines */}
-            {/* 1. Buy Line (Blue) */}
+            {/* Spline Lines with Natural Curves (Pic2 Reference Colors) */}
+            {/* 1. Buy Line (Bright Blue) */}
             {showBuyLine && buySplinePath && (
               <path
                 d={buySplinePath}
                 fill="none"
-                stroke="#0c4ca3"
-                strokeWidth="3.2"
+                stroke="#3b82f6"
+                strokeWidth="2.2"
                 strokeLinecap="round"
                 strokeLinejoin="round"
-                className="pointer-events-none filter drop-shadow-sm"
+                className="pointer-events-none"
               />
             )}
 
-            {/* 2. Sell Line (Amber / Gold) */}
+            {/* 2. Sell Line (Warm Orange) */}
             {showSellLine && sellSplinePath && (
               <path
                 d={sellSplinePath}
                 fill="none"
-                stroke="#e5a812"
-                strokeWidth="3.0"
+                stroke="#f97316"
+                strokeWidth="2.0"
                 strokeLinecap="round"
                 strokeLinejoin="round"
-                className="pointer-events-none filter drop-shadow-sm"
+                className="pointer-events-none"
               />
             )}
 
-            {/* 3. New Register Line (Emerald - Only in Tx mode) */}
+            {/* 3. New Register Line (Emerald Green) */}
             {trendMetric === 'tx' && showNcLine && ncSplinePath && (
               <path
                 d={ncSplinePath}
                 fill="none"
                 stroke="#10b981"
-                strokeWidth="2.8"
-                strokeDasharray="4 2.5"
+                strokeWidth="1.9"
                 strokeLinecap="round"
                 strokeLinejoin="round"
-                className="pointer-events-none filter drop-shadow-sm"
+                className="pointer-events-none"
               />
             )}
 
-            {/* 4. Withdraw Line (Amber) */}
+            {/* 4. Withdraw Line (Purple / Violet) */}
             {showWithdrawLine && withdrawSplinePath && (
               <path
                 d={withdrawSplinePath}
                 fill="none"
-                stroke="#d97706"
-                strokeWidth="2.8"
+                stroke="#a855f7"
+                strokeWidth="1.9"
                 strokeLinecap="round"
                 strokeLinejoin="round"
-                className="pointer-events-none filter drop-shadow-sm"
+                className="pointer-events-none"
               />
             )}
 
-            {/* Interactive Vertical Hover Bands & Circular Nodes */}
+            {/* Interactive Vertical Hover Bands & Solid Node Dots (Pic2 exact style) */}
             {activeTrendData.map((pt, i) => {
               const cx = getX(i);
               const isHovered = hoveredTrendIndex === i;
@@ -826,7 +852,7 @@ export function DynamicChartsSection({
                     x={hitLeft}
                     y={marginTop}
                     width={hitWidth}
-                    height={plotHeight}
+                    height={plotHeight + 30}
                     fill="transparent"
                     className="cursor-pointer"
                     onMouseEnter={() => setHoveredTrendIndex(i)}
@@ -841,82 +867,75 @@ export function DynamicChartsSection({
                       x2={cx}
                       y2={plotBaseline}
                       stroke="#94a3b8"
-                      strokeWidth="1.5"
+                      strokeWidth="1.2"
                       strokeDasharray="3 3"
                       className="pointer-events-none"
                     />
                   )}
 
-                  {/* Nodes on Splines */}
+                  {/* Pic2 Solid Node Dots: Buy (Blue) */}
                   {showBuyLine && buyPt && (
                     <circle
                       cx={buyPt.x}
                       cy={buyPt.y}
-                      r={isHovered ? 6 : 4}
-                      fill="#ffffff"
-                      stroke="#0c4ca3"
-                      strokeWidth={isHovered ? 3 : 2.2}
-                      className="pointer-events-none transition-all"
+                      r={isHovered ? 4.5 : 2.8}
+                      fill="#3b82f6"
+                      stroke="#ffffff"
+                      strokeWidth={isHovered ? 1.5 : 0.8}
+                      className="pointer-events-none transition-all duration-100"
                     />
                   )}
 
+                  {/* Pic2 Solid Node Dots: Sell (Orange) */}
                   {showSellLine && sellPt && (
                     <circle
                       cx={sellPt.x}
                       cy={sellPt.y}
-                      r={isHovered ? 6 : 4}
-                      fill="#ffffff"
-                      stroke="#e5a812"
-                      strokeWidth={isHovered ? 3 : 2.2}
-                      className="pointer-events-none transition-all"
+                      r={isHovered ? 4.5 : 2.8}
+                      fill="#f97316"
+                      stroke="#ffffff"
+                      strokeWidth={isHovered ? 1.5 : 0.8}
+                      className="pointer-events-none transition-all duration-100"
                     />
                   )}
 
+                  {/* Pic2 Solid Node Dots: New Register (Emerald Green) */}
                   {trendMetric === 'tx' && showNcLine && ncPt && (
                     <circle
                       cx={ncPt.x}
                       cy={ncPt.y}
-                      r={isHovered ? 5.5 : 3.5}
-                      fill="#ffffff"
-                      stroke="#10b981"
-                      strokeWidth={isHovered ? 2.8 : 2}
-                      className="pointer-events-none transition-all"
+                      r={isHovered ? 4.2 : 2.6}
+                      fill="#10b981"
+                      stroke="#ffffff"
+                      strokeWidth={isHovered ? 1.5 : 0.8}
+                      className="pointer-events-none transition-all duration-100"
                     />
                   )}
 
+                  {/* Pic2 Solid Node Dots: Withdraw (Purple) */}
                   {showWithdrawLine && withdrawPt && (
                     <circle
                       cx={withdrawPt.x}
                       cy={withdrawPt.y}
-                      r={isHovered ? 5.5 : 3.5}
-                      fill="#ffffff"
-                      stroke="#d97706"
-                      strokeWidth={isHovered ? 2.8 : 2}
-                      className="pointer-events-none transition-all"
+                      r={isHovered ? 4.2 : 2.6}
+                      fill="#a855f7"
+                      stroke="#ffffff"
+                      strokeWidth={isHovered ? 1.5 : 0.8}
+                      className="pointer-events-none transition-all duration-100"
                     />
                   )}
 
-                  {/* X-Axis Tick Label */}
+                  {/* X-Axis Tick Label (Pic2: Clean small font, like '10-01') */}
                   <text
                     x={cx}
-                    y={plotBaseline + 18}
+                    y={plotBaseline + 16}
                     textAnchor="middle"
-                    className={`text-[10px] select-none transition-all ${
-                      isHovered ? 'font-black fill-[#0c4ca3]' : 'font-bold fill-slate-600'
+                    className={`text-[9.5px] select-none transition-all font-sans ${
+                      isHovered ? 'font-bold fill-blue-600' : 'font-medium fill-slate-400'
                     }`}
                   >
                     {pt.label}
                   </text>
-                  {pt.subLabel && (
-                    <text
-                      x={cx}
-                      y={plotBaseline + 31}
-                      textAnchor="middle"
-                      className="text-[9px] font-medium fill-slate-400 select-none"
-                    >
-                      {pt.subLabel}
-                    </text>
-                  )}
                 </g>
               );
             })}
@@ -931,24 +950,24 @@ export function DynamicChartsSection({
               const wVal = getPointWithdraw(pt);
               const ncVal = getPointNc(pt);
               const cx = getX(hoveredTrendIndex);
-              const leftPercent = Math.min(84, Math.max(16, (cx / svgWidth) * 100));
+              const leftPercent = Math.min(86, Math.max(14, (cx / svgWidth) * 100));
 
               return (
                 <div
-                  className="absolute top-4 pointer-events-none transition-all duration-150 z-30"
+                  className="absolute top-3 pointer-events-none transition-all duration-150 z-30"
                   style={{ left: `${leftPercent}%`, transform: 'translateX(-50%)' }}
                 >
-                  <div className="bg-slate-900/95 backdrop-blur-md text-white px-3.5 py-2.5 rounded-2xl shadow-2xl border border-slate-700/80 text-xs min-w-[190px]">
-                    <div className="flex items-center justify-between pb-1.5 mb-1.5 border-b border-slate-800">
-                      <span className="font-extrabold text-amber-300">{pt.label}</span>
-                      <span className="text-[10px] text-slate-400 font-medium">{pt.subLabel}</span>
+                  <div className="bg-slate-900/95 backdrop-blur-md text-white px-3 py-2 rounded-xl shadow-xl border border-slate-700/80 text-xs min-w-[180px]">
+                    <div className="flex items-center justify-between pb-1 mb-1 border-b border-slate-800">
+                      <span className="font-extrabold text-blue-400">{pt.label}</span>
+                      {pt.subLabel && <span className="text-[10px] text-slate-400 font-medium">{pt.subLabel}</span>}
                     </div>
 
                     <div className="space-y-1">
                       {showBuyLine && (
-                        <div className="flex items-center justify-between text-[#60a5fa]">
+                        <div className="flex items-center justify-between text-blue-300">
                           <span className="flex items-center gap-1.5 font-bold">
-                            <span className="w-2 h-2 rounded-full bg-[#0c4ca3]" />
+                            <span className="w-2 h-2 rounded-full bg-blue-500" />
                             Buy:
                           </span>
                           <span className="font-mono font-black">{bVal.toLocaleString()} {trendUnitLabel}</span>
@@ -956,9 +975,9 @@ export function DynamicChartsSection({
                       )}
 
                       {showSellLine && (
-                        <div className="flex items-center justify-between text-amber-300">
+                        <div className="flex items-center justify-between text-orange-300">
                           <span className="flex items-center gap-1.5 font-bold">
-                            <span className="w-2 h-2 rounded-full bg-[#e5a812]" />
+                            <span className="w-2 h-2 rounded-full bg-orange-500" />
                             Sell:
                           </span>
                           <span className="font-mono font-black">{sVal.toLocaleString()} {trendUnitLabel}</span>
@@ -976,9 +995,9 @@ export function DynamicChartsSection({
                       )}
 
                       {showWithdrawLine && (
-                        <div className="flex items-center justify-between text-amber-400">
+                        <div className="flex items-center justify-between text-purple-300">
                           <span className="flex items-center gap-1.5 font-bold">
-                            <span className="w-2 h-2 rounded-full bg-amber-500" />
+                            <span className="w-2 h-2 rounded-full bg-purple-500" />
                             Withdraw:
                           </span>
                           <span className="font-mono font-black">{wVal.toLocaleString()} {trendUnitLabel}</span>
