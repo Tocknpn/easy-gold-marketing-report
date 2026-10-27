@@ -106,18 +106,19 @@ export function DynamicReportView() {
 
   const handleFilterChange = (newFilters: DynamicFilterState) => {
     setFilters(newFilters);
-    // If the user has already executed a report or switches date presets, update the preview immediately
-    if (hasExecuted) {
-      const calculatedPreview = calculateFilteredReport(newFilters);
-      setReportData(calculatedPreview);
-    }
+    // 1. Instant optimistic preview so UI feels snappy
+    const calculatedPreview = calculateFilteredReport(newFilters);
+    setReportData(calculatedPreview);
+
+    // 2. Automatically query live Supabase backend with new filters
+    fetchReport(newFilters);
   };
 
   const handleResetFilters = () => {
     setFilters(DEFAULT_FILTER_STATE);
-    if (hasExecuted) {
-      setReportData(calculateFilteredReport(DEFAULT_FILTER_STATE));
-    }
+    const calculatedPreview = calculateFilteredReport(DEFAULT_FILTER_STATE);
+    setReportData(calculatedPreview);
+    fetchReport(DEFAULT_FILTER_STATE);
   };
 
   const handleExportCsv = () => {
