@@ -148,17 +148,6 @@ function TargetHitTable({ data }: { data: RunRateComparisonPayload }) {
           );
         })}
       </div>
-
-      <div className="flex items-center justify-between pt-[0.4em] text-[0.8em] font-semibold text-slate-500 shrink-0">
-        <span className="inline-flex items-center gap-1">
-          <span className="inline-block w-[2px] h-3 bg-slate-700/70" /> Line = how much of the month has passed ({mt.days_gone_pct}%)
-        </span>
-        <span className="inline-flex items-center gap-3 font-bold">
-          <span style={{ color: UP }}>● 100%+ On track</span>
-          <span style={{ color: BRAND }}>● 90–99% Close</span>
-          <span style={{ color: DOWN }}>● under 90% Behind</span>
-        </span>
-      </div>
     </div>
   );
 }
@@ -360,95 +349,7 @@ export function DailyPerformanceView({ onBack }: { onBack?: () => void } = {}) {
   const statusColor = status === 'live' || status === 'polling' ? '#34d399' : status === 'loading' ? '#fbbf24' : '#f87171';
 
   return (
-    <div className="flex flex-col select-none text-slate-900 gap-3 min-w-0">
-      {/* ---------- Clean Integrated Day Filter & Status Control Bar ---------- */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-white rounded-2xl border border-slate-200/90 shadow-xs">
-        {/* Left: Title & Active Day Badge */}
-        <div className="flex items-center gap-2.5 flex-wrap">
-          <div className="w-8 h-8 rounded-xl bg-blue-50 text-[#0c4ca3] flex items-center justify-center border border-blue-200">
-            <Activity className="w-4 h-4 font-black" />
-          </div>
-          <div>
-            <h1 className="text-base sm:text-lg font-black text-slate-900 tracking-tight flex items-center gap-2">
-              <span>Daily Performance</span>
-              <span className="text-[#e5a812]">MKT</span>
-              <span className="text-xs font-mono font-bold px-2.5 py-0.5 rounded-lg bg-slate-100 text-slate-700 border border-slate-200">
-                {selected ? formatLongDate(selected) : '–'}
-              </span>
-            </h1>
-            <p className="text-[11px] font-semibold text-slate-400">
-              {isLatest ? 'Viewing latest operational day' : 'Viewing historical day data'}
-            </p>
-          </div>
-        </div>
-
-        {/* Center: Day Selector Navigation (No overlap) */}
-        <div className="flex items-center gap-1.5 bg-slate-50 px-2.5 py-1.5 rounded-xl border border-slate-200/90 self-start sm:self-auto flex-wrap">
-          <button
-            onClick={() => step(-1)}
-            className="p-1 rounded-md text-slate-600 hover:bg-slate-200 disabled:opacity-30 cursor-pointer transition-colors"
-            disabled={!selected || !firstDate || selected <= firstDate}
-            title="Previous Day"
-          >
-            <ChevronLeft className="w-4 h-4" />
-          </button>
-
-          <input
-            type="date"
-            value={selected ?? ''}
-            min={firstDate ?? undefined}
-            max={latestDate ?? undefined}
-            onChange={(e) => {
-              const v = e.target.value;
-              if (!v) return;
-              if (map.has(v)) setPicked(v === latestDate ? null : v);
-            }}
-            className="text-xs font-bold font-mono text-slate-800 bg-white border border-slate-300 rounded-lg px-2.5 py-1 hover:bg-slate-50 transition-colors cursor-pointer focus:outline-none focus:ring-1 focus:ring-brand-navy"
-            aria-label="Pick a day"
-          />
-
-          <button
-            onClick={() => step(1)}
-            className="p-1 rounded-md text-slate-600 hover:bg-slate-200 disabled:opacity-30 cursor-pointer transition-colors"
-            disabled={!selected || !latestDate || selected >= latestDate}
-            title="Next Day"
-          >
-            <ChevronRight className="w-4 h-4" />
-          </button>
-
-          <button
-            onClick={() => setPicked(null)}
-            disabled={isLatest}
-            className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-              isLatest
-                ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
-                : 'bg-[#e5a812] text-slate-900 shadow-2xs hover:bg-[#d89e10]'
-            }`}
-          >
-            Latest
-          </button>
-        </div>
-
-        {/* Right: Live Telemetry & Quick Refresh */}
-        <div className="flex items-center gap-3 self-end sm:self-auto">
-          <div className="flex items-center gap-1.5 text-xs font-bold text-slate-600">
-            <span className="inline-block w-2.5 h-2.5 rounded-full" style={{ background: statusColor }} />
-            <span>{statusText}</span>
-          </div>
-          <span className="text-xs font-black font-mono text-slate-400 tabular-nums">
-            {now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
-          </span>
-          <button
-            onClick={() => reload()}
-            className="p-1.5 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors cursor-pointer border border-slate-200"
-            title="Refresh now"
-            aria-label="Refresh now"
-          >
-            <RefreshCw className="w-3.5 h-3.5" />
-          </button>
-        </div>
-      </div>
-
+    <div className="flex flex-col select-none text-slate-900 min-w-0">
       {/* ---------- 4 blocks, one screen, no scrolling ---------- */}
       {!series || !runRate || !selected ? (
         <div className="flex-1 flex items-center justify-center text-slate-600 font-bold text-[1.4em]">
@@ -457,7 +358,75 @@ export function DailyPerformanceView({ onBack }: { onBack?: () => void } = {}) {
       ) : (
         <main className="grid grid-cols-1 xl:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] gap-3.5 items-stretch">
           {/* 1. New register */}
-          <Panel no={1} title="New Register" hint="Last 30 days">
+          <Panel
+            no={1}
+            title="New Register"
+            hint={
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => step(-1)}
+                  disabled={!selected || !firstDate || selected <= firstDate}
+                  className="p-1 rounded-md text-slate-500 hover:text-slate-800 hover:bg-slate-100 disabled:opacity-20 cursor-pointer transition-colors"
+                  title="Previous Day"
+                  aria-label="Previous Day"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" />
+                </button>
+
+                {/* Interactive Clickable Date Picker & Status */}
+                <label
+                  className="group relative inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-blue-50 border border-slate-200 hover:border-blue-300 text-slate-700 hover:text-[#0c4ca3] cursor-pointer transition-all shadow-2xs"
+                  title="Click to select date to view data"
+                >
+                  <span
+                    className="w-2 h-2 rounded-full shrink-0"
+                    style={{ background: statusColor }}
+                    title={statusText}
+                  />
+                  <span className="text-[11px] sm:text-xs font-mono font-bold whitespace-nowrap">
+                    {formatLongDate(selected)}
+                  </span>
+                  <input
+                    type="date"
+                    value={selected ?? ''}
+                    min={firstDate ?? undefined}
+                    max={latestDate ?? undefined}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      if (!v) return;
+                      if (map.has(v)) setPicked(v === latestDate ? null : v);
+                    }}
+                    className="sr-only"
+                    tabIndex={0}
+                    aria-label="Select date to see data"
+                  />
+                </label>
+
+                <button
+                  type="button"
+                  onClick={() => step(1)}
+                  disabled={!selected || !latestDate || selected >= latestDate}
+                  className="p-1 rounded-md text-slate-500 hover:text-slate-800 hover:bg-slate-100 disabled:opacity-20 cursor-pointer transition-colors"
+                  title="Next Day"
+                  aria-label="Next Day"
+                >
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+
+                {!isLatest && (
+                  <button
+                    type="button"
+                    onClick={() => setPicked(null)}
+                    className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-[#e5a812] text-slate-900 hover:bg-[#d89e10] transition-colors cursor-pointer shadow-2xs"
+                    title="Return to latest day"
+                  >
+                    Latest
+                  </button>
+                )}
+              </div>
+            }
+          >
             <div className="h-full flex flex-col justify-between min-h-0">
               {/* Top row: Left Hero Card, Right Compare table */}
               <div className="grid grid-cols-[auto_1fr] gap-3 items-stretch shrink-0 pb-1.5">
