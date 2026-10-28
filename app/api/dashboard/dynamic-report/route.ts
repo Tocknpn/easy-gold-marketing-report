@@ -13,8 +13,7 @@ import {
   WeightBracketMetric,
 } from '@/lib/types/dynamicReport.types';
 
-export const dynamic = 'force-dynamic';
-export const maxDuration = 60;
+export const runtime = 'edge';
 
 const DOW_CATALOG: { num: number; code: string; label: string; full: string }[] = [
   { num: 1, code: 'mon', label: 'Mon', full: 'Monday' },
