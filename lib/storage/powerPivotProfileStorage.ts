@@ -42,6 +42,10 @@ function tx(op: '=' | '>=', value: string, field = 'transaction_type') {
   return { id: newFilterId(), scope: 'row' as const, field, op, value, enabled: true };
 }
 
+function statusOk() {
+  return { id: newFilterId(), scope: 'row' as const, field: 'status', op: '=' as const, value: 'ສໍາເລັດ', enabled: true };
+}
+
 function preset(
   id: string,
   name: string,
@@ -61,11 +65,12 @@ function preset(
       rows: [],
       columns: [],
       values: [],
-      filters: [],
+      filters: [statusOk()],
       customMeasures: [],
       sortBy: 'label',
       sortDir: 'desc',
       pageSize: 500,
+      topN: null,
       ...config,
     },
   };
@@ -75,28 +80,38 @@ export const PRESET_PROFILES: PowerPivotProfile[] = [
   preset('preset-monthly-audit', 'Monthly Audit & Date Verification', 'Monthly breakdown with Min Datetime, Max Datetime, and Transaction Counts', {
     rows: ['month'],
     values: ['total_transaction', 'total_buy_transac', 'revenue_buy_mil', 'gold_weight_buy_g', 'min_datetime', 'max_datetime'],
-    sortBy: 'label',
+    filters: [statusOk()],
+    sortBy: 'month',
     sortDir: 'desc',
   }),
   preset('preset-daily-buy', 'Daily Buy Activity (Excel Image 1)', 'Daily breakdown of BUY_GOLD transactions >= 500K with timestamps', {
     rows: ['date'],
     values: ['total_buy_transac', 'total_unique_user', 'revenue_buy_mil', 'gold_weight_buy_g', 'min_datetime', 'max_datetime'],
-    filters: [tx('=', 'BUY_GOLD'), tx('>=', '500000', 'total_amount')],
-    sortBy: 'label',
+    filters: [statusOk(), tx('>=', '500000', 'total_amount')],
+    sortBy: 'date',
     sortDir: 'desc',
   }),
   preset('preset-bank-buy', 'Banking Gateway - Buy Summary', 'Buy performance per banking gateway', {
     rows: ['bank'],
     values: ['total_buy_transac', 'total_unique_user', 'revenue_buy_mil', 'gold_weight_buy_g', 'gold_buy_size_g'],
-    filters: [tx('=', 'BUY_GOLD')],
+    filters: [statusOk()],
     sortBy: 'total_buy_transac',
   }),
-  preset('preset-customer-leaders', 'Top Customers (Buy Leaderboard)', 'Phone & customer ranked by buy value, paged 100 rows', {
+  preset('preset-customer-leaders', 'Top Customers (Buy Leaderboard)', 'Top 100 Phone & customer ranked by buy value & weight', {
     rows: ['phone_customer'],
     values: ['total_buy_transac', 'revenue_buy_mil', 'gold_weight_buy_g', 'gold_buy_size_g'],
-    filters: [tx('=', 'BUY_GOLD')],
+    filters: [statusOk()],
     sortBy: 'revenue_buy_mil',
     pageSize: 100,
+    topN: 100,
+  }),
+  preset('preset-top-withdraw-leaders', 'Top Customers (Withdraw Leaderboard)', 'Top 50 Customers ranked by Total Withdraw Weight (g) & Withdraw Transactions', {
+    rows: ['phone_customer'],
+    values: ['withdraw_gold_g', 'withdraw_gold_15g', 'withdraw_trans', 'withdraw_value_mil'],
+    filters: [statusOk()],
+    sortBy: 'withdraw_gold_g',
+    pageSize: 50,
+    topN: 50,
   }),
   preset('preset-net-flow-week', 'Weekly Buy vs Sell Net Flow', 'ISO week trend: buy vs sell, net flow %, ABS value', {
     rows: ['week'],
@@ -104,21 +119,23 @@ export const PRESET_PROFILES: PowerPivotProfile[] = [
       'total_buy_transac', 'total_sell_transac', 'net_flow_trans',
       'revenue_buy_mil', 'revenue_sell_mil', 'abs_value_mil', 'net_flow_value',
     ],
-    sortBy: 'label',
+    filters: [statusOk()],
+    sortBy: 'week',
     sortDir: 'desc',
   }),
   preset('preset-bank-by-month', 'Bank x Month (Cross-tab)', 'Revenue Buy per bank, month across columns', {
     rows: ['bank'],
     columns: ['month'],
     values: ['revenue_buy_mil', 'total_buy_transac'],
-    filters: [tx('=', 'BUY_GOLD')],
+    filters: [statusOk()],
     sortBy: 'revenue_buy_mil',
   }),
   preset('preset-weight-band', 'Ticket Size Bands by Transaction Type', 'Weight band rows, transaction type columns', {
     rows: ['weight_band'],
     columns: ['transaction_type'],
     values: ['total_transaction', 'total_unique_user'],
-    sortBy: 'label',
+    filters: [statusOk()],
+    sortBy: 'weight_band',
     sortDir: 'asc',
   }),
 ];
@@ -201,7 +218,6 @@ export async function savePowerPivotProfile(
   profile: PowerPivotProfile,
   userId?: string
 ): Promise<PowerPivotProfile> {
-  // If it's a preset and we're just toggling favorite:
   if (profile.isPreset) {
     const favs = new Set(getFavPresets());
     if (profile.isFavorite) {

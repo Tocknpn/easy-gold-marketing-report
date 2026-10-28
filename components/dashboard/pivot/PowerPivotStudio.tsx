@@ -6,7 +6,6 @@ import {
   Layers,
   Filter,
   Sigma,
-  Zap,
   Save,
   Star,
   Plus,
@@ -18,13 +17,20 @@ import {
   RefreshCw,
   Copy,
   AlertCircle,
+  AlertTriangle,
   Database,
   ChevronLeft,
   ChevronRight,
   Sparkles,
   Loader2,
   Calendar,
-  ChevronDown
+  ChevronDown,
+  Trophy,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
+  FileSpreadsheet,
+  Wrench,
 } from 'lucide-react';
 import { UserProfile } from '@/lib/types/auth.types';
 import {
@@ -33,13 +39,18 @@ import {
   PowerPivotResult,
   PowerPivotMeta,
   CustomMeasure,
+  PivotConflict,
   DIMENSIONS,
   DimensionGroup,
   MeasureGroup,
+  TOP_N_METRICS,
+  TOP_N_CHOICES,
   createEmptyConfig,
   getAllMeasures,
   describeFilter,
   newFilterId,
+  validatePivotConfig,
+  applyAllConflictFixes,
 } from '@/lib/types/powerPivot.types';
 import {
   loadPowerPivotProfiles,
@@ -55,6 +66,7 @@ import {
   readCachedMeta,
   resultToCsv,
   downloadCsv,
+  downloadExcel,
 } from '@/lib/pivot/powerPivotApi';
 import { PowerPivotGrid } from './PowerPivotGrid';
 import { PowerPivotFilterBuilder } from './PowerPivotFilterBuilder';
@@ -127,11 +139,9 @@ function Zone({
             className="group flex items-center gap-1 pl-1 pr-1.5 py-1 rounded-lg bg-slate-100 border border-slate-300 text-[11px] font-bold text-slate-800"
           >
             {items.length > 1 && (
-              <>
-                <button type="button" disabled={i === 0} onClick={() => onMove(id, -1)} className="disabled:opacity-20 hover:text-[#0c4ca3]">
-                  <ChevronLeft className="w-3 h-3" />
-                </button>
-              </>
+              <button type="button" disabled={i === 0} onClick={() => onMove(id, -1)} className="disabled:opacity-20 hover:text-[#0c4ca3]">
+                <ChevronLeft className="w-3 h-3" />
+              </button>
             )}
             <span className="px-0.5">{labelOf(id)}</span>
             {items.length > 1 && (
@@ -304,6 +314,7 @@ export function PowerPivotStudio({ currentUser }: Props) {
   const [result, setResult] = useState<PowerPivotResult | null>(null);
   const [ranConfig, setRanConfig] = useState<PowerPivotConfig | null>(null);
   const [loading, setLoading] = useState(false);
+  const [loadingSec, setLoadingSec] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
   const [meta, setMeta] = useState<PowerPivotMeta | null>(null);
@@ -317,9 +328,15 @@ export function PowerPivotStudio({ currentUser }: Props) {
   const [exporting, setExporting] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
+  // Conflict modal & Custom Top N state
+  const [conflictModalOpen, setConflictModalOpen] = useState(false);
+  const [customTopNInput, setCustomTopNInput] = useState('');
+
   const allMeasures = useMemo(() => getAllMeasures(config.customMeasures), [config.customMeasures]);
   const measureLabel = useCallback((id: string) => allMeasures.find((m) => m.id === id)?.label || id, [allMeasures]);
   const dimLabel = useCallback((id: string) => DIMENSIONS.find((d) => d.id === id)?.label || id, []);
+
+  const conflicts = useMemo(() => validatePivotConfig(config), [config]);
 
   const activeProfile = profiles.find((p) => p.id === activeId);
   const isDirty = activeProfile ? JSON.stringify(activeProfile.config) !== JSON.stringify(config) : true;
@@ -327,8 +344,21 @@ export function PowerPivotStudio({ currentUser }: Props) {
 
   const flash = (msg: string) => {
     setToast(msg);
-    setTimeout(() => setToast(null), 2600);
+    setTimeout(() => setToast(null), 3200);
   };
+
+  // Elapsed timer during loading
+  useEffect(() => {
+    if (!loading && !exporting) {
+      setLoadingSec(0);
+      return;
+    }
+    const t0 = Date.now();
+    const iv = setInterval(() => {
+      setLoadingSec(Math.floor((Date.now() - t0) / 100) / 10);
+    }, 100);
+    return () => clearInterval(iv);
+  }, [loading, exporting]);
 
   // ---- bootstrap ----
   useEffect(() => {
@@ -366,7 +396,7 @@ export function PowerPivotStudio({ currentUser }: Props) {
     setActiveId(id);
     setActiveProfileId(id);
     setConfig(clone(p.config));
-    setResult(null); // Query-on-demand: nothing shown until GO!
+    setResult(null);
     setRanConfig(null);
     setError(null);
   };
@@ -439,7 +469,14 @@ export function PowerPivotStudio({ currentUser }: Props) {
 
   const newBlank = () => {
     setActiveId('__new__');
-    setConfig({ ...createEmptyConfig(), filters: [], values: ['total_transaction'], rows: [], sortBy: 'total_transaction' });
+    setConfig({
+      ...createEmptyConfig(),
+      filters: [{ id: newFilterId(), scope: 'row', field: 'status', op: '=', value: 'ສໍາເລັດ', enabled: true }],
+      values: ['total_transaction'],
+      rows: [],
+      sortBy: 'total_transaction',
+      topN: null,
+    });
     setResult(null);
     setRanConfig(null);
     flash('New blank report profile');
@@ -459,7 +496,12 @@ export function PowerPivotStudio({ currentUser }: Props) {
   const toggleValue = (id: string) =>
     setConfig((c) => {
       const values = c.values.includes(id) ? c.values.filter((x) => x !== id) : [...c.values, id].slice(0, 12);
-      return { ...c, values, sortBy: c.sortBy !== 'label' && !values.includes(c.sortBy) ? values[0] || 'label' : c.sortBy };
+      const isDimSort = c.sortBy === 'label' || ['r1', 'r2', 'r3'].includes(c.sortBy) || c.rows.includes(c.sortBy);
+      return {
+        ...c,
+        values,
+        sortBy: !isDimSort && !values.includes(c.sortBy) ? values[0] || 'label' : c.sortBy,
+      };
     });
   const move = (key: 'rows' | 'values', id: string, dir: -1 | 1) =>
     setConfig((c) => {
@@ -470,6 +512,56 @@ export function PowerPivotStudio({ currentUser }: Props) {
       [arr[i], arr[j]] = [arr[j], arr[i]];
       return { ...c, [key]: arr };
     });
+
+  // ---- Top N Leaderboard & Quick Metric Actions ----
+  const applyTopNMetricPreset = (metricId: string) => {
+    const presetDef = TOP_N_METRICS.find((m) => m.id === metricId);
+    setConfig((c) => {
+      const nextRows = c.rows.length > 0 ? c.rows : ['phone_customer'];
+      let nextValues = [...c.values];
+      if (!nextValues.includes(metricId)) {
+        nextValues = [metricId, ...nextValues].slice(0, 12);
+      }
+      if (presetDef) {
+        presetDef.companionValues.forEach((cv) => {
+          if (!nextValues.includes(cv) && nextValues.length < 12) {
+            nextValues.push(cv);
+          }
+        });
+      }
+      // Remove any restrictive transaction_type row filter that would block this metric
+      const mDef = allMeasures.find((m) => m.id === metricId);
+      const cleanedFilters = c.filters.filter((f) => {
+        if (f.scope !== 'row' || f.field !== 'transaction_type' || !f.enabled) return true;
+        if (mDef?.txScope === 'SELL' && f.value === 'BUY_GOLD') return false;
+        if (mDef?.txScope === 'WITHDRAW' && f.value === 'BUY_GOLD') return false;
+        if (mDef?.txScope === 'BUY' && f.value && f.value !== 'BUY_GOLD') return false;
+        return true;
+      });
+      return {
+        ...c,
+        rows: nextRows,
+        values: nextValues,
+        filters: cleanedFilters,
+        sortBy: metricId,
+        sortDir: 'desc',
+        topN: c.topN || 20,
+      };
+    });
+  };
+
+  const applyQuickSortDimension = (dimId: string) => {
+    setConfig((c) => {
+      const nextRows = c.rows.includes(dimId) ? c.rows : [dimId, ...c.rows].slice(0, 3);
+      const nextDir: 'asc' | 'desc' = c.sortBy === dimId && c.sortDir === 'desc' ? 'asc' : 'desc';
+      return {
+        ...c,
+        rows: nextRows,
+        sortBy: dimId,
+        sortDir: nextDir,
+      };
+    });
+  };
 
   // ---- execution ----
   const execute = useCallback(
@@ -499,7 +591,22 @@ export function PowerPivotStudio({ currentUser }: Props) {
     [activeProfile, currentUser?.id]
   );
 
-  const handleGo = () => execute(config, 1);
+  const handleGo = () => {
+    const foundConflicts = validatePivotConfig(config);
+    if (foundConflicts.length > 0) {
+      setConflictModalOpen(true);
+      return;
+    }
+    execute(config, 1);
+  };
+
+  const handleAutoFixAndCalculate = () => {
+    const fixed = applyAllConflictFixes(config, conflicts);
+    setConfig(fixed);
+    setConflictModalOpen(false);
+    execute(fixed, 1);
+    flash('Applied automatic filter fix and calculated!');
+  };
 
   const handlePage = (page: number) => ranConfig && execute(ranConfig, page);
   const handlePageSize = (size: number) => {
@@ -516,16 +623,40 @@ export function PowerPivotStudio({ currentUser }: Props) {
     execute(next, 1);
   };
 
-  const exportCsv = async (all: boolean) => {
-    if (!result || !ranConfig) return;
+  // ---- Download Showing vs Download All Data (CSV & Excel) ----
+  const handleExport = async (mode: 'showing' | 'all', format: 'csv' | 'excel') => {
+    const targetConfig = ranConfig || config;
     setExporting(true);
+    setError(null);
     try {
-      const res = all ? await runPowerPivot(ranConfig, 1, true) : result;
-      downloadCsv(
-        `power_pivot_${(activeProfile?.name || 'report').replace(/[^a-z0-9]+/gi, '_')}_${new Date().toISOString().slice(0, 10)}.csv`,
-        resultToCsv(res, ranConfig)
+      let resToExport: PowerPivotResult;
+      if (mode === 'showing' && result && ranConfig) {
+        resToExport = result;
+      } else if (mode === 'showing') {
+        resToExport = await runPowerPivot(targetConfig, 1, false);
+        setResult(resToExport);
+        setRanConfig(clone(targetConfig));
+      } else {
+        // mode === 'all': fetch all rows on table (ignoring Top N if user wants full table, or up to 100k)
+        const fullConfig = { ...targetConfig, topN: null };
+        resToExport = await runPowerPivot(fullConfig, 1, true);
+      }
+
+      const baseName = `custom_pivot_${(activeProfile?.name || 'report').replace(/[^a-z0-9]+/gi, '_')}_${
+        mode === 'showing' ? (targetConfig.topN ? `top_${targetConfig.topN}` : `page_${resToExport.page}`) : 'all_data'
+      }_${new Date().toISOString().slice(0, 10)}`;
+
+      if (format === 'csv') {
+        downloadCsv(`${baseName}.csv`, resultToCsv(resToExport, targetConfig));
+      } else {
+        downloadExcel(`${baseName}.xls`, resToExport, targetConfig);
+      }
+
+      flash(
+        `Downloaded ${resToExport.rows.length.toLocaleString()} rows (${
+          mode === 'showing' ? 'Showing Table Data' : 'All Table Data'
+        }) as ${format.toUpperCase()}`
       );
-      if (all && res.total_rows > res.page_size) flash(`Exported first ${res.page_size.toLocaleString()} of ${res.total_rows.toLocaleString()} rows (cap 100,000).`);
     } catch (e: any) {
       setError(e?.message || String(e));
     } finally {
@@ -600,7 +731,7 @@ export function PowerPivotStudio({ currentUser }: Props) {
 
   return (
     <div className="space-y-4">
-      {/* PROFILE TOOLBAR (Left banner removed per user request) */}
+      {/* PROFILE TOOLBAR */}
       <div className="bg-gradient-to-r from-[#0c4ca3] via-[#093d84] to-[#062c60] rounded-2xl p-2.5 sm:p-3 text-white shadow-md">
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-2">
@@ -715,7 +846,7 @@ export function PowerPivotStudio({ currentUser }: Props) {
               className="w-full pl-8 pr-2 py-1.5 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#0c4ca3] focus:outline-hidden"
             />
           </div>
-          <div className="max-h-[560px] overflow-y-auto p-2.5 space-y-3">
+          <div className="max-h-[580px] overflow-y-auto p-2.5 space-y-3">
             <div>
               <div className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Dimensions (rows / columns)</div>
               {dimGroups.map(([group, list]) => (
@@ -828,6 +959,156 @@ export function PowerPivotStudio({ currentUser }: Props) {
               />
             </div>
 
+            {/* TOP N LEADERBOARD & SORTING CONTROLS */}
+            <div className="p-3 rounded-xl bg-gradient-to-r from-amber-50/80 via-blue-50/40 to-slate-50 border border-amber-200/80 space-y-2.5">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="inline-flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-amber-900">
+                    <Trophy className="w-4 h-4 text-[#e5a812]" /> Top N Leaderboard:
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => patch({ topN: null })}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-black border transition-colors cursor-pointer ${
+                      !config.topN
+                        ? 'bg-[#0c4ca3] text-white border-[#0c4ca3]'
+                        : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
+                    }`}
+                  >
+                    All Rows
+                  </button>
+                  {TOP_N_CHOICES.map((n) => (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => patch({ topN: n })}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-black border transition-colors cursor-pointer ${
+                        config.topN === n
+                          ? 'bg-[#e5a812] text-slate-950 border-amber-500 shadow-2xs'
+                          : 'bg-white text-slate-700 border-slate-300 hover:bg-amber-50'
+                      }`}
+                    >
+                      Top {n}
+                    </button>
+                  ))}
+                  <div className="flex items-center gap-1">
+                    <input
+                      type="number"
+                      min={1}
+                      max={10000}
+                      placeholder="Custom N"
+                      value={customTopNInput}
+                      onChange={(e) => setCustomTopNInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && Number(customTopNInput) > 0) {
+                          patch({ topN: Number(customTopNInput) });
+                        }
+                      }}
+                      className="w-24 px-2 py-1 text-xs font-mono border border-slate-300 rounded-lg bg-white"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => Number(customTopNInput) > 0 && patch({ topN: Number(customTopNInput) })}
+                      className="px-2 py-1 rounded-lg text-xs font-bold bg-slate-200 hover:bg-slate-300 text-slate-800 cursor-pointer"
+                    >
+                      Set N
+                    </button>
+                  </div>
+                </div>
+
+                {/* Explicit Sort By Selector (Date, Datetime, Hour, Phone, or any Measure) */}
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="inline-flex items-center gap-1 text-[11px] font-black uppercase text-slate-600">
+                    <ArrowUpDown className="w-3.5 h-3.5 text-[#0c4ca3]" /> Sort By:
+                  </span>
+                  <select
+                    value={config.sortBy}
+                    onChange={(e) => patch({ sortBy: e.target.value })}
+                    className="px-2.5 py-1 text-xs font-bold border border-slate-300 rounded-lg bg-white text-slate-800"
+                  >
+                    <optgroup label="Row Dimensions">
+                      <option value="label">First Row Dimension (Default)</option>
+                      {config.rows.map((rId, idx) => (
+                        <option key={rId} value={rId}>
+                          Row {idx + 1}: {dimLabel(rId)}
+                        </option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="Selected Measures">
+                      {config.values.map((vId) => (
+                        <option key={vId} value={vId}>
+                          Measure: {measureLabel(vId)}
+                        </option>
+                      ))}
+                    </optgroup>
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => patch({ sortDir: config.sortDir === 'desc' ? 'asc' : 'desc' })}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-black bg-white border border-slate-300 hover:bg-slate-100 text-slate-800 cursor-pointer"
+                    title="Toggle Ascending / Descending sort order"
+                  >
+                    {config.sortDir === 'desc' ? (
+                      <>
+                        <ArrowDown className="w-3.5 h-3.5 text-[#0c4ca3]" /> DESC (High → Low)
+                      </>
+                    ) : (
+                      <>
+                        <ArrowUp className="w-3.5 h-3.5 text-[#0c4ca3]" /> ASC (Low → High)
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {/* 7 Requested Top N Ranking Metric Pills + Quick Dimension Sort Pills */}
+              <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-amber-200/60">
+                <span className="text-[10px] font-black uppercase text-amber-900 mr-1">Rank Top N By:</span>
+                {TOP_N_METRICS.map((tm) => {
+                  const isCurrentSort = config.sortBy === tm.id && config.values.includes(tm.id);
+                  return (
+                    <button
+                      key={tm.id}
+                      type="button"
+                      onClick={() => applyTopNMetricPreset(tm.id)}
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-all cursor-pointer ${
+                        isCurrentSort
+                          ? 'bg-emerald-600 text-white border-emerald-700 shadow-2xs'
+                          : 'bg-white hover:bg-emerald-50 text-slate-700 border-slate-300'
+                      }`}
+                      title={`Add ${tm.label} & sort descending`}
+                    >
+                      {tm.shortLabel}
+                    </button>
+                  );
+                })}
+
+                <span className="text-[10px] font-black uppercase text-slate-500 ml-2 mr-1">Quick Sort Dim:</span>
+                {[
+                  { id: 'datetime', label: 'Date & Time' },
+                  { id: 'date', label: 'Date' },
+                  { id: 'hour', label: 'Hour' },
+                  { id: 'phone', label: 'Phone' },
+                  { id: 'phone_customer', label: 'Phone & Customer' },
+                ].map((qd) => (
+                  <button
+                    key={qd.id}
+                    type="button"
+                    onClick={() => applyQuickSortDimension(qd.id)}
+                    className={`px-2 py-1 rounded-lg text-[10px] font-bold border transition-all cursor-pointer ${
+                      config.sortBy === qd.id
+                        ? 'bg-[#0c4ca3] text-white border-[#0c4ca3]'
+                        : 'bg-white hover:bg-blue-50 text-slate-600 border-slate-300'
+                    }`}
+                    title={`Add ${qd.label} to Rows and sort by it`}
+                  >
+                    Sort {qd.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* FILTERS SECTION */}
             <div className="pt-2 border-t border-slate-200">
               <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
                 <h4 className="text-xs font-black uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
@@ -835,6 +1116,16 @@ export function PowerPivotStudio({ currentUser }: Props) {
                   <span className="text-[10px] font-semibold text-slate-400 normal-case">
                     Row filter = CALCULATETABLE on transactions - Measure filter = filter the result by aggregated value
                   </span>
+                  {conflicts.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setConflictModalOpen(true)}
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 border border-rose-300 text-[10px] font-black animate-pulse cursor-pointer"
+                    >
+                      <AlertTriangle className="w-3 h-3 text-rose-600" />
+                      {conflicts.length} Filter Conflict{conflicts.length > 1 ? 's' : ''} (Click to Review / Fix)
+                    </button>
+                  )}
                 </h4>
                 <div className="flex items-center gap-2 text-[10px] text-slate-500">
                   <MonthMultiPicker
@@ -860,29 +1151,81 @@ export function PowerPivotStudio({ currentUser }: Props) {
                 onChange={(filters) => patch({ filters })}
                 meta={meta}
                 measures={allMeasures}
+                conflicts={conflicts}
               />
             </div>
 
+            {/* ACTION & DOWNLOAD BAR */}
             <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-200">
               <div className="text-[11px] text-slate-500 flex flex-wrap gap-x-4 gap-y-1">
                 <span><b className="text-slate-700">Rows:</b> {config.rows.map(dimLabel).join(' > ') || 'Grand total only'}</span>
                 {config.columns[0] && <span><b className="text-slate-700">Columns:</b> {dimLabel(config.columns[0])}</span>}
                 <span><b className="text-slate-700">Values:</b> {config.values.length}</span>
                 <span><b className="text-slate-700">Filters:</b> {activeFilters.length}</span>
+                {config.topN && <span className="text-amber-700 font-black">Top N: Top {config.topN}</span>}
               </div>
-              <button
-                onClick={handleGo}
-                disabled={loading || config.values.length === 0}
-                className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-black bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-500 hover:to-teal-600 text-white shadow-md hover:shadow-lg ring-1 ring-emerald-400/30 active:scale-95 transition-all disabled:opacity-50 cursor-pointer"
-                title="Execute pivot calculation on Supabase"
-              >
-                {loading ? (
-                  <Loader2 className="w-4 h-4 animate-spin text-white" />
-                ) : (
-                  <Sparkles className="w-4 h-4 text-amber-300" />
-                )}
-                <span className="font-sans font-black tracking-wide">{loading ? 'Calculating...' : 'Calculate'}</span>
-              </button>
+
+              <div className="flex flex-wrap items-center gap-2">
+                {/* Always-visible Download Buttons for Showing vs All Data */}
+                <div className="flex flex-wrap items-center gap-1.5 bg-slate-100 p-1 rounded-xl border border-slate-200">
+                  <button
+                    type="button"
+                    onClick={() => handleExport('showing', 'csv')}
+                    disabled={exporting || loading || config.values.length === 0}
+                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-bold bg-white hover:bg-emerald-50 text-slate-800 border border-slate-300 disabled:opacity-40 cursor-pointer"
+                    title="Download the data currently showing (current page / Top N) as CSV"
+                  >
+                    <Download className="w-3.5 h-3.5 text-emerald-600" />
+                    CSV (Showing)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleExport('showing', 'excel')}
+                    disabled={exporting || loading || config.values.length === 0}
+                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-bold bg-white hover:bg-emerald-50 text-slate-800 border border-slate-300 disabled:opacity-40 cursor-pointer"
+                    title="Download the data currently showing (current page / Top N) as Excel (.xls)"
+                  >
+                    <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-700" />
+                    Excel (Showing)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleExport('all', 'csv')}
+                    disabled={exporting || loading || config.values.length === 0}
+                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-bold bg-white hover:bg-blue-50 text-[#0c4ca3] border border-blue-300 disabled:opacity-40 cursor-pointer"
+                    title="Download ALL matching rows on table (up to 100,000 rows) as CSV"
+                  >
+                    <Download className="w-3.5 h-3.5 text-[#0c4ca3]" />
+                    CSV (All Table)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleExport('all', 'excel')}
+                    disabled={exporting || loading || config.values.length === 0}
+                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-bold bg-white hover:bg-blue-50 text-[#0c4ca3] border border-blue-300 disabled:opacity-40 cursor-pointer"
+                    title="Download ALL matching rows on table (up to 100,000 rows) as Excel (.xls)"
+                  >
+                    <FileSpreadsheet className="w-3.5 h-3.5 text-[#0c4ca3]" />
+                    Excel (All Table)
+                  </button>
+                </div>
+
+                <button
+                  onClick={handleGo}
+                  disabled={loading || config.values.length === 0}
+                  className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-black bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-500 hover:to-teal-600 text-white shadow-md hover:shadow-lg ring-1 ring-emerald-400/30 active:scale-95 transition-all disabled:opacity-50 cursor-pointer"
+                  title="Execute pivot calculation on Supabase"
+                >
+                  {loading ? (
+                    <Loader2 className="w-4 h-4 animate-spin text-white" />
+                  ) : (
+                    <Sparkles className="w-4 h-4 text-amber-300" />
+                  )}
+                  <span className="font-sans font-black tracking-wide">
+                    {loading ? `Calculating (${loadingSec.toFixed(1)}s)...` : 'Calculate'}
+                  </span>
+                </button>
+              </div>
             </div>
           </div>
 
@@ -896,9 +1239,26 @@ export function PowerPivotStudio({ currentUser }: Props) {
           {isStale && result && !loading && (
             <div className="flex items-center justify-between gap-2 p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900">
               <span className="font-bold">The design changed since the last calculation - the table below is out of date.</span>
-              <button onClick={handleGo} className="px-3 py-1 rounded-lg bg-amber-500 text-slate-950 font-black">
+              <button onClick={handleGo} className="px-3 py-1 rounded-lg bg-amber-500 text-slate-950 font-black cursor-pointer">
                 GO! refresh
               </button>
+            </div>
+          )}
+
+          {/* LOADING SPINNER BANNER */}
+          {(loading || exporting) && (
+            <div className="flex items-center justify-center gap-3 p-6 rounded-2xl bg-blue-950 text-white shadow-lg border border-blue-800">
+              <Loader2 className="w-6 h-6 animate-spin text-[#e5a812]" />
+              <div>
+                <div className="text-sm font-black tracking-wide">
+                  {exporting
+                    ? `Preparing Full Data Export (${loadingSec.toFixed(1)}s)...`
+                    : `Validating & Calculating Live Pivot on Supabase (${loadingSec.toFixed(1)}s)...`}
+                </div>
+                <div className="text-xs text-blue-200">
+                  Scanning & aggregating raw transactions with 100% accuracy. Please wait...
+                </div>
+              </div>
             </div>
           )}
 
@@ -906,6 +1266,11 @@ export function PowerPivotStudio({ currentUser }: Props) {
             <>
               <div className="flex items-center justify-between flex-wrap gap-2">
                 <div className="flex flex-wrap gap-1.5">
+                  {ranConfig.topN && (
+                    <span className="text-[10px] font-black px-2.5 py-0.5 rounded-full bg-amber-100 border border-amber-300 text-amber-900">
+                      Top {ranConfig.topN} Ranked by {measureLabel(ranConfig.sortBy)} ({ranConfig.sortDir.toUpperCase()})
+                    </span>
+                  )}
                   {ranConfig.filters.filter((f) => f.enabled).map((f) => (
                     <span
                       key={f.id}
@@ -916,22 +1281,6 @@ export function PowerPivotStudio({ currentUser }: Props) {
                       {f.scope === 'measure' ? `${measureLabel(f.field)} ${f.op} ${f.value ?? ''}${f.value2 ? ` and ${f.value2}` : ''}` : describeFilter(f)}
                     </span>
                   ))}
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => exportCsv(false)}
-                    disabled={exporting}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-white border border-slate-300 hover:bg-slate-50 disabled:opacity-50"
-                  >
-                    <Download className="w-3.5 h-3.5 text-emerald-600" /> CSV (this page)
-                  </button>
-                  <button
-                    onClick={() => exportCsv(true)}
-                    disabled={exporting}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-white border border-slate-300 hover:bg-slate-50 disabled:opacity-50"
-                  >
-                    <Download className="w-3.5 h-3.5 text-[#0c4ca3]" /> {exporting ? 'Exporting...' : 'CSV (all, max 100k)'}
-                  </button>
                 </div>
               </div>
               <PowerPivotGrid
@@ -961,13 +1310,99 @@ export function PowerPivotStudio({ currentUser }: Props) {
               </div>
             )
           )}
-          {loading && !result && (
-            <div className="bg-white rounded-2xl border border-slate-200 p-10 text-center text-sm font-bold text-slate-500 animate-pulse">
-              Supabase is calculating...
-            </div>
-          )}
         </div>
       </div>
+
+      {/* CONFLICT WARNING & AUTO-FIX POP-UP MODAL */}
+      {conflictModalOpen && conflicts.length > 0 && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-xl overflow-hidden border border-rose-200">
+            <div className="bg-gradient-to-r from-rose-600 via-rose-700 to-amber-600 text-white p-4 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-amber-200" />
+                <h3 className="text-sm font-black uppercase tracking-wide">
+                  Filter / Metric Conflict Detected ({conflicts.length})
+                </h3>
+              </div>
+              <button onClick={() => setConflictModalOpen(false)} className="p-1 rounded-full bg-white/10 hover:bg-white/20">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-3 max-h-[65vh] overflow-y-auto">
+              <p className="text-xs text-slate-600 font-medium">
+                Some of your active filters contradict each other or block your selected metrics from returning valid data:
+              </p>
+
+              <div className="space-y-2.5">
+                {conflicts.map((c) => (
+                  <div
+                    key={c.id}
+                    className={`p-3 rounded-2xl border ${
+                      c.severity === 'error'
+                        ? 'bg-rose-50/70 border-rose-200 text-rose-950'
+                        : 'bg-amber-50/70 border-amber-200 text-amber-950'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <span className="text-xs font-black">{c.title}</span>
+                      <span
+                        className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${
+                          c.severity === 'error' ? 'bg-rose-200 text-rose-900' : 'bg-amber-200 text-amber-900'
+                        }`}
+                      >
+                        {c.severity}
+                      </span>
+                    </div>
+                    <p className="text-xs mt-1 text-slate-700 leading-relaxed">{c.detail}</p>
+                    <div className="mt-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const updated = c.applyFix(config);
+                          setConfig(updated);
+                        }}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-black bg-white border border-slate-300 hover:bg-emerald-50 text-emerald-800 shadow-2xs cursor-pointer"
+                      >
+                        <Wrench className="w-3 h-3 text-emerald-600" /> {c.autoFixLabel}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="p-4 bg-slate-50 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2">
+              <button
+                type="button"
+                onClick={() => setConflictModalOpen(false)}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-700 bg-white border border-slate-300 hover:bg-slate-100 cursor-pointer"
+              >
+                Edit Filters Manually
+              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setConflictModalOpen(false);
+                    execute(config, 1);
+                  }}
+                  className="px-3.5 py-2 rounded-xl text-xs font-bold text-amber-800 bg-amber-100 hover:bg-amber-200 cursor-pointer"
+                >
+                  Calculate Anyway
+                </button>
+                <button
+                  type="button"
+                  onClick={handleAutoFixAndCalculate}
+                  className="flex items-center gap-1.5 px-5 py-2 rounded-xl text-xs font-black bg-emerald-600 hover:bg-emerald-700 text-white shadow-md cursor-pointer"
+                >
+                  <Wrench className="w-3.5 h-3.5" /> Auto-Fix All & Calculate
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* SAVE MODAL */}
       {saveModal && (
@@ -999,7 +1434,7 @@ export function PowerPivotStudio({ currentUser }: Props) {
                 />
               </div>
               <p className="text-[11px] text-slate-500">
-                Saves rows, columns, values, filters, custom measures, sorting and page size. Stored in this browser and synced to Supabase table
+                Saves rows, columns, values, filters, custom measures, Top N, sorting and page size. Stored in this browser and synced to Supabase table
                 <span className="font-mono"> power_pivot_profiles</span> when connected.
               </p>
               <div className="flex justify-end gap-2 pt-2">

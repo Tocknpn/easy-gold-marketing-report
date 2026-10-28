@@ -8,6 +8,7 @@ import {
   ChevronsRight,
   ArrowUp,
   ArrowDown,
+  ArrowUpDown,
   FileCode2,
   Clock,
   Table,
@@ -15,6 +16,7 @@ import {
   Type,
   BarChart3,
   Hash,
+  Trophy,
 } from 'lucide-react';
 import {
   PowerPivotConfig,
@@ -48,6 +50,7 @@ export function PowerPivotGrid({ result, config, loading, onPage, onPageSize, on
   const measures = useMemo(() => getAllMeasures(config.customMeasures), [config.customMeasures]);
   const mDefs = result.values.map((id) => measures.find((m) => m.id === id));
   const dimCount = Math.max(1, result.rows_dims.length);
+  const dimIds = result.rows_dims.length ? result.rows_dims : ['__all'];
   const dimLabels = result.rows_dims.length
     ? result.rows_dims.map((d) => DIMENSIONS.find((x) => x.id === d)?.label || d)
     : ['Total'];
@@ -69,14 +72,23 @@ export function PowerPivotGrid({ result, config, loading, onPage, onPageSize, on
 
   const totalPages = Math.max(1, Math.ceil(result.total_rows / result.page_size));
   const from = result.total_rows === 0 ? 0 : (result.page - 1) * result.page_size + 1;
-  const to = Math.min(result.total_rows, result.page * result.page_size);
+  const to = Math.min(result.total_rows, (result.page - 1) * result.page_size + result.rows.length);
 
   const fmt = (v: unknown, i: number) => formatMeasureValue(v, mDefs[i]?.format || 'dec2');
 
-  const sortIcon = (by: string) =>
-    config.sortBy === by ? (
-      config.sortDir === 'asc' ? <ArrowUp className="w-3.5 h-3.5" /> : <ArrowDown className="w-3.5 h-3.5" />
-    ) : null;
+  const isSortedBy = (target: string, altTarget?: string) =>
+    config.sortBy === target || (altTarget && config.sortBy === altTarget);
+
+  const sortIcon = (target: string, altTarget?: string) => {
+    if (isSortedBy(target, altTarget)) {
+      return config.sortDir === 'asc' ? (
+        <ArrowUp className="w-3.5 h-3.5 text-[#0c4ca3]" />
+      ) : (
+        <ArrowDown className="w-3.5 h-3.5 text-[#0c4ca3]" />
+      );
+    }
+    return <ArrowUpDown className="w-3 h-3 text-slate-400/70 opacity-60" />;
+  };
 
   const isLarge = textSize === 'large';
   const isSql = layoutMode === 'sql';
@@ -87,30 +99,47 @@ export function PowerPivotGrid({ result, config, loading, onPage, onPageSize, on
   const valueFont = isLarge ? 'text-sm sm:text-base font-extrabold font-mono' : 'text-xs sm:text-sm font-bold font-mono';
 
   const th = `${headPadding} font-black uppercase tracking-wider border-r border-slate-300/80 whitespace-nowrap select-none`;
-  const colWidthClass = isSql ? 'min-w-[160px] max-w-[320px]' : '';
+  const colWidthClass = isSql ? 'min-w-[160px] max-w-[340px]' : '';
 
   const renderMeasureHeads = (keyPrefix: string) =>
-    mDefs.map((m, i) => (
-      <th
-        key={`${keyPrefix}-${i}`}
-        onClick={() => onSort(result.values[i])}
-        className={`${th} text-right cursor-pointer hover:bg-[#9cc4e0]/70 select-none ${colWidthClass}`}
-        title={`Sort by ${m?.label || result.values[i]}`}
-      >
-        <span className="inline-flex items-center gap-1.5 justify-end">
-          {m?.label || result.values[i]} {sortIcon(result.values[i])}
-        </span>
-      </th>
-    ));
+    mDefs.map((m, i) => {
+      const mId = result.values[i];
+      const active = isSortedBy(mId);
+      return (
+        <th
+          key={`${keyPrefix}-${i}`}
+          onClick={() => onSort(mId)}
+          className={`${th} text-right cursor-pointer hover:bg-[#9cc4e0]/70 select-none ${colWidthClass} ${
+            active ? 'bg-[#a4cbe5] text-[#062c60]' : ''
+          }`}
+          title={`Click to sort by ${m?.label || mId}`}
+        >
+          <span className="inline-flex items-center gap-1.5 justify-end">
+            {m?.label || mId} {sortIcon(mId)}
+          </span>
+        </th>
+      );
+    });
+
+  const showSubtotalRow =
+    !!result.page_grand &&
+    (!!result.top_n || result.rows.length < (result.unfiltered_groups ?? result.total_rows));
 
   return (
     <div className="bg-white rounded-2xl border border-slate-300 shadow-sm overflow-hidden">
       {/* Status & SQL Tools Bar */}
       <div className="flex flex-wrap items-center justify-between gap-2.5 px-4 py-2.5 bg-slate-900 text-slate-200 text-xs border-b border-slate-800">
         <div className="flex items-center gap-3 flex-wrap font-mono">
-          <span className="text-emerald-400 font-bold px-2 py-0.5 rounded bg-emerald-950/60 border border-emerald-800/60">
-            Rows {from.toLocaleString()} - {to.toLocaleString()} of {result.total_rows.toLocaleString()}
-          </span>
+          {result.top_n ? (
+            <span className="inline-flex items-center gap-1 text-amber-300 font-black px-2.5 py-0.5 rounded bg-amber-950/80 border border-amber-600/60">
+              <Trophy className="w-3.5 h-3.5 text-amber-400" />
+              TOP {result.top_n} LEADERBOARD ({result.rows.length} shown of {(result.unfiltered_groups ?? result.total_rows).toLocaleString()} total groups)
+            </span>
+          ) : (
+            <span className="text-emerald-400 font-bold px-2 py-0.5 rounded bg-emerald-950/60 border border-emerald-800/60">
+              Showing Rows {from.toLocaleString()} - {to.toLocaleString()} of {result.total_rows.toLocaleString()}
+            </span>
+          )}
           <span className="flex items-center gap-1 text-amber-300 font-medium">
             <Clock className="w-3.5 h-3.5" /> {Number(result.elapsed_ms).toLocaleString()} ms
           </span>
@@ -122,7 +151,6 @@ export function PowerPivotGrid({ result, config, loading, onPage, onPageSize, on
 
         {/* View mode & Display Enhancements */}
         <div className="flex items-center gap-2 flex-wrap">
-          {/* SQL Compact vs Full Width Toggle */}
           <button
             onClick={() => setLayoutMode(layoutMode === 'sql' ? 'fill' : 'sql')}
             className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold transition-all border ${
@@ -143,7 +171,6 @@ export function PowerPivotGrid({ result, config, loading, onPage, onPageSize, on
             )}
           </button>
 
-          {/* Text Size / Weight Enhancer */}
           <button
             onClick={() => setTextSize(textSize === 'large' ? 'normal' : 'large')}
             className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold transition-all border ${
@@ -156,7 +183,6 @@ export function PowerPivotGrid({ result, config, loading, onPage, onPageSize, on
             <Type className="w-3.5 h-3.5" /> {textSize === 'large' ? 'Large & Bold (A+)' : 'Standard (A)'}
           </button>
 
-          {/* Row Numbers Toggle */}
           <button
             onClick={() => setShowRowNumbers(!showRowNumbers)}
             className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold transition-all border ${
@@ -169,7 +195,6 @@ export function PowerPivotGrid({ result, config, loading, onPage, onPageSize, on
             <Hash className="w-3.5 h-3.5" /> Row #
           </button>
 
-          {/* Data Bars Toggle */}
           <button
             onClick={() => setShowDataBars(!showDataBars)}
             className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold transition-all border ${
@@ -182,7 +207,6 @@ export function PowerPivotGrid({ result, config, loading, onPage, onPageSize, on
             <BarChart3 className="w-3.5 h-3.5" /> Bars {showDataBars ? 'ON' : 'OFF'}
           </button>
 
-          {/* Show Generated SQL */}
           <button
             onClick={() => setShowSql(!showSql)}
             className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold text-amber-300 hover:text-amber-200 bg-slate-800 hover:bg-slate-700 border border-slate-700 transition-all"
@@ -227,19 +251,26 @@ export function PowerPivotGrid({ result, config, loading, onPage, onPageSize, on
                   #
                 </th>
               )}
-              {dimLabels.map((l, i) => (
-                <th
-                  key={l}
-                  onClick={() => onSort('label')}
-                  className={`${th} ${colWidthClass} text-left cursor-pointer hover:bg-[#9cc4e0]/70 ${
-                    i === 0 ? 'sticky left-0 z-30 bg-[#b9d7ea]' : ''
-                  }`}
-                >
-                  <span className="inline-flex items-center gap-1.5">
-                    {l} {sortIcon('label')}
-                  </span>
-                </th>
-              ))}
+              {dimLabels.map((l, i) => {
+                const dimId = dimIds[i];
+                const rKey = `r${i + 1}`;
+                const sortTarget = dimId !== '__all' ? dimId : 'label';
+                const active = isSortedBy(sortTarget, rKey) || (i === 0 && config.sortBy === 'label');
+                return (
+                  <th
+                    key={l + i}
+                    onClick={() => onSort(sortTarget)}
+                    title={`Click to sort by ${l}`}
+                    className={`${th} ${colWidthClass} text-left cursor-pointer hover:bg-[#9cc4e0]/70 ${
+                      i === 0 ? 'sticky left-0 z-30 bg-[#b9d7ea]' : ''
+                    } ${active ? 'bg-[#a4cbe5] text-[#062c60]' : ''}`}
+                  >
+                    <span className="inline-flex items-center gap-1.5">
+                      {l} {sortIcon(sortTarget, i === 0 ? 'label' : rKey)}
+                    </span>
+                  </th>
+                );
+              })}
               {hasCols && result.columns.map((c) => renderMeasureHeads(`c-${c}`))}
               {renderMeasureHeads('tot')}
             </tr>
@@ -309,46 +340,85 @@ export function PowerPivotGrid({ result, config, loading, onPage, onPageSize, on
             })}
           </tbody>
 
-          {result.grand && (
+          {(showSubtotalRow || result.grand) && (
             <tfoot className="sticky bottom-0 z-20 bg-[#fef3c7] backdrop-blur-sm border-t-2 border-slate-400 font-mono shadow-md">
-              <tr>
-                {showRowNumbers && (
-                  <td className="w-12 px-2 py-3.5 text-center font-mono text-xs font-black text-amber-900 bg-[#fde68a] border-r border-slate-300 select-none">
-                    Σ
-                  </td>
-                )}
-                <td
-                  colSpan={dimCount}
-                  className={`${cellPadding} font-sans font-black text-slate-950 sticky left-0 bg-[#fde68a] uppercase tracking-wide ${
-                    isLarge ? 'text-sm sm:text-base' : 'text-xs'
-                  }`}
-                >
-                  GRAND TOTAL ({result.total_rows.toLocaleString()} rows)
-                </td>
-                {hasCols &&
-                  result.columns.map((c) =>
-                    mDefs.map((_m, i) => (
-                      <td
-                        key={`gt-${c}-${i}`}
-                        className={`${cellPadding} text-right font-black text-slate-950 tabular-nums ${
-                          isLarge ? 'text-sm sm:text-base' : 'text-xs'
-                        }`}
-                      >
-                        {fmt(colTotalMap.get(c)?.[`m${i + 1}`], i)}
-                      </td>
-                    ))
+              {showSubtotalRow && result.page_grand && (
+                <tr className="bg-blue-50/95 border-b border-blue-200 text-blue-950">
+                  {showRowNumbers && (
+                    <td className="w-12 px-2 py-2.5 text-center font-mono text-xs font-black text-blue-800 bg-blue-100 border-r border-slate-300 select-none">
+                      ★
+                    </td>
                   )}
-                {mDefs.map((_m, i) => (
                   <td
-                    key={`gtt-${i}`}
-                    className={`${cellPadding} text-right font-black text-slate-950 tabular-nums ${
-                      isLarge ? 'text-base sm:text-lg' : 'text-xs sm:text-sm'
+                    colSpan={dimCount}
+                    className={`${cellPadding} font-sans font-black text-blue-950 sticky left-0 bg-blue-100 uppercase tracking-wide ${
+                      isLarge ? 'text-xs sm:text-sm' : 'text-[11px]'
                     }`}
                   >
-                    {fmt(result.grand?.[`m${i + 1}`], i)}
+                    {result.top_n
+                      ? `TOP ${result.top_n} SUBTOTAL (${result.rows.length.toLocaleString()} rows)`
+                      : `SHOWING PAGE SUBTOTAL (${result.rows.length.toLocaleString()} rows)`}
                   </td>
-                ))}
-              </tr>
+                  {hasCols &&
+                    result.columns.map((c) =>
+                      mDefs.map((_m, i) => (
+                        <td key={`st-${c}-${i}`} className={`${cellPadding} text-right font-bold text-blue-900 tabular-nums`}>
+                          -
+                        </td>
+                      ))
+                    )}
+                  {mDefs.map((_m, i) => (
+                    <td
+                      key={`stt-${i}`}
+                      className={`${cellPadding} text-right font-black text-blue-950 tabular-nums ${
+                        isLarge ? 'text-sm sm:text-base' : 'text-xs'
+                      }`}
+                    >
+                      {fmt(result.page_grand?.[`m${i + 1}`], i)}
+                    </td>
+                  ))}
+                </tr>
+              )}
+              {result.grand && (
+                <tr>
+                  {showRowNumbers && (
+                    <td className="w-12 px-2 py-3.5 text-center font-mono text-xs font-black text-amber-900 bg-[#fde68a] border-r border-slate-300 select-none">
+                      Σ
+                    </td>
+                  )}
+                  <td
+                    colSpan={dimCount}
+                    className={`${cellPadding} font-sans font-black text-slate-950 sticky left-0 bg-[#fde68a] uppercase tracking-wide ${
+                      isLarge ? 'text-sm sm:text-base' : 'text-xs'
+                    }`}
+                  >
+                    FILTERED GRAND TOTAL ({(result.unfiltered_groups ?? result.total_rows).toLocaleString()} groups)
+                  </td>
+                  {hasCols &&
+                    result.columns.map((c) =>
+                      mDefs.map((_m, i) => (
+                        <td
+                          key={`gt-${c}-${i}`}
+                          className={`${cellPadding} text-right font-black text-slate-950 tabular-nums ${
+                            isLarge ? 'text-sm sm:text-base' : 'text-xs'
+                          }`}
+                        >
+                          {fmt(colTotalMap.get(c)?.[`m${i + 1}`], i)}
+                        </td>
+                      ))
+                    )}
+                  {mDefs.map((_m, i) => (
+                    <td
+                      key={`gtt-${i}`}
+                      className={`${cellPadding} text-right font-black text-slate-950 tabular-nums ${
+                        isLarge ? 'text-base sm:text-lg' : 'text-xs sm:text-sm'
+                      }`}
+                    >
+                      {fmt(result.grand?.[`m${i + 1}`], i)}
+                    </td>
+                  ))}
+                </tr>
+              )}
             </tfoot>
           )}
         </table>
