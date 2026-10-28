@@ -57,16 +57,51 @@ async function getGoogleAccessToken(clientEmail: string, privateKey: string, imp
   return data.access_token;
 }
 
-async function sendGmailApi(accessToken: string, fromEmail: string, toList: string[], subject: string, htmlBody: string) {
-  const rawEmail = [
-    `From: ${fromEmail}`,
-    `To: ${toList.join(', ')}`,
-    `Subject: =?utf-8?B?${Buffer.from(subject).toString('base64')}?=`,
-    'MIME-Version: 1.0',
-    'Content-Type: text/html; charset=utf-8',
-    '',
-    htmlBody,
-  ].join('\r\n');
+async function sendGmailApi(
+  accessToken: string,
+  fromEmail: string,
+  toList: string[],
+  subject: string,
+  htmlBody: string,
+  pdfBase64?: string,
+  pdfFilename?: string
+) {
+  let rawEmail: string;
+  if (pdfBase64) {
+    const boundary = `easygold_boundary_${Date.now()}`;
+    const filename = pdfFilename || 'Easy_Gold_Executive_Report.pdf';
+    rawEmail = [
+      `From: ${fromEmail}`,
+      `To: ${toList.join(', ')}`,
+      `Subject: =?utf-8?B?${Buffer.from(subject).toString('base64')}?=`,
+      'MIME-Version: 1.0',
+      `Content-Type: multipart/mixed; boundary="${boundary}"`,
+      '',
+      `--${boundary}`,
+      'Content-Type: text/html; charset=utf-8',
+      '',
+      htmlBody,
+      '',
+      `--${boundary}`,
+      `Content-Type: application/pdf; name="${filename}"`,
+      'Content-Transfer-Encoding: base64',
+      `Content-Disposition: attachment; filename="${filename}"`,
+      '',
+      pdfBase64,
+      '',
+      `--${boundary}--`,
+    ].join('\r\n');
+  } else {
+    rawEmail = [
+      `From: ${fromEmail}`,
+      `To: ${toList.join(', ')}`,
+      `Subject: =?utf-8?B?${Buffer.from(subject).toString('base64')}?=`,
+      'MIME-Version: 1.0',
+      'Content-Type: text/html; charset=utf-8',
+      '',
+      htmlBody,
+    ].join('\r\n');
+  }
 
   const raw = Buffer.from(rawEmail).toString('base64url');
   const res = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
@@ -166,6 +201,8 @@ export function buildReportEmailHtml(reportDate: string, summaryData?: any): str
 export async function sendExecutiveReportEmail(options: DispatchEmailOptions): Promise<DispatchResult> {
   const recipientList = Array.isArray(options.to) ? options.to : options.to.split(',').map((e) => e.trim());
   const recipientString = recipientList.join(', ');
+  const safeDate = (options.reportDate || 'Daily').replace(/\//g, '-');
+  const pdfFilename = `Easy_Gold_Executive_Report_${safeDate}.pdf`;
 
   // 0. Check for Google Apps Script Web App Gateway (Sends natively from your Gmail with mailed-by: gmail.com)
   const appsScriptUrl = process.env.GOOGLE_APPS_SCRIPT_URL || process.env.GMAIL_PROXY_URL;
@@ -178,6 +215,8 @@ export async function sendExecutiveReportEmail(options: DispatchEmailOptions): P
           to: recipientList.join(', '),
           subject: options.subject,
           html: buildReportEmailHtml(options.reportDate, options.summaryData),
+          pdfBase64: options.pdfBase64 || null,
+          reportDate: options.reportDate,
           body: `Easy Gold Executive Daily BI Report for ${options.reportDate}`,
         }),
       });
@@ -210,7 +249,9 @@ export async function sendExecutiveReportEmail(options: DispatchEmailOptions): P
         sender,
         recipientList,
         options.subject,
-        buildReportEmailHtml(options.reportDate, options.summaryData)
+        buildReportEmailHtml(options.reportDate, options.summaryData),
+        options.pdfBase64,
+        pdfFilename
       );
       return {
         sent: true,
@@ -228,18 +269,27 @@ export async function sendExecutiveReportEmail(options: DispatchEmailOptions): P
   if (resendApiKey) {
     try {
       const fromEmail = process.env.RESEND_FROM || 'Easy Gold Report <onboarding@resend.dev>';
+      const resendPayload: Record<string, any> = {
+        from: fromEmail,
+        to: recipientList,
+        subject: options.subject,
+        html: buildReportEmailHtml(options.reportDate, options.summaryData),
+      };
+      if (options.pdfBase64) {
+        resendPayload.attachments = [
+          {
+            filename: pdfFilename,
+            content: options.pdfBase64,
+          },
+        ];
+      }
       const res = await fetch('https://api.resend.com/emails', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${resendApiKey}`,
         },
-        body: JSON.stringify({
-          from: fromEmail,
-          to: recipientList,
-          subject: options.subject,
-          html: buildReportEmailHtml(options.reportDate, options.summaryData),
-        }),
+        body: JSON.stringify(resendPayload),
       });
 
       const data = await res.json();
@@ -288,6 +338,15 @@ export async function sendExecutiveReportEmail(options: DispatchEmailOptions): P
         to: recipientString,
         subject: options.subject,
         html: buildReportEmailHtml(options.reportDate, options.summaryData),
+        attachments: options.pdfBase64
+          ? [
+              {
+                filename: pdfFilename,
+                content: Buffer.from(options.pdfBase64, 'base64'),
+                contentType: 'application/pdf',
+              },
+            ]
+          : undefined,
       });
 
       return {

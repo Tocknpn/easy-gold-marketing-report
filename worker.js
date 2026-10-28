@@ -179,17 +179,44 @@ async function getGoogleServiceAccountToken(serviceAccount, impersonateUser) {
   return tokenData.access_token;
 }
 
-async function sendGmailWithServiceAccount({ accessToken, fromEmail, toEmails, subject, htmlBody }) {
+async function sendGmailWithServiceAccount({ accessToken, fromEmail, toEmails, subject, htmlBody, pdfBase64, pdfFilename }) {
   const recipients = Array.isArray(toEmails) ? toEmails.join(', ') : toEmails;
-  const rawEmail = [
-    `From: ${fromEmail}`,
-    `To: ${recipients}`,
-    `Subject: =?utf-8?B?${base64UrlEncode(subject)}?=`,
-    'MIME-Version: 1.0',
-    'Content-Type: text/html; charset=utf-8',
-    '',
-    htmlBody,
-  ].join('\r\n');
+  let rawEmail;
+  if (pdfBase64) {
+    const boundary = `easygold_boundary_${Date.now()}`;
+    const filename = pdfFilename || 'Easy_Gold_Executive_Report.pdf';
+    rawEmail = [
+      `From: ${fromEmail}`,
+      `To: ${recipients}`,
+      `Subject: =?utf-8?B?${base64UrlEncode(subject)}?=`,
+      'MIME-Version: 1.0',
+      `Content-Type: multipart/mixed; boundary="${boundary}"`,
+      '',
+      `--${boundary}`,
+      'Content-Type: text/html; charset=utf-8',
+      '',
+      htmlBody,
+      '',
+      `--${boundary}`,
+      `Content-Type: application/pdf; name="${filename}"`,
+      'Content-Transfer-Encoding: base64',
+      `Content-Disposition: attachment; filename="${filename}"`,
+      '',
+      pdfBase64,
+      '',
+      `--${boundary}--`,
+    ].join('\r\n');
+  } else {
+    rawEmail = [
+      `From: ${fromEmail}`,
+      `To: ${recipients}`,
+      `Subject: =?utf-8?B?${base64UrlEncode(subject)}?=`,
+      'MIME-Version: 1.0',
+      'Content-Type: text/html; charset=utf-8',
+      '',
+      htmlBody,
+    ].join('\r\n');
+  }
 
   const encodedMessage = base64UrlEncode(rawEmail);
 
@@ -1695,12 +1722,15 @@ async function executeEmailDispatch({ env, recipientList, reportDate, triggerTyp
         const accessToken = await getGoogleServiceAccountToken(serviceAccountObj, impersonateUser);
 
         const sender = impersonateUser || serviceAccountObj.client_email;
+        const safeDate = (reportDate || 'Daily').replace(/\//g, '-');
         await sendGmailWithServiceAccount({
           accessToken,
           fromEmail: sender,
           toEmails: recipientList,
           subject: `Easy Gold Executive Daily BI Report - ${reportDate}`,
           htmlBody: emailHtml,
+          pdfBase64: pdfBase64,
+          pdfFilename: `Easy_Gold_Executive_Report_${safeDate}.pdf`,
         });
 
         emailSent = true;
@@ -1715,18 +1745,28 @@ async function executeEmailDispatch({ env, recipientList, reportDate, triggerTyp
   // 2. Fallback to Resend API if Google Service Account failed or not provided
   if (!emailSent && env.RESEND_API_KEY) {
     try {
+      const safeDate = (reportDate || 'Daily').replace(/\//g, '-');
+      const resendBody = {
+        from: env.RESEND_FROM || 'Easy Gold Report <onboarding@resend.dev>',
+        to: recipientList,
+        subject: `Easy Gold Executive Daily BI Report - ${reportDate}`,
+        html: emailHtml,
+      };
+      if (pdfBase64) {
+        resendBody.attachments = [
+          {
+            filename: `Easy_Gold_Executive_Report_${safeDate}.pdf`,
+            content: pdfBase64,
+          },
+        ];
+      }
       const resendRes = await fetch('https://api.resend.com/emails', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${env.RESEND_API_KEY}`,
         },
-        body: JSON.stringify({
-          from: env.RESEND_FROM || 'Easy Gold Report <onboarding@resend.dev>',
-          to: recipientList,
-          subject: `Easy Gold Executive Daily BI Report - ${reportDate}`,
-          html: emailHtml,
-        }),
+        body: JSON.stringify(resendBody),
       });
 
       const resendData = await resendRes.json();

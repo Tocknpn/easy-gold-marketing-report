@@ -495,16 +495,6 @@ export function calculateRunRateComparison(
       target_for_same: compTarget.target_nc,
     },
     {
-      id: 'withdraw_15g',
-      label: 'Withdraw (15g)',
-      section: 'neutral',
-      format: 'number',
-      comp_full: comp_full_withdraw_15g,
-      cur_mtd: cur_withdraw_15g,
-      comp_same: comp_same_withdraw_15g,
-      target_val: undefined,
-    },
-    {
       id: 'withdraw_refund',
       label: 'Withdraw + Refund',
       section: 'neutral',

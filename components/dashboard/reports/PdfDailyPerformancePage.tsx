@@ -7,14 +7,11 @@ import {
   buildCompare,
   buildSeries,
   fmtInt,
-  fmtPct,
-  fmtSigned,
   toDailyMap,
 } from '@/lib/utils/dailyPerformance';
 import { TrendChart, BRAND, GOLD } from '@/components/dashboard/daily/TrendChart';
+import { ChangeChip, ComparePanel, DOWN, HeroNumber, UP } from '@/components/dashboard/daily/ComparePanel';
 
-const UP = '#059669';
-const DOWN = '#dc2626';
 const TEAL = '#0891b2';
 
 interface PdfDailyPerformancePageProps {
@@ -35,30 +32,13 @@ function hitLabel(pct: number) {
   return 'Behind';
 }
 
-function ChangeBadge({ pct }: { pct: number | null }) {
-  if (pct === null) return <span className="text-slate-400 font-bold">–</span>;
-  const up = pct > 0.05;
-  const down = pct < -0.05;
-  const color = up ? UP : down ? DOWN : '#64748b';
-  const bg = up ? '#ecfdf5' : down ? '#fef2f2' : '#f1f5f9';
-  return (
-    <span
-      className="inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-xs font-black tabular-nums whitespace-nowrap shadow-2xs"
-      style={{ color, background: bg }}
-    >
-      <span>{up ? '▲' : down ? '▼' : '•'}</span>
-      {fmtPct(pct)}
-    </span>
-  );
-}
-
 export function PdfDailyPerformancePage({
   dailyRows,
   runRate,
   asOfDate,
 }: PdfDailyPerformancePageProps) {
   // Compute daily map and 30-day series ending on asOfDate
-  const { series, asOfStr } = useMemo(() => {
+  const { series } = useMemo(() => {
     const map = toDailyMap(dailyRows);
     let resolvedDate = asOfDate;
     if (resolvedDate && resolvedDate.includes('/')) {
@@ -116,7 +96,7 @@ export function PdfDailyPerformancePage({
     { id: 'sell_weight_g', label: 'Sell Weight (Baht)', div: 15 },
     { id: 'sell_transactions', label: 'Sell Transactions', div: 1 },
     { id: 'new_customer', label: 'New Register', div: 1 },
-    { id: 'withdraw_15g', label: 'Withdraw + Refund', div: 1 },
+    { id: 'withdraw_refund', label: 'Withdraw + Refund', div: 1 },
     { id: 'total_transactions', label: 'Total Transactions', div: 1 },
   ]
     .map((t) => {
@@ -125,22 +105,27 @@ export function PdfDailyPerformancePage({
     })
     .filter((t): t is NonNullable<typeof t> => t !== null);
 
-  const mtdAverageSame = mtdTiles.length
+  const avgSame = mtdTiles.length
     ? mtdTiles.reduce((s, t) => s + t.r.mom_same_pct, 0) / mtdTiles.length
     : 0;
-  const mtdAverageFull = mtdTiles.length
+  const avgFull = mtdTiles.length
     ? mtdTiles.reduce((s, t) => s + t.r.mom_full_pct, 0) / mtdTiles.length
     : 0;
 
+  const roundSame = Math.round(avgSame);
+  const roundFull = Math.round(avgFull);
+  const colorSame = roundSame >= 0 ? UP : DOWN;
+  const colorFull = roundFull >= 0 ? UP : DOWN;
+
   return (
-    <div className="w-full h-full grid grid-cols-2 grid-rows-2 gap-4 select-text">
+    <div className="w-full h-full grid grid-cols-[minmax(0,5fr)_minmax(0,7fr)] grid-rows-2 gap-3.5 select-text">
       {/* ==================================================================== */}
       {/* 1. NEW REGISTER PANEL                                                */}
       {/* ==================================================================== */}
-      <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm p-4 flex flex-col justify-between overflow-hidden">
+      <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs p-3.5 flex flex-col justify-between overflow-hidden min-h-0">
         {/* Header */}
-        <div className="flex items-center justify-between pb-2.5 border-b border-slate-100">
-          <div className="flex items-center gap-2.5">
+        <div className="flex items-center justify-between pb-2 border-b border-slate-100 shrink-0">
+          <div className="flex items-center gap-2">
             <span className="w-6 h-6 rounded-lg bg-[#0c53ac] text-white text-xs font-black flex items-center justify-center">
               1
             </span>
@@ -149,64 +134,35 @@ export function PdfDailyPerformancePage({
           <span className="text-xs font-bold text-slate-400">Last 30 days</span>
         </div>
 
-        {/* Hero + Compare Table with GAP */}
-        <div className="grid grid-cols-[160px_1fr] gap-4 items-center py-2 border-b border-slate-100 flex-1">
-          {/* Hero */}
-          <div className="flex flex-col pr-3 border-r border-slate-100">
-            <div className="flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-slate-500">
-              <span className="w-2.5 h-2.5 rounded-full" style={{ background: TEAL }} />
-              <span>New Register</span>
-            </div>
-            <div className="font-black text-[38px] leading-tight text-slate-900 tabular-nums my-1">
-              {fmtInt(series.nc.cmp.latest)}
-            </div>
-            <div className="flex items-center gap-1.5">
-              <ChangeBadge pct={series.nc.cmp.rows[0]?.pct ?? null} />
-              <span className="text-xs font-semibold text-slate-500">vs yesterday</span>
-            </div>
+        {/* Hero + Full Compare Table with GAP */}
+        <div className="grid grid-cols-[150px_1fr] gap-3 items-center py-2 border-b border-slate-100 shrink-0">
+          <div className="pr-2 border-r border-slate-100">
+            <HeroNumber
+              title="New Register"
+              value={series.nc.cmp.latest}
+              yesterdayPct={series.nc.cmp.rows[0]?.pct ?? null}
+              accent={TEAL}
+              stacked
+            />
           </div>
-
-          {/* Full Compare Table with GAP */}
-          <div className="text-xs">
-            <div className="grid grid-cols-[1.5fr_1fr_1.1fr_1fr] gap-2 text-[10px] font-black uppercase tracking-wider text-slate-400 border-b border-slate-100 pb-1 mb-1">
-              <span>Compare with</span>
-              <span className="text-right">Number</span>
-              <span className="text-right">Change</span>
-              <span className="text-right">Gap</span>
-            </div>
-            <div className="space-y-1">
-              {series.nc.cmp.rows.map((r, i) => {
-                const gapColor = r.gap === null ? '#64748b' : r.gap > 0 ? UP : r.gap < 0 ? DOWN : '#64748b';
-                return (
-                  <div key={i} className="grid grid-cols-[1.5fr_1fr_1.1fr_1fr] gap-2 items-center font-bold text-slate-700 py-0.5">
-                    <span className="text-slate-600">{r.label}</span>
-                    <span className="text-right tabular-nums text-slate-900">{fmtInt(r.ref)}</span>
-                    <div className="text-right">
-                      <ChangeBadge pct={r.pct} />
-                    </div>
-                    <span className="text-right tabular-nums font-black" style={{ color: gapColor }}>
-                      {fmtSigned(r.gap)}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
+          <div className="min-w-0">
+            <ComparePanel rows={series.nc.cmp.rows} />
           </div>
         </div>
 
         {/* 30-Day Trend Chart */}
-        <div className="h-28 w-full pt-2">
+        <div className="flex-1 min-h-[115px] w-full pt-1.5">
           <TrendChart series={[{ name: 'New Register', color: TEAL, points: series.nc.points, area: true }]} />
         </div>
       </div>
 
       {/* ==================================================================== */}
-      {/* 2. BUY & SELL TRANSACTIONS PANEL                                     */}
+      {/* 2. BUY & SELL TRANSACTIONS PANEL (FULL COMPARE TABLES + CHART)        */}
       {/* ==================================================================== */}
-      <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm p-4 flex flex-col justify-between overflow-hidden">
+      <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs p-3.5 flex flex-col justify-between overflow-hidden min-h-0">
         {/* Header */}
-        <div className="flex items-center justify-between pb-2.5 border-b border-slate-100">
-          <div className="flex items-center gap-2.5">
+        <div className="flex items-center justify-between pb-2 border-b border-slate-100 shrink-0">
+          <div className="flex items-center gap-2">
             <span className="w-6 h-6 rounded-lg bg-[#0c53ac] text-white text-xs font-black flex items-center justify-center">
               2
             </span>
@@ -215,53 +171,44 @@ export function PdfDailyPerformancePage({
           <span className="text-xs font-bold text-slate-400">Last 30 days</span>
         </div>
 
-        {/* Grid: Left metrics / Right chart */}
-        <div className="grid grid-cols-[1.1fr_1.1fr] gap-4 flex-1 min-h-0 pt-2 items-center">
-          {/* Left Stats: Buy + Sell stacked with GAP */}
-          <div className="flex flex-col justify-between h-full space-y-2.5">
-            {/* Buy Row */}
-            <div className="bg-slate-50/80 p-2.5 rounded-xl border border-slate-200/70">
-              <div className="flex items-baseline justify-between mb-1">
+        {/* Grid: Left Full Buy & Sell Compare Tables / Right Dual-Line Chart */}
+        <div className="grid grid-cols-[minmax(0,0.88fr)_minmax(0,1.12fr)] gap-3.5 flex-1 min-h-0 pt-2">
+          <div className="flex flex-col justify-between min-h-0 gap-2">
+            {/* Buy Section Card Container */}
+            <div className="rounded-xl border border-blue-200/80 bg-slate-50/40 p-2 space-y-1.5">
+              <div className="flex items-baseline gap-2 px-1">
                 <div className="flex items-center gap-1.5 text-xs font-black uppercase text-slate-700">
                   <span className="w-2.5 h-2.5 rounded-full" style={{ background: BRAND }} />
                   <span>Buy</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-[26px] font-black leading-none text-slate-900 tabular-nums">
-                    {fmtInt(series.buy.cmp.latest)}
-                  </span>
-                  <ChangeBadge pct={series.buy.cmp.rows[0]?.pct ?? null} />
-                </div>
+                <span className="text-2xl font-black text-slate-900 tabular-nums">
+                  {fmtInt(series.buy.cmp.latest)}
+                </span>
+                <ChangeChip pct={series.buy.cmp.rows[0]?.pct ?? null} size="sm" />
+                <span className="text-[11px] font-semibold text-slate-500">vs yesterday</span>
               </div>
-              <div className="text-[10px] font-bold text-slate-500 flex justify-between pt-1 border-t border-slate-200/50">
-                <span>Avg 7d: <strong className="text-slate-800">{fmtInt(series.buy.cmp.rows[2]?.ref ?? 0)}</strong> ({fmtSigned(series.buy.cmp.rows[2]?.gap ?? 0)})</span>
-                <span>Avg 21d: <strong className="text-slate-800">{fmtInt(series.buy.cmp.rows[4]?.ref ?? 0)}</strong></span>
-              </div>
+              <ComparePanel rows={series.buy.cmp.rows} />
             </div>
 
-            {/* Sell Row */}
-            <div className="bg-slate-50/80 p-2.5 rounded-xl border border-slate-200/70">
-              <div className="flex items-baseline justify-between mb-1">
+            {/* Sell Section Card Container */}
+            <div className="rounded-xl border border-amber-200/80 bg-slate-50/40 p-2 space-y-1.5">
+              <div className="flex items-baseline gap-2 px-1">
                 <div className="flex items-center gap-1.5 text-xs font-black uppercase text-slate-700">
                   <span className="w-2.5 h-2.5 rounded-full" style={{ background: GOLD }} />
                   <span>Sell</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-[26px] font-black leading-none text-slate-900 tabular-nums">
-                    {fmtInt(series.sell.cmp.latest)}
-                  </span>
-                  <ChangeBadge pct={series.sell.cmp.rows[0]?.pct ?? null} />
-                </div>
+                <span className="text-2xl font-black text-slate-900 tabular-nums">
+                  {fmtInt(series.sell.cmp.latest)}
+                </span>
+                <ChangeChip pct={series.sell.cmp.rows[0]?.pct ?? null} size="sm" />
+                <span className="text-[11px] font-semibold text-slate-500">vs yesterday</span>
               </div>
-              <div className="text-[10px] font-bold text-slate-500 flex justify-between pt-1 border-t border-slate-200/50">
-                <span>Avg 7d: <strong className="text-slate-800">{fmtInt(series.sell.cmp.rows[2]?.ref ?? 0)}</strong> ({fmtSigned(series.sell.cmp.rows[2]?.gap ?? 0)})</span>
-                <span>Avg 21d: <strong className="text-slate-800">{fmtInt(series.sell.cmp.rows[4]?.ref ?? 0)}</strong></span>
-              </div>
+              <ComparePanel rows={series.sell.cmp.rows} />
             </div>
           </div>
 
           {/* Right Dual-Line Chart */}
-          <div className="h-full w-full min-h-[140px] pt-1">
+          <div className="h-full w-full min-h-[180px] pt-1">
             <TrendChart
               legend
               series={[
@@ -276,15 +223,15 @@ export function PdfDailyPerformancePage({
       {/* ==================================================================== */}
       {/* 3. TARGET HIT PANEL                                                  */}
       {/* ==================================================================== */}
-      <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm p-4 flex flex-col justify-between overflow-hidden">
+      <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs p-3.5 flex flex-col justify-between overflow-hidden min-h-0">
         {/* Header */}
-        <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-          <div className="flex items-center gap-2.5">
+        <div className="flex items-center justify-between pb-2 border-b border-slate-100 shrink-0">
+          <div className="flex items-center gap-2">
             <span className="w-6 h-6 rounded-lg bg-[#0c53ac] text-white text-xs font-black flex items-center justify-center">
               3
             </span>
             <h3 className="text-base font-black text-slate-900">
-              Target Hit • {curLabel} &amp; Year to Date
+              Target Hit · {curLabel} &amp; Year to Date
             </h3>
           </div>
           <span className="text-xs font-bold text-slate-500">
@@ -293,8 +240,8 @@ export function PdfDailyPerformancePage({
         </div>
 
         {/* Target Tracking Table */}
-        <div className="flex-1 min-h-0 flex flex-col justify-between py-1.5">
-          <div className="grid grid-cols-[1.5fr_1.1fr_1.6fr_0.9fr_1fr] gap-x-3 pb-1 text-[11px] font-black uppercase tracking-wider text-slate-400 border-b border-slate-100">
+        <div className="flex-1 min-h-0 flex flex-col justify-between py-1">
+          <div className="grid grid-cols-[1.45fr_1.15fr_1.55fr_0.9fr_1fr] gap-x-2.5 pb-1 text-[11px] font-black uppercase tracking-wider text-slate-400 border-b border-slate-100">
             <span>Metric</span>
             <span className="text-right">This Month</span>
             <span>Hit So Far</span>
@@ -302,7 +249,7 @@ export function PdfDailyPerformancePage({
             <span className="text-center">Year to Date</span>
           </div>
 
-          <div className="space-y-1.5">
+          <div className="flex-1 flex flex-col justify-around">
             {mt.metrics.map((m) => {
               const y = ytd.metrics.find((q) => q.id === m.id);
               const c = hitColor(m.est_target_hit_pct);
@@ -310,21 +257,21 @@ export function PdfDailyPerformancePage({
               return (
                 <div
                   key={m.id}
-                  className="grid grid-cols-[1.5fr_1.1fr_1.6fr_0.9fr_1fr] gap-x-3 items-center rounded-lg px-2 py-1 odd:bg-slate-50/80 text-xs"
+                  className="grid grid-cols-[1.45fr_1.15fr_1.55fr_0.9fr_1fr] gap-x-2.5 items-center rounded-lg px-1.5 py-1 odd:bg-slate-50/80 text-xs"
                 >
-                  <div className="font-bold text-slate-800 truncate text-[13px]">
+                  <div className="font-black text-slate-800 text-[13px] leading-snug">
                     {targetMetricNames[m.id] ?? m.label}
                   </div>
 
-                  <div className="text-right tabular-nums leading-tight">
+                  <div className="text-right tabular-nums leading-snug">
                     <span className="font-black text-slate-900 text-[13px]">{fmtInt(m.actual)}</span>
-                    <span className="text-[10px] text-slate-400 block font-semibold">of {fmtInt(m.target)}</span>
+                    <span className="text-[10.5px] text-slate-500 block font-semibold">of {fmtInt(m.target)}</span>
                   </div>
 
                   {/* Progress Bar with Benchmark */}
-                  <div className="relative h-4 rounded-full bg-slate-100 overflow-hidden shadow-2xs">
+                  <div className="relative h-5 rounded-full bg-slate-100 overflow-hidden shadow-2xs">
                     <div
-                      className="h-full rounded-full flex items-center justify-end pr-1.5 text-[10px] font-black text-white"
+                      className="h-full rounded-full flex items-center justify-end pr-2 text-[11px] font-black text-white"
                       style={{
                         width: `${Math.min(100, Math.max(18, m.current_pct))}%`,
                         background: c,
@@ -338,21 +285,21 @@ export function PdfDailyPerformancePage({
                     />
                   </div>
 
-                  <div className="text-center leading-tight">
-                    <span className="font-black text-[13px] block" style={{ color: c }}>
+                  <div className="text-center leading-snug">
+                    <span className="font-black text-[14px] block tabular-nums" style={{ color: c }}>
                       {m.est_target_hit_pct}%
                     </span>
-                    <span className="text-[9.5px] font-bold block" style={{ color: c }}>
+                    <span className="text-[10px] font-bold block" style={{ color: c }}>
                       {hitLabel(m.est_target_hit_pct)}
                     </span>
                   </div>
 
-                  <div className="text-center leading-tight">
-                    <span className="font-black text-[13px] block" style={{ color: yc }}>
+                  <div className="text-center leading-snug">
+                    <span className="font-black text-[14px] block tabular-nums" style={{ color: yc }}>
                       {y ? `${y.current_pct}%` : '–'}
                     </span>
-                    <span className="text-[9.5px] block text-slate-500 font-semibold">
-                      {y ? `Year-end est ${y.est_year_end_pct}%` : ''}
+                    <span className="text-[10px] block text-slate-500 font-semibold tabular-nums">
+                      {y ? `Year-end est. ${y.est_year_end_pct}%` : ''}
                     </span>
                   </div>
                 </div>
@@ -361,7 +308,7 @@ export function PdfDailyPerformancePage({
           </div>
 
           {/* Footer Legend */}
-          <div className="flex items-center justify-between pt-1.5 border-t border-slate-100 text-[10.5px] text-slate-500 font-medium">
+          <div className="flex items-center justify-between pt-1.5 border-t border-slate-100 text-[10.5px] text-slate-500 font-semibold">
             <span>| Line = how much of the month has passed ({mt.days_gone_pct}%)</span>
             <span className="space-x-3 font-bold">
               <span style={{ color: UP }}>• 100%+ On Track</span>
@@ -375,10 +322,10 @@ export function PdfDailyPerformancePage({
       {/* ==================================================================== */}
       {/* 4. MTD SO FAR VS PREVIOUS MONTH PANEL                                */}
       {/* ==================================================================== */}
-      <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm p-4 flex flex-col justify-between overflow-hidden">
+      <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs p-3.5 flex flex-col justify-between overflow-hidden min-h-0">
         {/* Header */}
-        <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-          <div className="flex items-center gap-2.5">
+        <div className="flex items-center justify-between pb-2 border-b border-slate-100 shrink-0">
+          <div className="flex items-center gap-2">
             <span className="w-6 h-6 rounded-lg bg-[#0c53ac] text-white text-xs font-black flex items-center justify-center">
               4
             </span>
@@ -391,73 +338,86 @@ export function PdfDailyPerformancePage({
           </span>
         </div>
 
-        {/* 7 Metric Tiles + 1 Overall Tile matching 4 top / 4 bottom layout */}
-        <div className="grid grid-cols-4 grid-rows-2 gap-2 flex-1 min-h-0 pt-1.5">
+        {/* 7 Metric Tiles + 1 Overall Performance Tile matching PowerPoint */}
+        <div className="grid grid-cols-4 grid-rows-2 gap-2.5 flex-1 min-h-0 pt-2">
           {mtdTiles.map((t) => {
             const up = t.r.mom_same_pct > 0;
             const down = t.r.mom_same_pct < 0;
             const accent = up ? UP : down ? DOWN : '#94a3b8';
+            const fullPct = t.r.mom_full_pct;
             return (
               <div
                 key={t.id}
-                className="relative rounded-xl border border-slate-200 bg-gradient-to-b from-white to-slate-50/70 p-2 flex flex-col justify-between overflow-hidden shadow-2xs"
+                className="relative rounded-xl border border-slate-200 bg-gradient-to-b from-white to-slate-50/70 px-3 py-2 flex flex-col justify-between overflow-hidden shadow-2xs"
               >
                 <span className="absolute left-0 top-0 bottom-0 w-1" style={{ background: accent }} />
-                <div className="text-[11px] font-black text-slate-700 truncate pl-1">
+                <div className="text-xs font-black text-slate-700 leading-snug">
                   {t.label}
                 </div>
-                <div className="pl-1 my-0.5">
-                  <div className="font-black text-[18px] leading-tight text-slate-900 tabular-nums">
+                <div className="my-0.5">
+                  <div className="font-black text-[22px] leading-snug text-slate-900 tabular-nums">
                     {fmtInt(t.r.cur_mtd / t.div)}
                   </div>
-                  <div className="flex items-center gap-1 mt-0.5">
-                    <ChangeBadge pct={t.r.mom_same_pct} />
-                    <span className="text-[9.5px] font-medium text-slate-400 truncate">
-                      vs {cmpLabel} ({fmtInt(t.r.comp_same_period / t.div)})
+                  <div className="flex items-center gap-1 mt-0.5 flex-wrap">
+                    <ChangeChip pct={t.r.mom_same_pct} size="sm" />
+                    <span className="text-[10px] font-semibold text-slate-500">
+                      vs {cmpLabel} same days ({fmtInt(t.r.comp_same_period / t.div)})
                     </span>
                   </div>
                 </div>
-                <div className="border-t border-slate-100 pt-1 text-[9.5px] flex items-center justify-between pl-1 text-slate-500">
-                  <span>Expected {curLabel} total <strong className="text-slate-800">{fmtInt(t.r.rr_projected / t.div)}</strong></span>
-                  <span className="font-black" style={{ color: t.r.mom_full_pct >= 0 ? UP : DOWN }}>
-                    vs full {cmpLabel} {t.r.mom_full_pct >= 0 ? '▲ +' : '▼ '}{t.r.mom_full_pct}%
-                  </span>
+                <div className="border-t border-slate-200 pt-1 text-[10px] flex items-center justify-between gap-1">
+                  <div className="leading-snug">
+                    <div className="font-semibold text-slate-500">Expected {curLabel} total</div>
+                    <div className="font-black text-slate-900 tabular-nums">{fmtInt(t.r.rr_projected / t.div)}</div>
+                  </div>
+                  <div className="text-right leading-snug">
+                    <div className="font-semibold text-slate-500">vs full {cmpLabel}</div>
+                    <div className="font-black tabular-nums" style={{ color: fullPct >= 0 ? UP : DOWN }}>
+                      {fullPct >= 0 ? '▲ +' : '▼ '}
+                      {fullPct}%
+                    </div>
+                  </div>
                 </div>
               </div>
             );
           })}
 
-          {/* Overall Tile matching PowerPoint slide 2 */}
-          <div
-            className="rounded-xl p-2.5 flex flex-col justify-between text-white shadow-xs"
-            style={{ background: `linear-gradient(135deg, #0a3f87, ${BRAND} 55%, #2f7be0)` }}
-          >
-            <div className="text-[10px] font-black uppercase tracking-wider text-white/90">
-              OVERALL PERFORMANCE
+          {/* Overall Performance White Card matching PowerPoint Slide 2 */}
+          <div className="relative rounded-xl border border-slate-200 bg-white shadow-2xs px-3 py-2 flex flex-col justify-between overflow-hidden">
+            <span
+              className="absolute left-0 top-0 bottom-0 w-1"
+              style={{ background: roundSame >= 0 ? UP : DOWN }}
+            />
+            <div className="flex items-center justify-between text-[11px] font-black uppercase tracking-wide text-slate-600">
+              <span>Overall Performance</span>
+              <span className="text-[10px] font-bold text-slate-400 lowercase">{curLabel} vs {cmpLabel}</span>
             </div>
-            <div>
-              <div className="flex items-baseline gap-2">
-                <div>
-                  <div className="font-black text-[22px] leading-tight tabular-nums">
-                    {mtdAverageSame > 0 ? '▲ +' : mtdAverageSame < 0 ? '▼ ' : ''}
-                    {Math.round(mtdAverageSame)}%
-                  </div>
-                  <div className="text-[9px] font-bold text-white/90">
-                    Same {runRate.days_elapsed} days
-                  </div>
+
+            <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-1 my-auto">
+              <div className="text-center min-w-0">
+                <div className="font-black text-[20px] leading-snug tabular-nums" style={{ color: colorSame }}>
+                  {roundSame >= 0 ? '▲ +' : '▼ '}
+                  {roundSame}%
                 </div>
-                <div>
-                  <div className="font-black text-[22px] leading-tight tabular-nums">
-                    {mtdAverageFull > 0 ? '▲ +' : mtdAverageFull < 0 ? '▼ ' : ''}
-                    {Math.round(mtdAverageFull)}%
-                  </div>
-                  <div className="text-[9px] font-bold text-white/90">
-                    Est. vs full {cmpLabel}
-                  </div>
+                <div className="text-[10px] font-bold text-slate-600 mt-0.5 leading-snug">
+                  Same {runRate.days_elapsed} days
+                </div>
+              </div>
+
+              <div className="h-8 w-[1.5px] bg-slate-200 mx-0.5" />
+
+              <div className="text-center min-w-0">
+                <div className="font-black text-[20px] leading-snug tabular-nums" style={{ color: colorFull }}>
+                  {roundFull >= 0 ? '▲ +' : '▼ '}
+                  {roundFull}%
+                </div>
+                <div className="text-[10px] font-bold text-slate-600 mt-0.5 leading-snug">
+                  Est. vs full {cmpLabel}
                 </div>
               </div>
             </div>
-            <div className="text-[9px] font-medium text-white/80">
+
+            <div className="border-t border-slate-100 pt-1 text-[10px] text-center font-bold text-slate-400">
               Average of the 7 measures
             </div>
           </div>

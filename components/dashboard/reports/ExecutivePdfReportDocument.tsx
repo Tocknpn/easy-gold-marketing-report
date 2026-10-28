@@ -167,12 +167,29 @@ export function ExecutivePdfReportDocument({
 
   // Clean weekly history: only last 5 weeks for clean, un-squished sparklines
   const cleanWeeklyHistory = useMemo(() => {
-    if (!weeklyHistory || weeklyHistory.length === 0) return [weeklyCurrentWeek];
+    if (!weeklyHistory || weeklyHistory.length === 0) return [weeklyRawWeek || weeklyCurrentWeek];
     return weeklyHistory.slice(Math.max(0, weeklyHistory.length - 5));
-  }, [weeklyHistory, weeklyCurrentWeek]);
+  }, [weeklyHistory, weeklyRawWeek, weeklyCurrentWeek]);
 
-  const weeklyProps = {
+  // Prorated weekly history: replace the current week's point with the 7-day prorated estimate
+  const proratedWeeklyHistory = useMemo(() => {
+    return cleanWeeklyHistory.map((w) => {
+      const isCurrent =
+        (w.year_week && weeklyCurrentWeek.year_week && w.year_week === weeklyCurrentWeek.year_week) ||
+        w.week_label === weeklyCurrentWeek.week_label;
+      return isCurrent ? weeklyCurrentWeek : w;
+    });
+  }, [cleanWeeklyHistory, weeklyCurrentWeek]);
+
+  const weeklyPropsActual = {
     history: cleanWeeklyHistory,
+    selectedWeek: selectedWeekLabel,
+    isPartialWeek,
+    elapsedDays,
+  };
+
+  const weeklyPropsProrated = {
+    history: proratedWeeklyHistory,
     selectedWeek: selectedWeekLabel,
     isPartialWeek,
     elapsedDays,
@@ -206,7 +223,7 @@ export function ExecutivePdfReportDocument({
               newCustomersMtd={momMtdData?.metrics?.new_customers?.current_mtd || 1571}
               newCustomersMoMPct={momMtdData?.metrics?.new_customers?.mtd_variance_percent || -27}
               activeWeekLabel={selectedWeekLabel}
-              weeklyVolumeBaht={Number(weeklyCurrentWeek?.buy_weight_15g || 1912)}
+              weeklyVolumeBaht={Number((weeklyRawWeek ?? weeklyCurrentWeek)?.buy_weight_15g || 1912)}
               weeklyWoWVariance={weeklyVariances?.buy_weight_15g || -26}
               isPartialWeek={isPartialWeek}
               onNavigateTab={() => {}}
@@ -292,7 +309,7 @@ export function ExecutivePdfReportDocument({
                   currentWeek={weeklyRawWeek || weeklyCurrentWeek}
                   variances={weeklyVariances}
                   isProratedWoW={false}
-                  {...weeklyProps}
+                  {...weeklyPropsActual}
                 />
               </div>
               <div className="w-full flex flex-col">
@@ -300,7 +317,7 @@ export function ExecutivePdfReportDocument({
                   currentWeek={weeklyRawWeek || weeklyCurrentWeek}
                   variances={weeklyVariances}
                   isProratedWoW={false}
-                  {...weeklyProps}
+                  {...weeklyPropsActual}
                 />
               </div>
               <div className="w-full flex flex-col">
@@ -308,7 +325,7 @@ export function ExecutivePdfReportDocument({
                   currentWeek={weeklyRawWeek || weeklyCurrentWeek}
                   variances={weeklyVariances}
                   isProratedWoW={false}
-                  {...weeklyProps}
+                  {...weeklyPropsActual}
                 />
               </div>
             </div>
@@ -327,7 +344,7 @@ export function ExecutivePdfReportDocument({
                   currentWeek={weeklyCurrentWeek}
                   variances={weeklyProratedVariances}
                   isProratedWoW={true}
-                  {...weeklyProps}
+                  {...weeklyPropsProrated}
                 />
               </div>
               <div className="w-full flex flex-col">
@@ -335,7 +352,7 @@ export function ExecutivePdfReportDocument({
                   currentWeek={weeklyCurrentWeek}
                   variances={weeklyProratedVariances}
                   isProratedWoW={true}
-                  {...weeklyProps}
+                  {...weeklyPropsProrated}
                 />
               </div>
               <div className="w-full flex flex-col">
@@ -343,7 +360,7 @@ export function ExecutivePdfReportDocument({
                   currentWeek={weeklyCurrentWeek}
                   variances={weeklyProratedVariances}
                   isProratedWoW={true}
-                  {...weeklyProps}
+                  {...weeklyPropsProrated}
                 />
               </div>
             </div>
@@ -361,37 +378,39 @@ export function ExecutivePdfReportDocument({
         title="Easy Gold Marketing performance — Monthly RR Tables"
         asOfDate={asOfDateDisplay}
       >
-        <div className="space-y-4">
+        <div className="space-y-2.5">
           {/* Section 6: Monthly RR Table MoM */}
-          <section className="report-section space-y-2">
+          <section className="report-section space-y-1.5">
             <PdfSectionTitle
               num={6}
               title={`Monthly RR Table ${currentMonthLabel} vs ${comparisonMonthLabel}`}
               subtitle="Projected Landing & Same-Period Cutoff MoM Comparison"
             />
-            <div className="bg-slate-50/40 p-2.5 rounded-xl border border-slate-200">
+            <div className="bg-slate-50/40 p-2 rounded-xl border border-slate-200">
               <ClassicRunRateTables 
                 data={rrMomData} 
                 curYear={currentYear}
                 compYear={currentYear}
                 isYoY={false}
+                compact={true}
               />
             </div>
           </section>
 
           {/* Section 7: Monthly RR Table YoY */}
-          <section className="report-section space-y-2">
+          <section className="report-section space-y-1.5">
             <PdfSectionTitle
               num={7}
               title={`Monthly RR Table ${currentMonthLabel} vs ${yoyMonthLabel}`}
               subtitle={`Year-over-Year (YoY) Full Landing & Same-Period Comparison against ${currentYear - 1}`}
             />
-            <div className="bg-slate-50/40 p-2.5 rounded-xl border border-slate-200">
+            <div className="bg-slate-50/40 p-2 rounded-xl border border-slate-200">
               <ClassicRunRateTables 
                 data={rrYoyData} 
                 curYear={currentYear}
                 compYear={currentYear - 1}
                 isYoY={true}
+                compact={true}
               />
             </div>
           </section>

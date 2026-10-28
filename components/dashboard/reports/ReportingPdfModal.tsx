@@ -128,52 +128,66 @@ export function ReportingPdfModal({
     try {
       const supabase = createClient();
 
-      // 1. Fetch live daily metrics so run-rate and targets calculate with real rows
-      const { data: rows } = await supabase
-        .from('summary_daily_metrics')
-        .select('*')
-        .order('date_id', { ascending: true });
+      const [rowsRes, momRes, wkRes] = await Promise.all([
+        supabase
+          .from('summary_daily_metrics')
+          .select('*')
+          .order('date_id', { ascending: true }),
+        fetch(`/api/dashboard/mtd-forecast?refresh=true&t=${Date.now()}`, { cache: 'no-store' }).catch(() => null),
+        fetch(`/api/dashboard/summary?refresh=true&t=${Date.now()}`, { cache: 'no-store' }).catch(() => null),
+      ]);
+
+      const rows = rowsRes.data;
       if (rows && rows.length > 0) {
         setLocalDailyRows(rows as DailyMetricRow[]);
       }
 
-      // 2. Fetch live MTD if not passed or ensure it is up-to-date
-      let activeAsOf = passedMtdData?.as_of_date || '2026-10-21';
-      if (!passedMtdData || !passedMtdData.metrics) {
-        const momRes = await fetch(`/api/dashboard/mtd-forecast?refresh=true`);
-        if (momRes.ok) {
+      let activeAsOf =
+        (rows && rows.length > 0 ? String(rows[rows.length - 1].date_id).slice(0, 10) : null) ||
+        passedMtdData?.as_of_date ||
+        '2026-10-25';
+      let curYear = passedMtdData?.current_month_year || 2026;
+      let curMonth = passedMtdData?.current_month_num || 10;
+
+      if (momRes && momRes.ok) {
+        try {
           const momJson = await momRes.json();
           if (momJson?.metrics) {
             setMomMtd(momJson);
             if (momJson.as_of_date) activeAsOf = momJson.as_of_date;
+            if (momJson.current_month_year) curYear = momJson.current_month_year;
+            if (momJson.current_month_num) curMonth = momJson.current_month_num;
           }
-        }
-      } else {
-        setMomMtd(passedMtdData);
-      }
-
-      // 3. Fetch live YoY MTD using exact same as_of_date
-      const curYear = passedMtdData?.current_month_year || 2026;
-      const curMonth = passedMtdData?.current_month_num || 10;
-      const yoyRes = await fetch(`/api/dashboard/mtd-forecast?as_of_date=${activeAsOf}&comp_year=${curYear - 1}&comp_month=${curMonth}&refresh=true`);
-      if (yoyRes.ok) {
-        const yoyJson = await yoyRes.json();
-        if (yoyJson?.metrics) {
-          setYoyMtd(yoyJson);
+        } catch (e) {
+          console.warn('Live MTD parse fallback:', e);
         }
       }
 
-      // 4. Fetch weekly if not passed
-      if (!passedWeeklyData || !passedWeeklyData.current_week) {
-        const wkRes = await fetch('/api/dashboard/summary?refresh=true');
-        if (wkRes.ok) {
+      if (wkRes && wkRes.ok) {
+        try {
           const wkJson = await wkRes.json();
           if (wkJson?.current_week) {
             setWeekly(wkJson);
           }
+        } catch (e) {
+          console.warn('Live Weekly parse fallback:', e);
         }
-      } else {
-        setWeekly(passedWeeklyData);
+      }
+
+      // Fetch live YoY MTD using exact same as_of_date
+      try {
+        const yoyRes = await fetch(
+          `/api/dashboard/mtd-forecast?as_of_date=${activeAsOf}&comp_year=${curYear - 1}&comp_month=${curMonth}&refresh=true&t=${Date.now()}`,
+          { cache: 'no-store' }
+        );
+        if (yoyRes.ok) {
+          const yoyJson = await yoyRes.json();
+          if (yoyJson?.metrics) {
+            setYoyMtd(yoyJson);
+          }
+        }
+      } catch (e) {
+        console.warn('Live YoY MTD fetch failed:', e);
       }
     } catch (err) {
       console.error('Failed to load comprehensive report data:', err);
@@ -241,6 +255,8 @@ export function ReportingPdfModal({
     const prevPosition = previewContainer ? previewContainer.style.position : '';
     const prevZIndex = previewContainer ? previewContainer.style.zIndex : '';
     const prevWidth = previewContainer ? previewContainer.style.width : '';
+    const prevMaxWidth = previewContainer ? previewContainer.style.maxWidth : '';
+    const prevOverflow = previewContainer ? previewContainer.style.overflow : '';
     const prevOpacity = previewContainer ? previewContainer.style.opacity : '';
     const prevPadding = previewContainer ? previewContainer.style.padding : '';
 
@@ -251,7 +267,9 @@ export function ReportingPdfModal({
         previewContainer.style.top = '0px';
         previewContainer.style.left = '0px';
         previewContainer.style.width = '1920px';
+        previewContainer.style.maxWidth = 'none';
         previewContainer.style.padding = '0px';
+        previewContainer.style.overflow = 'visible';
         previewContainer.style.zIndex = '-9999';
         previewContainer.style.opacity = '1';
         previewContainer.classList.remove('hidden');
@@ -265,7 +283,7 @@ export function ReportingPdfModal({
       // Wait for layout and ResizeObserver auto-fit measurements to settle
       await new Promise((resolve) => setTimeout(resolve, 300));
 
-      const html2canvas = (await import('html2canvas')).default;
+      const { domToCanvas } = await import('modern-screenshot');
       const { jsPDF } = await import('jspdf');
 
       // Initialize jsPDF in 16:9 Widescreen Presentation Slide format (338.67mm x 190.5mm)
@@ -292,41 +310,22 @@ export function ReportingPdfModal({
           pdf.addPage([338.67, 190.5], 'landscape');
         }
 
-        // Render at high-definition scale (scale 2.0 = crisp vector-like clarity @ 3840x2160)
-        const canvas = await html2canvas(pageElem, {
+        // Render via native browser SVG foreignObject rasterizer (scale 2.0 = crisp 3840x2160 with zero font-baseline clipping)
+        const canvas = await domToCanvas(pageElem, {
           scale: 2.0,
-          useCORS: true,
-          logging: false,
           backgroundColor: '#ffffff',
           width: 1920,
           height: 1080,
-          windowWidth: 1920,
-          onclone: (clonedDoc) => {
-            const style = clonedDoc.createElement('style');
-            style.textContent = `
-              *, *::before, *::after {
-                animation: none !important;
-                transition: none !important;
-                -webkit-font-smoothing: antialiased !important;
-                text-rendering: geometricPrecision !important;
-              }
-              .pdf-page-container {
-                box-shadow: none !important;
-                border: none !important;
-                ring: 0 !important;
-                outline: none !important;
-                overflow: hidden !important;
-              }
-              img, svg {
-                display: inline-block;
-                overflow: visible !important;
-              }
-              /* Prevent chart text clipping */
-              svg text {
-                overflow: visible !important;
-              }
-            `;
-            clonedDoc.head.appendChild(style);
+          filter: (node) => {
+            if (node instanceof HTMLElement && node.dataset.html2canvasIgnore === 'true') {
+              return false;
+            }
+            return true;
+          },
+          style: {
+            boxShadow: 'none',
+            border: 'none',
+            outline: 'none',
           },
         });
 
@@ -361,6 +360,8 @@ export function ReportingPdfModal({
         previewContainer.style.position = prevPosition;
         previewContainer.style.zIndex = prevZIndex;
         previewContainer.style.width = prevWidth;
+        previewContainer.style.maxWidth = prevMaxWidth;
+        previewContainer.style.overflow = prevOverflow;
         previewContainer.style.opacity = prevOpacity;
         previewContainer.style.padding = prevPadding;
         if (activeTab !== 'preview') {
@@ -561,8 +562,36 @@ export function ReportingPdfModal({
     return list.slice(Math.max(0, list.length - 5));
   }, [weekly, weeklyCurrentWeek]);
 
-  const weeklyElapsedDays = 2; // e.g. W43 partial week
-  const isPartialWeek = true;
+  // Dynamically compute partial week status and elapsed days matching app/page.tsx
+  const { weeklyElapsedDays, isPartialWeek } = useMemo(() => {
+    const latestDbDateStr =
+      (localDailyRows.length > 0 ? String(localDailyRows[localDailyRows.length - 1].date_id).slice(0, 10) : null) ||
+      momMtd?.as_of_date ||
+      passedMtdData?.as_of_date ||
+      weeklyCurrentWeek.end_date ||
+      new Date().toISOString().split('T')[0];
+
+    const isPartial =
+      new Date(weeklyCurrentWeek.end_date) >= new Date() ||
+      new Date(weeklyCurrentWeek.end_date) > new Date(latestDbDateStr);
+    const elapsed = isPartial
+      ? Math.max(
+          1,
+          Math.min(
+            7,
+            Math.round(
+              (new Date(latestDbDateStr).getTime() - new Date(weeklyCurrentWeek.start_date).getTime()) /
+                (1000 * 60 * 60 * 24)
+            ) + 1
+          )
+        )
+      : 7;
+
+    return {
+      weeklyElapsedDays: elapsed,
+      isPartialWeek: elapsed < 7,
+    };
+  }, [momMtd, passedMtdData, localDailyRows, weeklyCurrentWeek]);
 
   // Prorated Week Calculations
   const proratedWeek: WeeklyMetricRow = useMemo(() => {
@@ -722,9 +751,9 @@ export function ReportingPdfModal({
         </div>
 
         {/* ================================================================== */}
-        {/* TAB 1: REPORT PREVIEW & PRINT ENGINE                               */}
+          {/* TAB 1: REPORT PREVIEW & PRINT ENGINE                               */}
         {/* ================================================================== */}
-        <div id="report-preview-container" className={activeTab === 'preview' ? 'flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-100' : 'hidden'}>
+        <div id="report-preview-container" className={activeTab === 'preview' ? 'flex-1 overflow-auto p-4 sm:p-6 bg-slate-100' : 'hidden'}>
           {loading && !momMtd ? (
             <div className="py-24 text-center space-y-3">
               <RefreshCw className="w-8 h-8 animate-spin text-[#0c4ca3] mx-auto" />
@@ -733,7 +762,8 @@ export function ReportingPdfModal({
           ) : (
             <div 
               id="executive-pdf-printable" 
-              className="w-full flex flex-col items-center justify-center p-0 transition-all"
+              data-report-ready={!loading ? 'true' : 'false'}
+              className="w-max min-w-full flex flex-col items-center justify-center p-0 transition-all"
             >
               <ExecutivePdfReportDocument
                 currentYear={currentYear}

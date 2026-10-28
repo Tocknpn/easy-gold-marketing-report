@@ -12,7 +12,7 @@ export const PDF_PAGE_W = 1920;
 export const PDF_PAGE_H = 1080;
 
 /** Never shrink content below this uniform scale; beyond it we flag overflow instead. */
-const MIN_FIT_SCALE = 0.90;
+const MIN_FIT_SCALE = 0.82;
 
 interface PdfPageProps {
   id: string;
@@ -84,9 +84,21 @@ export function PdfPage({
         </div>
       </header>
 
-      {/* Page Body (crisp 1:1 unscaled layout) */}
-      <div ref={bodyRef} className="flex-1 min-h-0 flex flex-col justify-between overflow-hidden">
-        <div ref={innerRef} className="w-full flex-1 min-h-0 flex flex-col justify-between">
+      {/* Page Body (crisp 1:1 unscaled layout, with automatic fit scaling if content exceeds slide height) */}
+      <div ref={bodyRef} className="flex-1 min-h-0 relative overflow-hidden">
+        <div
+          ref={innerRef}
+          className="w-full flex flex-col justify-between"
+          style={
+            fit < 0.998
+              ? {
+                  transform: `scale(${fit})`,
+                  transformOrigin: 'top left',
+                  width: `${100 / fit}%`,
+                }
+              : { minHeight: '100%' }
+          }
+        >
           {children}
         </div>
       </div>

@@ -34,8 +34,13 @@ function doPost(e) {
     // Attach exact pixel-perfect Visual PDF (from web canvas screenshot)
     var attachments = [];
     if (data.pdfBase64) {
-      var decodedBytes = Utilities.base64Decode(data.pdfBase64);
-      var visualPdfBlob = Utilities.newBlob(decodedBytes, 'application/pdf', 'Easy_Gold_Executive_Report_' + (data.reportDate || 'Daily') + '.pdf');
+      var cleanBase64 = String(data.pdfBase64)
+        .replace(/^data:application\/pdf;base64,/, '')
+        .replace(/\s/g, '');
+      var decodedBytes = Utilities.base64Decode(cleanBase64);
+      var safeDate = String(data.reportDate || 'Daily').replace(/\//g, '-');
+      var fileName = data.pdfFilename || ('Easy_Gold_Executive_Report_' + safeDate + '.pdf');
+      var visualPdfBlob = Utilities.newBlob(decodedBytes, 'application/pdf', fileName);
       attachments.push(visualPdfBlob);
     }
 

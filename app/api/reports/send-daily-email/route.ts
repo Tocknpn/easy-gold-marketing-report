@@ -16,11 +16,13 @@ export async function POST(request: NextRequest) {
 
     let subject = `Easy Gold Executive Daily BI Report - ${reportDate}`;
 
-    // Attempt real email delivery via configured transport (Gmail SMTP or Resend)
+    // Attempt real email delivery via configured transport (Google Apps Script, Gmail API, SMTP, or Resend)
     const dispatchResult = await sendExecutiveReportEmail({
       to: recipient,
       subject,
       reportDate,
+      pdfBase64: body.pdfBase64 || undefined,
+      summaryData: body.summaryData || undefined,
     });
 
     const status: 'success' | 'failed' = dispatchResult.sent || dispatchResult.provider === 'simulated' ? 'success' : 'failed';
