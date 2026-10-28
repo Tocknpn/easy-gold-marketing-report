@@ -8,17 +8,37 @@ import {
   Activity,
   ArrowLeftRight
 } from 'lucide-react';
-import { DaxMeasuresPayload } from '@/lib/types/dynamicReport.types';
+import { DaxMeasuresPayload, PopComparisonMetrics } from '@/lib/types/dynamicReport.types';
 
 interface DynamicKpiRibbonProps {
   measures: DaxMeasuresPayload;
+  popComparison?: PopComparisonMetrics;
   isComparingPoP?: boolean;
 }
 
-export function DynamicKpiRibbon({ measures, isComparingPoP = false }: DynamicKpiRibbonProps) {
-  const formatNumber = (val: number) => Math.round(val).toLocaleString('en-US');
-  const formatDec = (val: number, dec: number = 2) => Number(val).toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec });
-  const formatMil = (valLak: number) => (valLak / 1000000).toLocaleString('en-US', { maximumFractionDigits: 1 });
+export function DynamicKpiRibbon({ measures, popComparison, isComparingPoP = false }: DynamicKpiRibbonProps) {
+  const formatNumber = (val: number) => Math.round(val || 0).toLocaleString('en-US');
+  const formatDec = (val: number, dec: number = 2) => Number(val || 0).toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec });
+  const formatMil = (valLak: number) => ((valLak || 0) / 1000000).toLocaleString('en-US', { maximumFractionDigits: 1 });
+
+  const renderPopBadge = (pct?: number, prevLabel?: string) => {
+    if (!isComparingPoP) return null;
+    const val = Number(pct ?? 0);
+    const isPos = val >= 0;
+    return (
+      <span
+        title={prevLabel ? `Prior Period (${popComparison?.prev_start_date} to ${popComparison?.prev_end_date}): ${prevLabel}` : undefined}
+        className={`text-[9px] font-black px-1.5 py-0.5 rounded border ${
+          isPos
+            ? 'text-emerald-700 bg-emerald-50 border-emerald-200'
+            : 'text-rose-700 bg-rose-50 border-rose-200'
+        }`}
+      >
+        {isPos ? '▲ +' : '▼ '}
+        {val.toFixed(1)}%
+      </span>
+    );
+  };
 
   return (
     <div className="mb-6">
@@ -41,11 +61,7 @@ export function DynamicKpiRibbon({ measures, isComparingPoP = false }: DynamicKp
             <div className="mb-3">
               <div className="flex items-center justify-between">
                 <div className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">Total Transactions</div>
-                {isComparingPoP && (
-                  <span className="text-[9px] font-black text-emerald-700 bg-emerald-50 px-1 py-0.5 rounded border border-emerald-200">
-                    ▲ +13.8%
-                  </span>
-                )}
+                {renderPopBadge(popComparison?.total_tx_pct, `${formatNumber(popComparison?.prev_total_transaction || 0)} tx`)}
               </div>
               <div className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
                 {formatNumber(measures.total_transaction)}
@@ -55,7 +71,14 @@ export function DynamicKpiRibbon({ measures, isComparingPoP = false }: DynamicKp
             <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100 text-xs">
               <div>
                 <span className="text-slate-400 font-bold block text-[9.5px] uppercase">Unique Users</span>
-                <span className="text-slate-800 font-extrabold text-xs">{formatNumber(measures.total_unique_user)}</span>
+                <div className="flex items-center gap-1">
+                  <span className="text-slate-800 font-extrabold text-xs">{formatNumber(measures.total_unique_user)}</span>
+                  {isComparingPoP && popComparison && (
+                    <span className={`text-[8.5px] font-bold ${popComparison.unique_user_pct >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                      ({popComparison.unique_user_pct >= 0 ? '+' : ''}{popComparison.unique_user_pct}%)
+                    </span>
+                  )}
+                </div>
               </div>
               <div>
                 <span className="text-slate-400 font-bold block text-[9.5px] uppercase">Freq / User</span>
@@ -63,11 +86,25 @@ export function DynamicKpiRibbon({ measures, isComparingPoP = false }: DynamicKp
               </div>
               <div>
                 <span className="text-slate-400 font-bold block text-[9.5px] uppercase">New Register</span>
-                <span className="text-emerald-600 font-extrabold text-xs">{formatNumber(measures.new_register)}</span>
+                <div className="flex items-center gap-1">
+                  <span className="text-emerald-600 font-extrabold text-xs">{formatNumber(measures.new_register)}</span>
+                  {isComparingPoP && popComparison && (
+                    <span className={`text-[8.5px] font-bold ${popComparison.new_register_pct >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                      ({popComparison.new_register_pct >= 0 ? '+' : ''}{popComparison.new_register_pct}%)
+                    </span>
+                  )}
+                </div>
               </div>
               <div>
                 <span className="text-slate-400 font-bold block text-[9.5px] uppercase">Total Gold Flow</span>
-                <span className="text-amber-600 font-extrabold text-xs">{formatDec(measures.total_gold_weight_g, 1)} g</span>
+                <div className="flex items-center gap-1">
+                  <span className="text-amber-600 font-extrabold text-xs">{formatDec(measures.total_gold_weight_g, 1)} g</span>
+                  {isComparingPoP && popComparison && (
+                    <span className={`text-[8.5px] font-bold ${popComparison.total_gold_flow_pct >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                      ({popComparison.total_gold_flow_pct >= 0 ? '+' : ''}{popComparison.total_gold_flow_pct}%)
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -90,11 +127,7 @@ export function DynamicKpiRibbon({ measures, isComparingPoP = false }: DynamicKp
             <div className="mb-3">
               <div className="flex items-center justify-between">
                 <div className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">Buy Gold Weight (15g Baht)</div>
-                {isComparingPoP && (
-                  <span className="text-[9px] font-black text-emerald-700 bg-emerald-50 px-1 py-0.5 rounded border border-emerald-200">
-                    ▲ +18.2%
-                  </span>
-                )}
+                {renderPopBadge(popComparison?.buy_weight_pct, `${formatDec(popComparison?.prev_gold_weight_buy_g || 0, 1)} g`)}
               </div>
               <div className="text-xl sm:text-2xl font-black text-[#15803d] tracking-tight">
                 {formatNumber(measures.gold_weight_buy_15g)} <span className="text-xs font-bold text-slate-500">Baht</span>
@@ -107,7 +140,14 @@ export function DynamicKpiRibbon({ measures, isComparingPoP = false }: DynamicKp
             <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100 text-xs">
               <div>
                 <span className="text-slate-400 font-bold block text-[9.5px] uppercase">Buy Trans</span>
-                <span className="text-slate-800 font-extrabold text-xs">{formatNumber(measures.total_buy_transac)}</span>
+                <div className="flex items-center gap-1">
+                  <span className="text-slate-800 font-extrabold text-xs">{formatNumber(measures.total_buy_transac)}</span>
+                  {isComparingPoP && popComparison && (
+                    <span className={`text-[8.5px] font-bold ${popComparison.buy_tx_pct >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                      ({popComparison.buy_tx_pct >= 0 ? '+' : ''}{popComparison.buy_tx_pct}%)
+                    </span>
+                  )}
+                </div>
               </div>
               <div>
                 <span className="text-slate-400 font-bold block text-[9.5px] uppercase">Buyers</span>
@@ -142,11 +182,7 @@ export function DynamicKpiRibbon({ measures, isComparingPoP = false }: DynamicKp
             <div className="mb-3">
               <div className="flex items-center justify-between">
                 <div className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">Sell Gold Weight (15g Baht)</div>
-                {isComparingPoP && (
-                  <span className="text-[9px] font-black text-rose-700 bg-rose-50 px-1 py-0.5 rounded border border-rose-200">
-                    ▼ -14.5%
-                  </span>
-                )}
+                {renderPopBadge(popComparison?.sell_weight_pct, `${formatDec(popComparison?.prev_gold_weight_sell_g || 0, 1)} g`)}
               </div>
               <div className="text-xl sm:text-2xl font-black text-[#991b1b] tracking-tight">
                 {formatNumber(measures.gold_weight_sell_15g)} <span className="text-xs font-bold text-slate-500">Baht</span>
@@ -159,7 +195,14 @@ export function DynamicKpiRibbon({ measures, isComparingPoP = false }: DynamicKp
             <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100 text-xs">
               <div>
                 <span className="text-slate-400 font-bold block text-[9.5px] uppercase">Sell Trans</span>
-                <span className="text-slate-800 font-extrabold text-xs">{formatNumber(measures.total_sell_transac)}</span>
+                <div className="flex items-center gap-1">
+                  <span className="text-slate-800 font-extrabold text-xs">{formatNumber(measures.total_sell_transac)}</span>
+                  {isComparingPoP && popComparison && (
+                    <span className={`text-[8.5px] font-bold ${popComparison.sell_tx_pct >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                      ({popComparison.sell_tx_pct >= 0 ? '+' : ''}{popComparison.sell_tx_pct}%)
+                    </span>
+                  )}
+                </div>
               </div>
               <div>
                 <span className="text-slate-400 font-bold block text-[9.5px] uppercase">Sellers</span>
@@ -194,11 +237,7 @@ export function DynamicKpiRibbon({ measures, isComparingPoP = false }: DynamicKp
             <div className="mb-3">
               <div className="flex items-center justify-between">
                 <div className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">Withdraw Weight (15g Baht)</div>
-                {isComparingPoP && (
-                  <span className="text-[9px] font-black text-purple-700 bg-purple-50 px-1 py-0.5 rounded border border-purple-200">
-                    ▲ +4.1%
-                  </span>
-                )}
+                {renderPopBadge(popComparison?.withdraw_weight_pct, `${formatDec(popComparison?.prev_withdraw_gold_g || 0, 1)} g`)}
               </div>
               <div className="text-xl sm:text-2xl font-black text-[#6b21a8] tracking-tight">
                 {formatNumber(measures.withdraw_gold_15g)} <span className="text-xs font-bold text-slate-500">Baht</span>
@@ -211,7 +250,14 @@ export function DynamicKpiRibbon({ measures, isComparingPoP = false }: DynamicKp
             <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100 text-xs">
               <div>
                 <span className="text-slate-400 font-bold block text-[9.5px] uppercase">Withdraw Trans</span>
-                <span className="text-slate-800 font-extrabold text-xs">{formatNumber(measures.withdraw_trans)}</span>
+                <div className="flex items-center gap-1">
+                  <span className="text-slate-800 font-extrabold text-xs">{formatNumber(measures.withdraw_trans)}</span>
+                  {isComparingPoP && popComparison && (
+                    <span className={`text-[8.5px] font-bold ${popComparison.withdraw_tx_pct >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                      ({popComparison.withdraw_tx_pct >= 0 ? '+' : ''}{popComparison.withdraw_tx_pct}%)
+                    </span>
+                  )}
+                </div>
               </div>
               <div>
                 <span className="text-slate-400 font-bold block text-[9.5px] uppercase">Users</span>
@@ -246,9 +292,13 @@ export function DynamicKpiRibbon({ measures, isComparingPoP = false }: DynamicKp
             <div className="mb-3">
               <div className="flex items-center justify-between">
                 <div className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">Net Gold Balance (In - Out)</div>
-                <span className="text-[9px] font-black text-teal-800 bg-teal-50 px-1 py-0.5 rounded border border-teal-200">
-                  {measures.net_flow_trans_pct}% Buy
-                </span>
+                {isComparingPoP && popComparison ? (
+                  renderPopBadge(popComparison.net_weight_pct, `${formatDec(popComparison.prev_net_gold_weight_g || 0, 1)} g`)
+                ) : (
+                  <span className="text-[9px] font-black text-teal-800 bg-teal-50 px-1 py-0.5 rounded border border-teal-200">
+                    {measures.net_flow_trans_pct}% Buy
+                  </span>
+                )}
               </div>
               <div className={`text-xl sm:text-2xl font-black tracking-tight ${measures.net_gold_weight_g >= 0 ? 'text-[#0f766e]' : 'text-rose-600'}`}>
                 {measures.net_gold_weight_g >= 0 ? '+' : ''}{formatDec(measures.net_gold_weight_g, 1)} <span className="text-xs font-bold text-slate-500">grams</span>

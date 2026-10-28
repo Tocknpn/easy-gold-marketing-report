@@ -23,8 +23,6 @@ import {
   DayOfWeekMetric,
   TrendPoint
 } from '@/lib/types/dynamicReport.types';
-import { DEFAULT_DYNAMIC_REPORT_PAYLOAD } from '@/lib/constants/dynamicReportData';
-
 interface DynamicChartsSectionProps {
   hourly: HourlyMetric[];
   banks: BankMetric[];
@@ -33,46 +31,40 @@ interface DynamicChartsSectionProps {
   measures?: DaxMeasuresPayload;
   dayOfWeek?: DayOfWeekMetric[];
   timelineTrend?: TrendPoint[];
+  yearTrend?: TrendPoint[];
 }
 
-const BASELINE_DAY_OF_WEEK: DayOfWeekMetric[] = [
-  { day_code: 'mon', day_label: 'Mon', day_full: 'Monday', total_tx: 9250, buy_tx: 6650, sell_tx: 2600, buy_weight_g: 708.2, sell_weight_g: 269.4, total_amount_lak: 16350000000 },
-  { day_code: 'tue', day_label: 'Tue', day_full: 'Tuesday', total_tx: 8910, buy_tx: 6410, sell_tx: 2500, buy_weight_g: 682.5, sell_weight_g: 259.0, total_amount_lak: 15750000000 },
-  { day_code: 'wed', day_label: 'Wed', day_full: 'Wednesday', total_tx: 9420, buy_tx: 6780, sell_tx: 2640, buy_weight_g: 721.0, sell_weight_g: 274.2, total_amount_lak: 16650000000 },
-  { day_code: 'thu', day_label: 'Thu', day_full: 'Thursday', total_tx: 9860, buy_tx: 7100, sell_tx: 2760, buy_weight_g: 755.4, sell_weight_g: 286.5, total_amount_lak: 17420000000 },
-  { day_code: 'fri', day_label: 'Fri', day_full: 'Friday (Payday)', total_tx: 12850, buy_tx: 9250, sell_tx: 3600, buy_weight_g: 984.6, sell_weight_g: 373.8, total_amount_lak: 22710000000 },
-  { day_code: 'sat', day_label: 'Sat', day_full: 'Saturday', total_tx: 10950, buy_tx: 7880, sell_tx: 3070, buy_weight_g: 838.2, sell_weight_g: 318.5, total_amount_lak: 19350000000 },
-  { day_code: 'sun', day_label: 'Sun', day_full: 'Sunday', total_tx: 5412, buy_tx: 3878, sell_tx: 1534, buy_weight_g: 414.0, sell_weight_g: 158.2, total_amount_lak: 9560000000 },
+const EMPTY_HOURLY: HourlyMetric[] = Array.from({ length: 24 }, (_, hr) => ({
+  hour: hr,
+  hour_label: `${String(hr).padStart(2, '0')}:00`,
+  total_tx: 0,
+  buy_tx: 0,
+  sell_tx: 0,
+  total_weight_g: 0,
+  buy_weight_g: 0,
+  sell_weight_g: 0,
+  total_amount_lak: 0,
+  buy_amount_lak: 0,
+  sell_amount_lak: 0,
+}));
+
+const EMPTY_DAY_OF_WEEK: DayOfWeekMetric[] = [
+  { day_code: 'mon', day_label: 'Mon', day_full: 'Monday', total_tx: 0, buy_tx: 0, sell_tx: 0, buy_weight_g: 0, sell_weight_g: 0, total_amount_lak: 0, buy_amount_lak: 0, sell_amount_lak: 0 },
+  { day_code: 'tue', day_label: 'Tue', day_full: 'Tuesday', total_tx: 0, buy_tx: 0, sell_tx: 0, buy_weight_g: 0, sell_weight_g: 0, total_amount_lak: 0, buy_amount_lak: 0, sell_amount_lak: 0 },
+  { day_code: 'wed', day_label: 'Wed', day_full: 'Wednesday', total_tx: 0, buy_tx: 0, sell_tx: 0, buy_weight_g: 0, sell_weight_g: 0, total_amount_lak: 0, buy_amount_lak: 0, sell_amount_lak: 0 },
+  { day_code: 'thu', day_label: 'Thu', day_full: 'Thursday', total_tx: 0, buy_tx: 0, sell_tx: 0, buy_weight_g: 0, sell_weight_g: 0, total_amount_lak: 0, buy_amount_lak: 0, sell_amount_lak: 0 },
+  { day_code: 'fri', day_label: 'Fri', day_full: 'Friday (Payday)', total_tx: 0, buy_tx: 0, sell_tx: 0, buy_weight_g: 0, sell_weight_g: 0, total_amount_lak: 0, buy_amount_lak: 0, sell_amount_lak: 0 },
+  { day_code: 'sat', day_label: 'Sat', day_full: 'Saturday', total_tx: 0, buy_tx: 0, sell_tx: 0, buy_weight_g: 0, sell_weight_g: 0, total_amount_lak: 0, buy_amount_lak: 0, sell_amount_lak: 0 },
+  { day_code: 'sun', day_label: 'Sun', day_full: 'Sunday', total_tx: 0, buy_tx: 0, sell_tx: 0, buy_weight_g: 0, sell_weight_g: 0, total_amount_lak: 0, buy_amount_lak: 0, sell_amount_lak: 0 },
 ];
 
-const BASELINE_DAY_TREND: TrendPoint[] = [
-  { label: 'Oct 01', subLabel: 'Wed', buy_val: 10250, sell_val: 3740, total_val: 13990, buy_tx: 4280, sell_tx: 1640, total_tx: 5920, buy_weight_g: 455, sell_weight_g: 172, net_weight_g: 283, nc: 580, withdraw_tx: 142, withdraw_weight_g: 28 },
-  { label: 'Oct 02', subLabel: 'Thu', buy_val: 10680, sell_val: 3890, total_val: 14570, buy_tx: 4410, sell_tx: 1700, total_tx: 6110, buy_weight_g: 472, sell_weight_g: 179, net_weight_g: 293, nc: 610, withdraw_tx: 155, withdraw_weight_g: 31 },
-  { label: 'Oct 03', subLabel: 'Fri', buy_val: 10120, sell_val: 3780, total_val: 13900, buy_tx: 4190, sell_tx: 1650, total_tx: 5840, buy_weight_g: 448, sell_weight_g: 174, net_weight_g: 274, nc: 570, withdraw_tx: 138, withdraw_weight_g: 26 },
-  { label: 'Oct 04', subLabel: 'Sat', buy_val: 8540, sell_val: 3210, total_val: 11750, buy_tx: 3520, sell_tx: 1400, total_tx: 4920, buy_weight_g: 378, sell_weight_g: 148, net_weight_g: 230, nc: 460, withdraw_tx: 112, withdraw_weight_g: 22 },
-  { label: 'Oct 05', subLabel: 'Sun', buy_val: 11050, sell_val: 4020, total_val: 15070, buy_tx: 4580, sell_tx: 1760, total_tx: 6340, buy_weight_g: 489, sell_weight_g: 185, net_weight_g: 304, nc: 640, withdraw_tx: 160, withdraw_weight_g: 32 },
-  { label: 'Oct 06', subLabel: 'Mon', buy_val: 10540, sell_val: 3850, total_val: 14390, buy_tx: 4370, sell_tx: 1680, total_tx: 6050, buy_weight_g: 466, sell_weight_g: 177, net_weight_g: 289, nc: 590, withdraw_tx: 148, withdraw_weight_g: 29 },
-  { label: 'Oct 07', subLabel: 'Tue', buy_val: 10760, sell_val: 3940, total_val: 14700, buy_tx: 4460, sell_tx: 1720, total_tx: 6180, buy_weight_g: 476, sell_weight_g: 181, net_weight_g: 295, nc: 620, withdraw_tx: 152, withdraw_weight_g: 30 },
-  { label: 'Oct 08', subLabel: 'Wed', buy_val: 10080, sell_val: 3710, total_val: 13790, buy_tx: 4170, sell_tx: 1620, total_tx: 5790, buy_weight_g: 445, sell_weight_g: 170, net_weight_g: 275, nc: 560, withdraw_tx: 136, withdraw_weight_g: 27 },
-  { label: 'Oct 09', subLabel: 'Thu', buy_val: 11260, sell_val: 4100, total_val: 15360, buy_tx: 4660, sell_tx: 1790, total_tx: 6450, buy_weight_g: 498, sell_weight_g: 189, net_weight_g: 309, nc: 670, withdraw_tx: 168, withdraw_weight_g: 34 },
-  { label: 'Oct 10', subLabel: 'Fri', buy_val: 12020, sell_val: 4370, total_val: 16390, buy_tx: 4980, sell_tx: 1910, total_tx: 6890, buy_weight_g: 531, sell_weight_g: 201, net_weight_g: 330, nc: 730, withdraw_tx: 184, withdraw_weight_g: 38 },
-  { label: 'Oct 11', subLabel: 'Sat', buy_val: 10480, sell_val: 3960, total_val: 14440, buy_tx: 4328, sell_tx: 1734, total_tx: 6062, buy_weight_g: 464, sell_weight_g: 182, net_weight_g: 282, nc: 600, withdraw_tx: 144, withdraw_weight_g: 29 },
-  { label: 'Oct 12', subLabel: 'Sun', buy_val: 8760, sell_val: 3340, total_val: 12100, buy_tx: 3612, sell_tx: 1462, total_tx: 5074, buy_weight_g: 388, sell_weight_g: 154, net_weight_g: 234, nc: 490, withdraw_tx: 120, withdraw_weight_g: 24 },
-];
-
-const BASELINE_WEEK_TREND: TrendPoint[] = [
-  { label: 'W37', subLabel: 'Sep 08-14', buy_val: 68400, sell_val: 24100, total_val: 92500, buy_tx: 27812, sell_tx: 10387, total_tx: 38199, buy_weight_g: 43755, sell_weight_g: 21180, net_weight_g: 22575, nc: 3420, withdraw_tx: 890, withdraw_weight_g: 185 },
-  { label: 'W38', subLabel: 'Sep 15-21', buy_val: 65500, sell_val: 26800, total_val: 92300, buy_tx: 25586, sell_tx: 11932, total_tx: 37765, buy_weight_g: 43755, sell_weight_g: 25905, net_weight_g: 17850, nc: 3310, withdraw_tx: 920, withdraw_weight_g: 195 },
-  { label: 'W39', subLabel: 'Sep 22-28', buy_val: 62800, sell_val: 25200, total_val: 88000, buy_tx: 24932, sell_tx: 11148, total_tx: 37134, buy_weight_g: 39150, sell_weight_g: 17985, net_weight_g: 21165, nc: 3180, withdraw_tx: 860, withdraw_weight_g: 178 },
-  { label: 'W40', subLabel: 'Sep 29-Oct 05', buy_val: 105400, sell_val: 39600, total_val: 145000, buy_tx: 42150, sell_tx: 17890, total_tx: 60431, buy_weight_g: 68400, sell_weight_g: 29800, net_weight_g: 38600, nc: 6150, withdraw_tx: 1420, withdraw_weight_g: 310 },
-  { label: 'W41', subLabel: 'Oct 06-12', buy_val: 71200, sell_val: 25100, total_val: 96300, buy_tx: 28420, sell_tx: 11104, total_tx: 39744, buy_weight_g: 45900, sell_weight_g: 18700, net_weight_g: 27200, nc: 3890, withdraw_tx: 980, withdraw_weight_g: 215 },
-  { label: 'W42', subLabel: 'Oct 13-18 (P)', buy_val: 12500, sell_val: 4350, total_val: 16850, buy_tx: 3612, sell_tx: 1462, total_tx: 5074, buy_weight_g: 2700, sell_weight_g: 3690, net_weight_g: -990, nc: 520, withdraw_tx: 135, withdraw_weight_g: 32 },
-];
-
-const BASELINE_YEAR_TREND: TrendPoint[] = [
-  { label: '2024', subLabel: 'Full Year', buy_val: 1850000, sell_val: 620000, total_val: 2470000, buy_tx: 54200, sell_tx: 20800, total_tx: 75000, buy_weight_g: 88500, sell_weight_g: 34200, net_weight_g: 54300, nc: 8500, withdraw_tx: 2400, withdraw_weight_g: 4800 },
-  { label: '2025', subLabel: 'Full Year', buy_val: 3120000, sell_val: 1040000, total_val: 4160000, buy_tx: 104500, sell_tx: 39800, total_tx: 144300, buy_weight_g: 172000, sell_weight_g: 68500, net_weight_g: 103500, nc: 14200, withdraw_tx: 4900, withdraw_weight_g: 9600 },
-  { label: '2026', subLabel: 'YTD Pace', buy_val: 3950000, sell_val: 1280000, total_val: 5230000, buy_tx: 135126, sell_tx: 48569, total_tx: 183695, buy_weight_g: 242500, sell_weight_g: 105200, net_weight_g: 137300, nc: 18150, withdraw_tx: 6200, withdraw_weight_g: 12800 },
+const EMPTY_WEIGHT_BRACKETS: WeightBracketMetric[] = [
+  { weight_bracket: '< 0.5g', count: 0, buy_count: 0, sell_count: 0, total_weight_g: 0, buy_weight_g: 0, sell_weight_g: 0, total_amount_lak: 0, buy_amount_lak: 0, sell_amount_lak: 0 },
+  { weight_bracket: '0.5g - 1g', count: 0, buy_count: 0, sell_count: 0, total_weight_g: 0, buy_weight_g: 0, sell_weight_g: 0, total_amount_lak: 0, buy_amount_lak: 0, sell_amount_lak: 0 },
+  { weight_bracket: '1g - 5g', count: 0, buy_count: 0, sell_count: 0, total_weight_g: 0, buy_weight_g: 0, sell_weight_g: 0, total_amount_lak: 0, buy_amount_lak: 0, sell_amount_lak: 0 },
+  { weight_bracket: '5g - 15g', count: 0, buy_count: 0, sell_count: 0, total_weight_g: 0, buy_weight_g: 0, sell_weight_g: 0, total_amount_lak: 0, buy_amount_lak: 0, sell_amount_lak: 0 },
+  { weight_bracket: '15g - 75g (1-5 Baht)', count: 0, buy_count: 0, sell_count: 0, total_weight_g: 0, buy_weight_g: 0, sell_weight_g: 0, total_amount_lak: 0, buy_amount_lak: 0, sell_amount_lak: 0 },
+  { weight_bracket: '>= 75g (>5 Baht)', count: 0, buy_count: 0, sell_count: 0, total_weight_g: 0, buy_weight_g: 0, sell_weight_g: 0, total_amount_lak: 0, buy_amount_lak: 0, sell_amount_lak: 0 },
 ];
 
 function getSmoothSplinePath(points: { x: number; y: number }[]): string {
@@ -178,31 +170,31 @@ export function DynamicChartsSection({
   measures,
   dayOfWeek,
   timelineTrend,
+  yearTrend,
 }: DynamicChartsSectionProps) {
-  // Robust Fallback: prevent blank charts if Supabase RPC returns empty arrays
   const activeHourly = useMemo(() => {
     if (hourly && hourly.length > 0) return hourly;
-    return DEFAULT_DYNAMIC_REPORT_PAYLOAD.hourly;
+    return EMPTY_HOURLY;
   }, [hourly]);
 
   const activeBanks = useMemo(() => {
     if (banks && banks.length > 0) return banks;
-    return DEFAULT_DYNAMIC_REPORT_PAYLOAD.banks;
+    return [];
   }, [banks]);
 
   const activeBranches = useMemo(() => {
     if (branches && branches.length > 0) return branches;
-    return DEFAULT_DYNAMIC_REPORT_PAYLOAD.branches;
+    return [];
   }, [branches]);
 
   const activeWeightBrackets = useMemo(() => {
     if (weightBrackets && weightBrackets.length > 0) return weightBrackets;
-    return DEFAULT_DYNAMIC_REPORT_PAYLOAD.weight_brackets;
+    return EMPTY_WEIGHT_BRACKETS;
   }, [weightBrackets]);
 
   const activeDayOfWeek: DayOfWeekMetric[] = useMemo(() => {
     if (dayOfWeek && dayOfWeek.length > 0) return dayOfWeek;
-    return BASELINE_DAY_OF_WEEK;
+    return EMPTY_DAY_OF_WEEK;
   }, [dayOfWeek]);
 
   // Chart Global Metric Mode for Lower Sections: 'tx' (Transactions) | 'weight' (Gold Grams) | 'amount' (Revenue M LAK)
@@ -223,7 +215,7 @@ export function DynamicChartsSection({
   const [hoveredTrendIndex, setHoveredTrendIndex] = useState<number | null>(null);
 
   // Bank Settlement View & Side Options
-  const [bankMetricType, setBankMetricType] = useState<'tx' | 'value'>('tx');
+  const [bankMetricType, setBankMetricType] = useState<'tx' | 'weight' | 'value'>('tx');
   const [bankSideFilter, setBankSideFilter] = useState<'all' | 'buy' | 'sell'>('all');
 
   // Hourly Activity Trx Type Filter: 'all' | 'buy' | 'sell'
@@ -235,49 +227,49 @@ export function DynamicChartsSection({
   // Ticket Distribution Side Filter: 'all' | 'buy' | 'sell'
   const [ticketSideFilter, setTicketSideFilter] = useState<'all' | 'buy' | 'sell'>('all');
 
-  // Value getters based on metric mode
+  // Value getters based on metric mode (100% live SQL values)
   const getHourlyVal = (h: HourlyMetric) => {
     if (hourlyTrxType === 'buy') {
-      if (metricMode === 'weight') return Math.round(h.buy_weight_g);
-      if (metricMode === 'amount') return Math.round((h.total_amount_lak * 0.72) / 1000000);
-      return h.buy_tx;
+      if (metricMode === 'weight') return Number((h.buy_weight_g || 0).toFixed(1));
+      if (metricMode === 'amount') return Math.round(((h.buy_amount_lak ?? h.total_amount_lak) || 0) / 1000000);
+      return h.buy_tx || 0;
     }
     if (hourlyTrxType === 'sell') {
-      if (metricMode === 'weight') return Math.round(h.sell_weight_g);
-      if (metricMode === 'amount') return Math.round((h.total_amount_lak * 0.28) / 1000000);
-      return h.sell_tx;
+      if (metricMode === 'weight') return Number((h.sell_weight_g || 0).toFixed(1));
+      if (metricMode === 'amount') return Math.round(((h.sell_amount_lak ?? h.total_amount_lak) || 0) / 1000000);
+      return h.sell_tx || 0;
     }
-    if (metricMode === 'weight') return Math.round(h.buy_weight_g + h.sell_weight_g);
-    if (metricMode === 'amount') return Math.round(h.total_amount_lak / 1000000);
-    return h.total_tx;
+    if (metricMode === 'weight') return Number(((h.total_weight_g ?? (h.buy_weight_g + h.sell_weight_g)) || 0).toFixed(1));
+    if (metricMode === 'amount') return Math.round((h.total_amount_lak || 0) / 1000000);
+    return h.total_tx || 0;
   };
 
   const getDayVal = (d: DayOfWeekMetric) => {
     if (dayTrxType === 'buy') {
-      if (metricMode === 'weight') return Math.round(d.buy_weight_g);
-      if (metricMode === 'amount') return Math.round((d.total_amount_lak * 0.72) / 1000000);
-      return d.buy_tx;
+      if (metricMode === 'weight') return Number((d.buy_weight_g || 0).toFixed(1));
+      if (metricMode === 'amount') return Math.round(((d.buy_amount_lak ?? d.total_amount_lak) || 0) / 1000000);
+      return d.buy_tx || 0;
     }
     if (dayTrxType === 'sell') {
-      if (metricMode === 'weight') return Math.round(d.sell_weight_g);
-      if (metricMode === 'amount') return Math.round((d.total_amount_lak * 0.28) / 1000000);
-      return d.sell_tx;
+      if (metricMode === 'weight') return Number((d.sell_weight_g || 0).toFixed(1));
+      if (metricMode === 'amount') return Math.round(((d.sell_amount_lak ?? d.total_amount_lak) || 0) / 1000000);
+      return d.sell_tx || 0;
     }
-    if (metricMode === 'weight') return Math.round(d.buy_weight_g + d.sell_weight_g);
-    if (metricMode === 'amount') return Math.round(d.total_amount_lak / 1000000);
-    return d.total_tx;
+    if (metricMode === 'weight') return Number(((d.total_weight_g ?? (d.buy_weight_g + d.sell_weight_g)) || 0).toFixed(1));
+    if (metricMode === 'amount') return Math.round((d.total_amount_lak || 0) / 1000000);
+    return d.total_tx || 0;
   };
 
   const getBankVal = (b: BankMetric) => {
-    if (metricMode === 'weight') return Math.round(b.total_weight_g);
-    if (metricMode === 'amount') return Math.round(b.total_amount_lak / 1000000);
-    return b.total_tx;
+    if (metricMode === 'weight') return Math.round(b.total_weight_g || 0);
+    if (metricMode === 'amount') return Math.round((b.total_amount_lak || 0) / 1000000);
+    return b.total_tx || 0;
   };
 
   const getBranchVal = (br: BranchMetric) => {
-    if (metricMode === 'weight') return Math.round(br.total_weight_g);
-    if (metricMode === 'amount') return Math.round(br.total_amount_lak / 1000000);
-    return br.total_tx;
+    if (metricMode === 'weight') return Math.round(br.total_weight_g || 0);
+    if (metricMode === 'amount') return Math.round((br.total_amount_lak || 0) / 1000000);
+    return br.total_tx || 0;
   };
 
   const unitLabel = metricMode === 'weight' ? 'g' : metricMode === 'amount' ? 'M LAK' : 'tx';
@@ -287,50 +279,50 @@ export function DynamicChartsSection({
   const maxBankVal = Math.max(...activeBanks.map(getBankVal), 1);
   const maxBranchVal = Math.max(...activeBranches.map(getBranchVal), 1);
 
-  // Gold Weight Tickets Share Analysis with Buy vs Sell Dynamic Distribution
-  const buyRatio = measures?.total_buy_transac ? measures.total_buy_transac / (measures.total_buy_transac + measures.total_sell_transac || 1) : 0.748;
-  const sellRatio = 1 - buyRatio;
-  const buyWeightRatio = measures?.gold_weight_buy_g ? measures.gold_weight_buy_g / (measures.gold_weight_buy_g + measures.gold_weight_sell_g || 1) : 0.75;
-  const sellWeightRatio = 1 - buyWeightRatio;
-
   const enrichedBrackets = useMemo(() => {
-    // 1. Project counts and weight based on active side filter with realistic retail distribution
-    // Buy transactions are retail micro-savings (<0.5g is 78.5%), while Sell transactions are accumulated liquidations (higher weight tickets).
-    const buyMultipliers = [1.07, 0.92, 0.72, 0.60, 0.35, 0.25];
-    const sellMultipliers = [0.70, 1.23, 2.02, 3.15, 4.50, 5.80];
-
     const baseList = activeWeightBrackets.map((wb, index) => {
-      let sideCount = wb.count;
-      let sideWeight = wb.total_weight_g;
+      let sideCount = wb.count || 0;
+      let sideWeight = wb.total_weight_g || 0;
+      let sideAmountLak = wb.total_amount_lak || 0;
 
       if (ticketSideFilter === 'buy') {
-        const mult = buyMultipliers[index] ?? 1.0;
-        sideCount = Math.round(wb.count * buyRatio * mult);
-        sideWeight = Number((wb.total_weight_g * buyWeightRatio * mult).toFixed(1));
+        sideCount = wb.buy_count ?? 0;
+        sideWeight = Number((wb.buy_weight_g ?? 0).toFixed(2));
+        sideAmountLak = wb.buy_amount_lak ?? 0;
       } else if (ticketSideFilter === 'sell') {
-        const mult = sellMultipliers[index] ?? 1.0;
-        sideCount = Math.round(wb.count * sellRatio * mult);
-        sideWeight = Number((wb.total_weight_g * sellWeightRatio * mult).toFixed(1));
+        sideCount = wb.sell_count ?? 0;
+        sideWeight = Number((wb.sell_weight_g ?? 0).toFixed(2));
+        sideAmountLak = wb.sell_amount_lak ?? 0;
       }
 
       return {
         ...wb,
         count: sideCount,
         total_weight_g: sideWeight,
+        total_amount_lak: sideAmountLak,
         originalIndex: index,
       };
     });
 
     const sumCount = baseList.reduce((acc, wb) => acc + wb.count, 0) || 1;
     const sumWeight = baseList.reduce((acc, wb) => acc + wb.total_weight_g, 0) || 1;
+    const sumAmount = baseList.reduce((acc, wb) => acc + wb.total_amount_lak, 0) || 1;
 
     const list = baseList.map((wb) => {
-      const countPct = Number(((wb.count / sumCount) * 100).toFixed(1));
-      const weightPct = Number(((wb.total_weight_g / sumWeight) * 100).toFixed(1));
+      const countPct = baseList.reduce((acc, x) => acc + x.count, 0) > 0
+        ? Number(((wb.count / sumCount) * 100).toFixed(1))
+        : 0;
+      const weightPct = baseList.reduce((acc, x) => acc + x.total_weight_g, 0) > 0
+        ? Number(((wb.total_weight_g / sumWeight) * 100).toFixed(1))
+        : 0;
+      const amountPct = baseList.reduce((acc, x) => acc + x.total_amount_lak, 0) > 0
+        ? Number(((wb.total_amount_lak / sumAmount) * 100).toFixed(1))
+        : 0;
       return {
         ...wb,
         countPct,
         weightPct,
+        amountPct,
       };
     });
 
@@ -344,7 +336,7 @@ export function DynamicChartsSection({
     });
 
     return rankedList.sort((a, b) => a.originalIndex - b.originalIndex);
-  }, [activeWeightBrackets, ticketSideFilter, buyRatio, sellRatio, buyWeightRatio, sellWeightRatio]);
+  }, [activeWeightBrackets, ticketSideFilter]);
 
   const getTicketTierStyle = (rank: number, countPct: number) => {
     if (rank === 1 || countPct >= 50) {
@@ -387,42 +379,72 @@ export function DynamicChartsSection({
     };
   };
 
-  // Active trend series data (dynamically computed from live DB timeline or fallback baseline)
+  // Active trend series data (100% live DB timeline)
   const activeTrendData: TrendPoint[] = useMemo(() => {
-    if (timelineTrend && timelineTrend.length > 0) {
-      if (trendGranularity === 'day') return timelineTrend;
-      if (trendGranularity === 'week') {
-        const weeks: TrendPoint[] = [];
-        for (let i = 0; i < timelineTrend.length; i += 7) {
-          const chunk = timelineTrend.slice(i, i + 7);
-          const first = chunk[0];
-          const last = chunk[chunk.length - 1];
-          weeks.push({
-            label: `W${Math.floor(i / 7) + 1}`,
-            subLabel: `${first.label} - ${last.label}`,
-            buy_val: Math.round(chunk.reduce((acc, p) => acc + p.buy_val, 0) * 10) / 10,
-            sell_val: Math.round(chunk.reduce((acc, p) => acc + p.sell_val, 0) * 10) / 10,
-            total_val: Math.round(chunk.reduce((acc, p) => acc + p.total_val, 0) * 10) / 10,
-            buy_tx: chunk.reduce((acc, p) => acc + p.buy_tx, 0),
-            sell_tx: chunk.reduce((acc, p) => acc + p.sell_tx, 0),
-            total_tx: chunk.reduce((acc, p) => acc + p.total_tx, 0),
-            buy_weight_g: Math.round(chunk.reduce((acc, p) => acc + p.buy_weight_g, 0) * 10) / 10,
-            sell_weight_g: Math.round(chunk.reduce((acc, p) => acc + p.sell_weight_g, 0) * 10) / 10,
-            net_weight_g: Math.round(chunk.reduce((acc, p) => acc + p.net_weight_g, 0) * 10) / 10,
-            nc: chunk.reduce((acc, p) => acc + p.nc, 0),
-            withdraw_tx: chunk.reduce((acc, p) => acc + (p.withdraw_tx ?? Math.round(p.sell_tx * 0.08)), 0),
-            withdraw_weight_g: Math.round(chunk.reduce((acc, p) => acc + (p.withdraw_weight_g ?? Math.round(p.sell_weight_g * 0.12)), 0) * 10) / 10,
-          });
-        }
-        return weeks;
+    const baseTimeline = timelineTrend || [];
+    if (trendGranularity === 'day') return baseTimeline;
+    if (trendGranularity === 'week') {
+      const weeks: TrendPoint[] = [];
+      for (let i = 0; i < baseTimeline.length; i += 7) {
+        const chunk = baseTimeline.slice(i, i + 7);
+        const first = chunk[0];
+        const last = chunk[chunk.length - 1];
+        weeks.push({
+          label: `W${Math.floor(i / 7) + 1}`,
+          subLabel: `${first.label} - ${last.label}`,
+          buy_val: Math.round(chunk.reduce((acc, p) => acc + p.buy_val, 0) * 10) / 10,
+          sell_val: Math.round(chunk.reduce((acc, p) => acc + p.sell_val, 0) * 10) / 10,
+          total_val: Math.round(chunk.reduce((acc, p) => acc + p.total_val, 0) * 10) / 10,
+          buy_tx: chunk.reduce((acc, p) => acc + p.buy_tx, 0),
+          sell_tx: chunk.reduce((acc, p) => acc + p.sell_tx, 0),
+          total_tx: chunk.reduce((acc, p) => acc + p.total_tx, 0),
+          buy_weight_g: Math.round(chunk.reduce((acc, p) => acc + p.buy_weight_g, 0) * 10) / 10,
+          sell_weight_g: Math.round(chunk.reduce((acc, p) => acc + p.sell_weight_g, 0) * 10) / 10,
+          net_weight_g: Math.round(chunk.reduce((acc, p) => acc + p.net_weight_g, 0) * 10) / 10,
+          nc: chunk.reduce((acc, p) => acc + p.nc, 0),
+          withdraw_tx: chunk.reduce((acc, p) => acc + (p.withdraw_tx ?? 0), 0),
+          withdraw_weight_g: Math.round(chunk.reduce((acc, p) => acc + (p.withdraw_weight_g ?? 0), 0) * 10) / 10,
+        });
       }
-      // Year grain: aggregate period or compare with prior
-      return BASELINE_YEAR_TREND;
+      return weeks;
     }
-    if (trendGranularity === 'day') return BASELINE_DAY_TREND;
-    if (trendGranularity === 'week') return BASELINE_WEEK_TREND;
-    return BASELINE_YEAR_TREND;
-  }, [timelineTrend, trendGranularity]);
+    if (yearTrend && yearTrend.length > 0) return yearTrend;
+    // Group daily points by YYYY-MM if yearTrend not provided
+    const byMonth = new Map<string, TrendPoint>();
+    for (const pt of baseTimeline) {
+      const ym = pt.tx_date ? pt.tx_date.slice(0, 7) : pt.label;
+      const cur = byMonth.get(ym) || {
+        label: ym,
+        subLabel: ym,
+        buy_val: 0,
+        sell_val: 0,
+        total_val: 0,
+        buy_tx: 0,
+        sell_tx: 0,
+        total_tx: 0,
+        buy_weight_g: 0,
+        sell_weight_g: 0,
+        net_weight_g: 0,
+        nc: 0,
+        withdraw_tx: 0,
+        withdraw_weight_g: 0,
+      };
+      cur.buy_val += pt.buy_val;
+      cur.sell_val += pt.sell_val;
+      cur.total_val += pt.total_val;
+      cur.buy_tx += pt.buy_tx;
+      cur.sell_tx += pt.sell_tx;
+      cur.total_tx += pt.total_tx;
+      cur.buy_weight_g = Number((cur.buy_weight_g + pt.buy_weight_g).toFixed(2));
+      cur.sell_weight_g = Number((cur.sell_weight_g + pt.sell_weight_g).toFixed(2));
+      cur.net_weight_g = Number((cur.net_weight_g + pt.net_weight_g).toFixed(2));
+      cur.nc += pt.nc;
+      cur.withdraw_tx = (cur.withdraw_tx || 0) + (pt.withdraw_tx || 0);
+      cur.withdraw_weight_g = Number(((cur.withdraw_weight_g || 0) + (pt.withdraw_weight_g || 0)).toFixed(2));
+      byMonth.set(ym, cur);
+    }
+    return Array.from(byMonth.values());
+  }, [timelineTrend, yearTrend, trendGranularity]);
 
   const trendUnitLabel = trendMetric === 'tx' ? 'tx' : 'g';
 
@@ -430,8 +452,8 @@ export function DynamicChartsSection({
   const getPointBuy = (p: TrendPoint) => trendMetric === 'tx' ? p.buy_tx : p.buy_weight_g;
   const getPointSell = (p: TrendPoint) => trendMetric === 'tx' ? p.sell_tx : p.sell_weight_g;
   const getPointWithdraw = (p: TrendPoint) => {
-    if (trendMetric === 'tx') return p.withdraw_tx ?? Math.round(p.sell_tx * 0.08);
-    return p.withdraw_weight_g ?? Math.round(p.sell_weight_g * 0.12);
+    if (trendMetric === 'tx') return p.withdraw_tx ?? 0;
+    return p.withdraw_weight_g ?? 0;
   };
   const getPointNc = (p: TrendPoint) => p.nc;
 
@@ -1066,8 +1088,28 @@ export function DynamicChartsSection({
       {/* 2. ACTIVITY CURVES: HOURLY ACTIVITY & DAY ACTIVITY CURVE WITH DATA LABELS */}
       {/* ========================================================================= */}
       {(() => {
-        const totalDayWeekVal = activeDayOfWeek.reduce((acc, d) => acc + getDayVal(d), 0) || 1;
-        const totalHourlyVal = activeHourly.reduce((acc, h) => acc + getHourlyVal(h), 0) || 1;
+        const totalDayWeekSum = activeDayOfWeek.reduce((acc, d) => acc + getDayVal(d), 0);
+        const totalDayWeekVal = totalDayWeekSum || 1;
+        const totalHourlySum = activeHourly.reduce((acc, h) => acc + getHourlyVal(h), 0);
+        const totalHourlyVal = totalHourlySum || 1;
+
+        // Dynamically rank top 6 peak hours for the active side & metric
+        const sortedHoursByVal = [...activeHourly]
+          .filter((h) => getHourlyVal(h) > 0)
+          .sort((a, b) => getHourlyVal(b) - getHourlyVal(a));
+        const peakHourSet = new Set(sortedHoursByVal.slice(0, 6).map((h) => h.hour));
+        const topHour = sortedHoursByVal[0] || null;
+        const topHourSharePct = topHour && totalHourlySum > 0
+          ? Number(((getHourlyVal(topHour) / totalHourlyVal) * 100).toFixed(1))
+          : 0;
+
+        // Dynamically rank top 2 peak days of week for the active side & metric
+        const sortedDaysByVal = [...activeDayOfWeek]
+          .filter((d) => getDayVal(d) > 0)
+          .sort((a, b) => getDayVal(b) - getDayVal(a));
+        const peakDaySet = new Set(sortedDaysByVal.slice(0, 2).map((d) => d.day_code));
+        const topDay = sortedDaysByVal[0] || null;
+        const secondDay = sortedDaysByVal[1] || null;
 
         return (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -1087,7 +1129,7 @@ export function DynamicChartsSection({
                     <button
                       type="button"
                       onClick={() => setHourlyTrxType('all')}
-                      className={`px-2 py-0.5 rounded-md transition-all ${
+                      className={`px-2 py-0.5 rounded-md transition-all cursor-pointer ${
                         hourlyTrxType === 'all'
                           ? 'bg-[#0c4ca3] text-white shadow-2xs'
                           : 'text-slate-500 hover:text-slate-900'
@@ -1098,9 +1140,9 @@ export function DynamicChartsSection({
                     <button
                       type="button"
                       onClick={() => setHourlyTrxType('buy')}
-                      className={`px-2 py-0.5 rounded-md transition-all ${
+                      className={`px-2 py-0.5 rounded-md transition-all cursor-pointer ${
                         hourlyTrxType === 'buy'
-                          ? 'bg-[#0c4ca3] text-white shadow-2xs'
+                          ? 'bg-[#15803d] text-white shadow-2xs'
                           : 'text-slate-500 hover:text-slate-900'
                       }`}
                     >
@@ -1109,9 +1151,9 @@ export function DynamicChartsSection({
                     <button
                       type="button"
                       onClick={() => setHourlyTrxType('sell')}
-                      className={`px-2 py-0.5 rounded-md transition-all ${
+                      className={`px-2 py-0.5 rounded-md transition-all cursor-pointer ${
                         hourlyTrxType === 'sell'
-                          ? 'bg-[#0c4ca3] text-white shadow-2xs'
+                          ? 'bg-[#e5a812] text-slate-950 shadow-2xs'
                           : 'text-slate-500 hover:text-slate-900'
                       }`}
                     >
@@ -1124,23 +1166,36 @@ export function DynamicChartsSection({
                 <div className="h-48 flex items-end gap-1 sm:gap-1.5 pt-8 pb-2 px-1 border-b border-slate-100">
                   {activeHourly.map((h) => {
                     const val = getHourlyVal(h);
-                    const heightPct = Math.max(4, Math.round((val / maxHourlyVal) * 100));
-                    const isPeak = h.hour >= 9 && h.hour <= 16;
-                    const sharePct = Number(((val / totalHourlyVal) * 100).toFixed(1));
-                    const isProminent = sharePct >= 4.0 || (h.hour >= 10 && h.hour <= 15);
+                    const heightPct = totalHourlySum > 0 ? Math.max(3, Math.round((val / maxHourlyVal) * 100)) : 2;
+                    const isPeak = peakHourSet.has(h.hour);
+                    const isTop1 = topHour?.hour === h.hour;
+                    const sharePct = totalHourlySum > 0 ? Number(((val / totalHourlyVal) * 100).toFixed(1)) : 0;
+                    const isProminent = isPeak || sharePct >= 4.0;
 
                     return (
                       <div key={h.hour} className="flex-1 flex flex-col items-center h-full justify-end group relative">
                         {/* Hover Tooltip Insight */}
-                        <div className="absolute -top-12 opacity-0 group-hover:opacity-100 transition-opacity bg-slate-900 text-white text-[10px] py-1 px-2 rounded-lg pointer-events-none whitespace-nowrap z-30 shadow-xl border border-slate-700">
+                        <div className="absolute -top-14 opacity-0 group-hover:opacity-100 transition-opacity bg-slate-900 text-white text-[10px] py-1 px-2 rounded-lg pointer-events-none whitespace-nowrap z-30 shadow-xl border border-slate-700">
                           <div className="font-bold text-amber-300">{h.hour_label} · {sharePct}% of 24h</div>
-                          <div>{val.toLocaleString()} {unitLabel} (Buy: {h.buy_weight_g}g | Sell: {h.sell_weight_g}g)</div>
+                          <div>{val.toLocaleString()} {unitLabel} (Buy: {h.buy_tx.toLocaleString()} tx / {h.buy_weight_g}g | Sell: {h.sell_tx.toLocaleString()} tx / {h.sell_weight_g}g)</div>
                         </div>
 
                         {/* Top Data Label: % Contribution Share */}
-                        {isProminent && (
+                        {isProminent && val > 0 && (
                           <span className={`text-[8.5px] font-black tracking-tighter mb-1 transition-all ${
-                            isPeak ? 'text-[#0c4ca3]' : 'text-slate-400'
+                            isTop1
+                              ? hourlyTrxType === 'buy'
+                                ? 'text-[#15803d] scale-105'
+                                : hourlyTrxType === 'sell'
+                                ? 'text-amber-700 scale-105'
+                                : 'text-[#0c4ca3] scale-105'
+                              : isPeak
+                              ? hourlyTrxType === 'buy'
+                                ? 'text-emerald-700'
+                                : hourlyTrxType === 'sell'
+                                ? 'text-amber-600'
+                                : 'text-[#0c4ca3]'
+                              : 'text-slate-400'
                           }`}>
                             {sharePct}%
                           </span>
@@ -1150,7 +1205,9 @@ export function DynamicChartsSection({
                         <div
                           className={`w-full rounded-t-sm transition-all group-hover:brightness-110 ${
                             hourlyTrxType === 'sell'
-                              ? isPeak ? 'bg-[#e5a812]' : 'bg-amber-200'
+                              ? isPeak ? 'bg-[#e5a812]' : 'bg-amber-200/80'
+                              : hourlyTrxType === 'buy'
+                              ? isPeak ? 'bg-[#15803d]' : 'bg-emerald-200/80'
                               : isPeak ? 'bg-[#0c4ca3]' : 'bg-slate-300'
                           }`}
                           style={{ height: `${heightPct}%` }}
@@ -1164,14 +1221,20 @@ export function DynamicChartsSection({
                 <div className="flex justify-between text-[10px] font-bold text-slate-400 mt-2 px-1">
                   <span>00:00</span>
                   <span>06:00</span>
-                  <span className="text-[#0c4ca3] font-black">12:00 (Peak Window)</span>
+                  <span className={`font-black ${
+                    hourlyTrxType === 'buy' ? 'text-[#15803d]' : hourlyTrxType === 'sell' ? 'text-amber-700' : 'text-[#0c4ca3]'
+                  }`}>
+                    {topHour ? `${topHour.hour_label} (Peak: ${topHourSharePct}%)` : '12:00 (No Data)'}
+                  </span>
                   <span>18:00</span>
                   <span>23:00</span>
                 </div>
               </div>
 
               <div className="pt-2 mt-3 border-t border-slate-100 text-[10.5px] text-slate-500 font-medium flex justify-between">
-                <span>Cycle: <strong>24-Hour Dayparts</strong></span>
+                <span>
+                  Peak Hour: <strong>{topHour ? `${topHour.hour_label} (${getHourlyVal(topHour).toLocaleString()} ${unitLabel})` : 'None'}</strong>
+                </span>
                 <span>Active Filter: <strong className="uppercase text-[#0c4ca3]">{hourlyTrxType} Trx</strong></span>
               </div>
             </div>
@@ -1192,7 +1255,7 @@ export function DynamicChartsSection({
                     <button
                       type="button"
                       onClick={() => setDayTrxType('all')}
-                      className={`px-2 py-0.5 rounded-md transition-all ${
+                      className={`px-2 py-0.5 rounded-md transition-all cursor-pointer ${
                         dayTrxType === 'all'
                           ? 'bg-[#0c4ca3] text-white shadow-2xs'
                           : 'text-slate-500 hover:text-slate-900'
@@ -1203,9 +1266,9 @@ export function DynamicChartsSection({
                     <button
                       type="button"
                       onClick={() => setDayTrxType('buy')}
-                      className={`px-2 py-0.5 rounded-md transition-all ${
+                      className={`px-2 py-0.5 rounded-md transition-all cursor-pointer ${
                         dayTrxType === 'buy'
-                          ? 'bg-[#0c4ca3] text-white shadow-2xs'
+                          ? 'bg-[#15803d] text-white shadow-2xs'
                           : 'text-slate-500 hover:text-slate-900'
                       }`}
                     >
@@ -1214,9 +1277,9 @@ export function DynamicChartsSection({
                     <button
                       type="button"
                       onClick={() => setDayTrxType('sell')}
-                      className={`px-2 py-0.5 rounded-md transition-all ${
+                      className={`px-2 py-0.5 rounded-md transition-all cursor-pointer ${
                         dayTrxType === 'sell'
-                          ? 'bg-[#0c4ca3] text-white shadow-2xs'
+                          ? 'bg-[#e5a812] text-slate-950 shadow-2xs'
                           : 'text-slate-500 hover:text-slate-900'
                       }`}
                     >
@@ -1229,21 +1292,27 @@ export function DynamicChartsSection({
                 <div className="h-48 flex items-end gap-2 sm:gap-3 pt-8 pb-2 px-1 border-b border-slate-100">
                   {activeDayOfWeek.map((d) => {
                     const val = getDayVal(d);
-                    const heightPct = Math.max(8, Math.round((val / maxDayVal) * 100));
-                    const isPeak = d.day_code === 'fri' || d.day_code === 'sat';
-                    const sharePct = Number(((val / totalDayWeekVal) * 100).toFixed(1));
+                    const heightPct = totalDayWeekSum > 0 ? Math.max(6, Math.round((val / maxDayVal) * 100)) : 2;
+                    const isPeak = peakDaySet.has(d.day_code);
+                    const sharePct = totalDayWeekSum > 0 ? Number(((val / totalDayWeekVal) * 100).toFixed(1)) : 0;
 
                     return (
                       <div key={d.day_code} className="flex-1 flex flex-col items-center h-full justify-end group relative">
                         {/* Hover Tooltip */}
-                        <div className="absolute -top-12 opacity-0 group-hover:opacity-100 transition-opacity bg-slate-900 text-white text-[10px] py-1 px-2 rounded-lg pointer-events-none whitespace-nowrap z-30 shadow-xl border border-slate-700">
+                        <div className="absolute -top-14 opacity-0 group-hover:opacity-100 transition-opacity bg-slate-900 text-white text-[10px] py-1 px-2 rounded-lg pointer-events-none whitespace-nowrap z-30 shadow-xl border border-slate-700">
                           <div className="font-bold text-amber-300">{d.day_full} · {sharePct}% of Week</div>
-                          <div>{val.toLocaleString()} {unitLabel} (Buy: {d.buy_weight_g}g | Sell: {d.sell_weight_g}g)</div>
+                          <div>{val.toLocaleString()} {unitLabel} (Buy: {d.buy_tx.toLocaleString()} tx / {d.buy_weight_g}g | Sell: {d.sell_tx.toLocaleString()} tx / {d.sell_weight_g}g)</div>
                         </div>
 
                         {/* Top Data Label */}
                         <span className={`text-[9px] font-black tracking-tight mb-1 transition-all ${
-                          isPeak ? 'text-[#0c4ca3]' : 'text-slate-500'
+                          isPeak
+                            ? dayTrxType === 'buy'
+                              ? 'text-[#15803d]'
+                              : dayTrxType === 'sell'
+                              ? 'text-amber-700'
+                              : 'text-[#0c4ca3]'
+                            : 'text-slate-500'
                         }`}>
                           {sharePct}%
                         </span>
@@ -1252,7 +1321,9 @@ export function DynamicChartsSection({
                         <div
                           className={`w-full rounded-t-md transition-all group-hover:brightness-110 ${
                             dayTrxType === 'sell'
-                              ? isPeak ? 'bg-[#e5a812]' : 'bg-amber-200'
+                              ? isPeak ? 'bg-[#e5a812]' : 'bg-amber-200/80'
+                              : dayTrxType === 'buy'
+                              ? isPeak ? 'bg-[#15803d]' : 'bg-emerald-200/80'
                               : isPeak ? 'bg-[#0c4ca3]' : 'bg-slate-300'
                           }`}
                           style={{ height: `${heightPct}%` }}
@@ -1267,7 +1338,7 @@ export function DynamicChartsSection({
                   {activeDayOfWeek.map((d) => (
                     <span
                       key={d.day_code}
-                      className={d.day_code === 'fri' ? 'text-[#0c4ca3] font-black' : ''}
+                      className={peakDaySet.has(d.day_code) ? 'text-[#0c4ca3] font-black' : ''}
                     >
                       {d.day_label}
                     </span>
@@ -1276,7 +1347,9 @@ export function DynamicChartsSection({
               </div>
 
               <div className="pt-2 mt-3 border-t border-slate-100 text-[10.5px] text-slate-500 font-medium flex justify-between">
-                <span>Pattern: <strong>Friday &amp; Weekend Payday Spikes</strong></span>
+                <span>
+                  Peak Days: <strong>{topDay ? `${topDay.day_label}${secondDay ? ` & ${secondDay.day_label}` : ''}` : 'None'}</strong>
+                </span>
                 <span>Active Filter: <strong className="uppercase text-[#0c4ca3]">{dayTrxType} Trx</strong></span>
               </div>
             </div>
@@ -1287,156 +1360,175 @@ export function DynamicChartsSection({
       {/* ========================================================================= */}
       {/* 3. GOLD WEIGHT TICKET DISTRIBUTION                                        */}
       {/* ========================================================================= */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-sm">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 mb-3 border-b border-slate-100 gap-2">
-          <div className="flex items-center gap-2">
-            <BarChart3 className="w-4 h-4 text-[#0c4ca3]" />
-            <div>
-              <h3 className="text-xs font-black uppercase text-slate-800 tracking-wider">
-                Gold Weight Ticket Distribution
-              </h3>
-              <p className="text-[11px] text-slate-400 font-medium">
-                Sleek portion breakdown with synchronized order counts and total gold mass distribution
-              </p>
-            </div>
-          </div>
-
-          {/* Side View Switcher: All / Buy / Sell */}
-          <div className="flex items-center bg-slate-100 p-0.5 rounded-xl border border-slate-200 text-xs font-black self-start sm:self-auto gap-0.5">
-            <button
-              type="button"
-              onClick={() => setTicketSideFilter('all')}
-              className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${
-                ticketSideFilter === 'all'
-                  ? 'bg-[#0c4ca3] text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              All Volumes
-            </button>
-            <button
-              type="button"
-              onClick={() => setTicketSideFilter('buy')}
-              className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${
-                ticketSideFilter === 'buy'
-                  ? 'bg-emerald-600 text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              Buy Side
-            </button>
-            <button
-              type="button"
-              onClick={() => setTicketSideFilter('sell')}
-              className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${
-                ticketSideFilter === 'sell'
-                  ? 'bg-rose-600 text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              Sell Side
-            </button>
-          </div>
-        </div>
-
-        {/* 100% Macro Portion Share Spectrum Bar */}
-        <div className="mb-3.5 bg-slate-50 p-2.5 rounded-2xl border border-slate-100">
-          <div className="flex justify-between text-[11px] font-bold text-slate-600 mb-1.5 flex-wrap gap-1">
-            <span>Portfolio Share Breakdown ({ticketSideFilter === 'all' ? '100% of Total Tickets' : ticketSideFilter === 'buy' ? '100% of Buy Tickets' : '100% of Sell Tickets'}):</span>
-            <span className="text-[#0c4ca3] font-black">Dominant: {enrichedBrackets[0]?.weight_bracket} ({enrichedBrackets[0]?.countPct || 73.4}%)</span>
-          </div>
-          <div className="w-full h-2.5 rounded-full overflow-hidden flex bg-slate-200 gap-0.5">
-            {enrichedBrackets.map((wb) => {
-              const style = getTicketTierStyle(wb.rank, wb.countPct);
-              return (
-                <div
-                  key={wb.weight_bracket}
-                  className={`${style.barClass} h-full transition-all`}
-                  style={{ width: `${Math.max(1.5, wb.countPct)}%` }}
-                  title={`${wb.weight_bracket}: ${wb.countPct}% share (${wb.count.toLocaleString()} tx)`}
-                />
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Re-Balanced 6x1 Desktop Grid (Responsive 2x3 on mobile, 6x1 on desktop) */}
-        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
-          {enrichedBrackets.map((wb) => {
-            const style = getTicketTierStyle(wb.rank, wb.countPct);
-            return (
-              <div
-                key={wb.weight_bracket}
-                className={`p-3.5 rounded-2xl border transition-all ${style.cardClass} relative overflow-hidden flex flex-col justify-between shadow-2xs hover:shadow-xs min-h-[140px]`}
-              >
+      {(() => {
+        const dominantBracket = [...enrichedBrackets].sort((a, b) => b.countPct - a.countPct)[0];
+        return (
+          <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-sm">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 mb-3 border-b border-slate-100 gap-2">
+              <div className="flex items-center gap-2">
+                <BarChart3 className="w-4 h-4 text-[#0c4ca3]" />
                 <div>
-                  <div className="flex items-center justify-between gap-1 mb-1.5 flex-wrap">
-                    <span className="text-xs font-black text-slate-900 truncate" title={wb.weight_bracket}>
-                      {wb.weight_bracket}
-                    </span>
-                    <span className={`text-[9px] px-1.5 py-0.5 rounded-full border shrink-0 font-bold ${style.sharePillClass}`}>
-                      {wb.countPct}%
-                    </span>
-                  </div>
-
-                  <div className="mt-1">
-                    <span className="text-base sm:text-lg font-black text-slate-900 tracking-tight block">
-                      {metricMode === 'weight'
-                        ? `${wb.total_weight_g.toLocaleString()}g`
-                        : `${wb.count.toLocaleString()} tx`}
-                    </span>
-                    <span className="text-[10px] font-bold text-slate-500 block leading-tight mt-0.5">
-                      {wb.weightPct}% of gold ({wb.total_weight_g.toLocaleString()}g)
-                    </span>
-                  </div>
-                </div>
-
-                <div className="mt-2.5 pt-2 border-t border-slate-200/60">
-                  <div className="w-full bg-slate-200/80 h-1.5 rounded-full overflow-hidden mb-1">
-                    <div
-                      className={`${style.barClass} h-full rounded-full transition-all`}
-                      style={{ width: `${Math.min(100, Math.max(5, wb.countPct))}%` }}
-                    />
-                  </div>
-                  <div className="flex justify-between items-center text-[9.5px] text-slate-500 font-medium">
-                    <span>{wb.count.toLocaleString()} tix</span>
-                    <span className="font-bold text-slate-600">Rank #{wb.rank}</span>
-                  </div>
+                  <h3 className="text-xs font-black uppercase text-slate-800 tracking-wider">
+                    Gold Weight Ticket Distribution
+                  </h3>
+                  <p className="text-[11px] text-slate-400 font-medium">
+                    Live SQL breakdown of order counts, physical gold mass, and revenue across 6 ticket brackets
+                  </p>
                 </div>
               </div>
-            );
-          })}
-        </div>
-      </div>
+
+              {/* Side View Switcher: All / Buy / Sell */}
+              <div className="flex items-center bg-slate-100 p-0.5 rounded-xl border border-slate-200 text-xs font-black self-start sm:self-auto gap-0.5">
+                <button
+                  type="button"
+                  onClick={() => setTicketSideFilter('all')}
+                  className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${
+                    ticketSideFilter === 'all'
+                      ? 'bg-[#0c4ca3] text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  All Volumes
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTicketSideFilter('buy')}
+                  className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${
+                    ticketSideFilter === 'buy'
+                      ? 'bg-emerald-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  Buy Side
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTicketSideFilter('sell')}
+                  className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${
+                    ticketSideFilter === 'sell'
+                      ? 'bg-rose-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  Sell Side
+                </button>
+              </div>
+            </div>
+
+            {/* 100% Macro Portion Share Spectrum Bar */}
+            <div className="mb-3.5 bg-slate-50 p-2.5 rounded-2xl border border-slate-100">
+              <div className="flex justify-between text-[11px] font-bold text-slate-600 mb-1.5 flex-wrap gap-1">
+                <span>Portfolio Share Breakdown ({ticketSideFilter === 'all' ? '100% of Total Tickets' : ticketSideFilter === 'buy' ? '100% of Buy Tickets' : '100% of Sell Tickets'}):</span>
+                <span className="text-[#0c4ca3] font-black">
+                  Dominant: {dominantBracket?.weight_bracket || '< 0.5g'} ({dominantBracket?.countPct ?? 0}%)
+                </span>
+              </div>
+              <div className="w-full h-2.5 rounded-full overflow-hidden flex bg-slate-200 gap-0.5">
+                {enrichedBrackets.map((wb) => {
+                  const style = getTicketTierStyle(wb.rank, wb.countPct);
+                  return (
+                    <div
+                      key={wb.weight_bracket}
+                      className={`${style.barClass} h-full transition-all`}
+                      style={{ width: `${Math.max(1.5, wb.countPct)}%` }}
+                      title={`${wb.weight_bracket}: ${wb.countPct}% share (${wb.count.toLocaleString()} tx)`}
+                    />
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Re-Balanced 6x1 Desktop Grid (Responsive 2x3 on mobile, 6x1 on desktop) */}
+            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
+              {enrichedBrackets.map((wb) => {
+                const style = getTicketTierStyle(wb.rank, wb.countPct);
+                return (
+                  <div
+                    key={wb.weight_bracket}
+                    className={`p-3.5 rounded-2xl border transition-all ${style.cardClass} relative overflow-hidden flex flex-col justify-between shadow-2xs hover:shadow-xs min-h-[140px]`}
+                  >
+                    <div>
+                      <div className="flex items-center justify-between gap-1 mb-1.5 flex-wrap">
+                        <span className="text-xs font-black text-slate-900 truncate" title={wb.weight_bracket}>
+                          {wb.weight_bracket}
+                        </span>
+                        <span className={`text-[9px] px-1.5 py-0.5 rounded-full border shrink-0 font-bold ${style.sharePillClass}`}>
+                          {metricMode === 'weight' ? `${wb.weightPct}%` : metricMode === 'amount' ? `${wb.amountPct}%` : `${wb.countPct}%`}
+                        </span>
+                      </div>
+
+                      <div className="mt-1">
+                        <span className="text-base sm:text-lg font-black text-slate-900 tracking-tight block">
+                          {metricMode === 'weight'
+                            ? `${wb.total_weight_g.toLocaleString()}g`
+                            : metricMode === 'amount'
+                            ? `${Math.round((wb.total_amount_lak || 0) / 1000000).toLocaleString()}M LAK`
+                            : `${wb.count.toLocaleString()} tx`}
+                        </span>
+                        <span className="text-[10px] font-bold text-slate-500 block leading-tight mt-0.5">
+                          {wb.weightPct}% of gold ({wb.total_weight_g.toLocaleString()}g)
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="mt-2.5 pt-2 border-t border-slate-200/60">
+                      <div className="w-full bg-slate-200/80 h-1.5 rounded-full overflow-hidden mb-1">
+                        <div
+                          className={`${style.barClass} h-full rounded-full transition-all`}
+                          style={{ width: `${Math.min(100, Math.max(5, wb.countPct))}%` }}
+                        />
+                      </div>
+                      <div className="flex justify-between items-center text-[9.5px] text-slate-500 font-medium">
+                        <span>{wb.count.toLocaleString()} tix</span>
+                        <span className="font-bold text-slate-600">Rank #{wb.rank}</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ========================================================================= */}
-      {/* 4. BANK & BRANCH SETTLEMENT CHANNELS WITH %TRNX / %VALUE & BUY/SELL SIDES */}
+      {/* 4. BANK & BRANCH SETTLEMENT CHANNELS WITH %TRNX / %WEIGHT / %VALUE        */}
       {/* ========================================================================= */}
       {(() => {
         const processedBanks = activeBanks.map((b) => {
-          let tx = b.total_tx;
-          let amountLak = b.total_amount_lak;
+          let tx = b.total_tx || 0;
+          let weightG = b.total_weight_g || 0;
+          let amountLak = b.total_amount_lak || 0;
 
           if (bankSideFilter === 'buy') {
-            tx = b.buy_tx ?? Math.round(b.total_tx * 0.75);
-            amountLak = b.buy_amount_lak ?? Math.round(b.total_amount_lak * 0.76);
+            tx = b.buy_tx ?? 0;
+            weightG = b.buy_weight_g ?? 0;
+            amountLak = b.buy_amount_lak ?? 0;
           } else if (bankSideFilter === 'sell') {
-            tx = b.sell_tx ?? Math.round(b.total_tx * 0.25);
-            amountLak = b.sell_amount_lak ?? Math.round(b.total_amount_lak * 0.24);
+            tx = b.sell_tx ?? 0;
+            weightG = b.sell_weight_g ?? 0;
+            amountLak = b.sell_amount_lak ?? 0;
           }
 
-          const activeVal = bankMetricType === 'tx' ? tx : Math.round(amountLak / 1000000);
+          const activeVal =
+            bankMetricType === 'tx'
+              ? tx
+              : bankMetricType === 'weight'
+              ? Number(weightG.toFixed(1))
+              : Math.round(amountLak / 1000000);
           return {
             ...b,
             activeTx: tx,
+            activeWeightG: Number(weightG.toFixed(1)),
             activeAmountLak: amountLak,
             activeVal,
           };
-        });
+        }).filter((b) => b.activeVal > 0 || b.total_tx > 0);
 
-        const totalActiveVal = processedBanks.reduce((acc, item) => acc + item.activeVal, 0) || 1;
+        const sumActiveVal = processedBanks.reduce((acc, item) => acc + item.activeVal, 0);
+        const totalActiveVal = sumActiveVal || 1;
         const enrichedBanks = processedBanks.map((item) => {
-          const dynamicSharePct = Number(((item.activeVal / totalActiveVal) * 100).toFixed(1));
+          const dynamicSharePct = sumActiveVal > 0 ? Number(((item.activeVal / totalActiveVal) * 100).toFixed(1)) : 0;
           return {
             ...item,
             dynamicSharePct,
@@ -1466,14 +1558,14 @@ export function DynamicChartsSection({
                   )}
                 </div>
 
-                {/* Sub-Header: Metric Toggle (%trnx vs %value) & Side Toggle (Buy vs Sell vs All) */}
+                {/* Sub-Header: Metric Toggle (%trnx vs %weight vs %value) & Side Toggle (Buy vs Sell vs All) */}
                 <div className="flex flex-wrap items-center justify-between bg-slate-50 p-1.5 rounded-xl border border-slate-100 mb-3 gap-2">
                   <div className="flex items-center gap-1 text-[10px] font-black">
                     <span className="text-slate-400 font-bold px-1 uppercase">Metric:</span>
                     <button
                       type="button"
                       onClick={() => setBankMetricType('tx')}
-                      className={`px-2 py-0.5 rounded-md transition-all ${
+                      className={`px-2 py-0.5 rounded-md transition-all cursor-pointer ${
                         bankMetricType === 'tx'
                           ? 'bg-[#0c4ca3] text-white shadow-2xs'
                           : 'text-slate-600 hover:text-slate-900'
@@ -1483,8 +1575,19 @@ export function DynamicChartsSection({
                     </button>
                     <button
                       type="button"
+                      onClick={() => setBankMetricType('weight')}
+                      className={`px-2 py-0.5 rounded-md transition-all cursor-pointer ${
+                        bankMetricType === 'weight'
+                          ? 'bg-[#0c4ca3] text-white shadow-2xs'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      % Weight
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => setBankMetricType('value')}
-                      className={`px-2 py-0.5 rounded-md transition-all ${
+                      className={`px-2 py-0.5 rounded-md transition-all cursor-pointer ${
                         bankMetricType === 'value'
                           ? 'bg-[#0c4ca3] text-white shadow-2xs'
                           : 'text-slate-600 hover:text-slate-900'
@@ -1499,7 +1602,7 @@ export function DynamicChartsSection({
                     <button
                       type="button"
                       onClick={() => setBankSideFilter('all')}
-                      className={`px-2 py-0.5 rounded-md transition-all ${
+                      className={`px-2 py-0.5 rounded-md transition-all cursor-pointer ${
                         bankSideFilter === 'all'
                           ? 'bg-slate-800 text-white shadow-2xs'
                           : 'text-slate-600 hover:text-slate-900'
@@ -1510,7 +1613,7 @@ export function DynamicChartsSection({
                     <button
                       type="button"
                       onClick={() => setBankSideFilter('buy')}
-                      className={`px-2 py-0.5 rounded-md transition-all ${
+                      className={`px-2 py-0.5 rounded-md transition-all cursor-pointer ${
                         bankSideFilter === 'buy'
                           ? 'bg-blue-600 text-white shadow-2xs'
                           : 'text-slate-600 hover:text-slate-900'
@@ -1521,7 +1624,7 @@ export function DynamicChartsSection({
                     <button
                       type="button"
                       onClick={() => setBankSideFilter('sell')}
-                      className={`px-2 py-0.5 rounded-md transition-all ${
+                      className={`px-2 py-0.5 rounded-md transition-all cursor-pointer ${
                         bankSideFilter === 'sell'
                           ? 'bg-rose-600 text-white shadow-2xs'
                           : 'text-slate-600 hover:text-slate-900'
@@ -1533,52 +1636,60 @@ export function DynamicChartsSection({
                 </div>
 
                 {/* Bank List with Dynamic Share Bars */}
-                <div className="space-y-2.5 max-h-52 overflow-y-auto pr-1">
-                  {enrichedBanks.slice(0, 6).map((b) => {
-                    const barWidth = Math.max(3, b.dynamicSharePct);
-                    const isDominant = b.bank_name === topProcessedBank?.bank_name;
+                <div className="space-y-2.5 max-h-56 overflow-y-auto pr-1">
+                  {enrichedBanks.length === 0 ? (
+                    <div className="text-xs text-slate-400 font-semibold py-8 text-center">
+                      No bank settlement transactions match active filter
+                    </div>
+                  ) : (
+                    enrichedBanks.slice(0, 10).map((b) => {
+                      const barWidth = Math.max(2, b.dynamicSharePct);
+                      const isDominant = b.bank_name === topProcessedBank?.bank_name;
 
-                    return (
-                      <div key={b.bank_name}>
-                        <div className="flex justify-between text-xs font-bold mb-1">
-                          <span className="text-slate-800 flex items-center gap-1.5 truncate">
-                            <span className={`w-2 h-2 rounded-full ${
-                              bankSideFilter === 'sell' ? 'bg-rose-600' : 'bg-[#0c4ca3]'
-                            }`} />
-                            {b.bank_name}
-                          </span>
-                          <span className="text-slate-600 font-semibold shrink-0">
-                            {bankMetricType === 'tx'
-                              ? `${b.activeTx.toLocaleString()} tx`
-                              : `${b.activeVal.toLocaleString()} M LAK`}
-                            <strong className="text-slate-900 ml-1.5 font-black">
-                              ({b.dynamicSharePct}%)
-                            </strong>
-                          </span>
+                      return (
+                        <div key={b.bank_name}>
+                          <div className="flex justify-between text-xs font-bold mb-1">
+                            <span className="text-slate-800 flex items-center gap-1.5 truncate">
+                              <span className={`w-2 h-2 rounded-full ${
+                                bankSideFilter === 'sell' ? 'bg-rose-600' : 'bg-[#0c4ca3]'
+                              }`} />
+                              {b.bank_name}
+                            </span>
+                            <span className="text-slate-600 font-semibold shrink-0">
+                              {bankMetricType === 'tx'
+                                ? `${b.activeTx.toLocaleString()} tx`
+                                : bankMetricType === 'weight'
+                                ? `${b.activeWeightG.toLocaleString()} g`
+                                : `${b.activeVal.toLocaleString()} M LAK`}
+                              <strong className="text-slate-900 ml-1.5 font-black">
+                                ({b.dynamicSharePct}%)
+                              </strong>
+                            </span>
+                          </div>
+                          <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                            <div
+                              className={`h-full rounded-full transition-all ${
+                                bankSideFilter === 'sell'
+                                  ? isDominant ? 'bg-gradient-to-r from-rose-500 to-red-600' : 'bg-rose-400'
+                                  : isDominant ? 'bg-gradient-to-r from-[#0c4ca3] to-blue-500' : 'bg-blue-400'
+                              }`}
+                              style={{ width: `${barWidth}%` }}
+                            />
+                          </div>
                         </div>
-                        <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                          <div
-                            className={`h-full rounded-full transition-all ${
-                              bankSideFilter === 'sell'
-                                ? isDominant ? 'bg-gradient-to-r from-rose-500 to-red-600' : 'bg-rose-400'
-                                : isDominant ? 'bg-gradient-to-r from-[#0c4ca3] to-blue-500' : 'bg-blue-400'
-                            }`}
-                            style={{ width: `${barWidth}%` }}
-                          />
-                        </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })
+                  )}
                 </div>
               </div>
 
               <div className="pt-2 border-t border-slate-100 text-[10.5px] text-slate-500 font-medium flex justify-between mt-3">
                 <span>
                   Primary {bankSideFilter === 'buy' ? 'Buy' : bankSideFilter === 'sell' ? 'Sell' : ''} gateway:{' '}
-                  <strong className="text-slate-800">{topProcessedBank?.bank_name || 'BCEL'}</strong>
+                  <strong className="text-slate-800">{topProcessedBank?.bank_name || 'N/A'}</strong>
                 </span>
                 <span>
-                  Dependency: <strong className="text-[#0c4ca3] font-black">{topProcessedBank?.dynamicSharePct || 72}%</strong>
+                  Dependency: <strong className="text-[#0c4ca3] font-black">{topProcessedBank?.dynamicSharePct ?? 0}%</strong>
                 </span>
               </div>
             </div>
@@ -1590,38 +1701,45 @@ export function DynamicChartsSection({
                   <div className="flex items-center gap-2">
                     <Building2 className="w-4 h-4 text-[#6b21a8]" />
                     <h3 className="text-xs font-black uppercase text-slate-800 tracking-wider">
-                      Top Branches &amp; Physical Network
+                      Top Branches &amp; Physical Network ({unitLabel})
                     </h3>
                   </div>
                   <span className="text-[10px] font-bold text-slate-400">Khamphouvong Network</span>
                 </div>
 
-                <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
-                  {activeBranches.slice(0, 5).map((br) => {
-                    const val = getBranchVal(br);
-                    const barWidth = Math.max(5, Math.round((val / maxBranchVal) * 100));
-                    return (
-                      <div key={br.branch_name} className="p-2 bg-slate-50 rounded-xl border border-slate-100">
-                        <div className="flex justify-between text-xs font-bold mb-1">
-                          <span className="text-slate-800 truncate max-w-[200px]">{br.branch_name}</span>
-                          <span className="text-[#6b21a8] font-black">
-                            {br.withdraw_tx > 0 ? `${br.withdraw_tx.toLocaleString()} withdrawals` : `${val.toLocaleString()} ${unitLabel}`}
-                          </span>
+                <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                  {activeBranches.length === 0 ? (
+                    <div className="text-xs text-slate-400 font-semibold py-8 text-center">
+                      No branch transactions match active filter
+                    </div>
+                  ) : (
+                    activeBranches.slice(0, 12).map((br) => {
+                      const val = getBranchVal(br);
+                      const barWidth = Math.max(4, Math.round((val / maxBranchVal) * 100));
+                      return (
+                        <div key={br.branch_name} className="p-2 bg-slate-50 rounded-xl border border-slate-100">
+                          <div className="flex justify-between text-xs font-bold mb-1 gap-2">
+                            <span className="text-slate-800 truncate max-w-[230px]" title={br.branch_name}>{br.branch_name}</span>
+                            <span className="text-[#6b21a8] font-black shrink-0">
+                              {val.toLocaleString()} {unitLabel}
+                              {br.withdraw_tx > 0 ? ` (${br.withdraw_tx.toLocaleString()} wd)` : ''}
+                            </span>
+                          </div>
+                          <div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
+                            <div
+                              className="bg-[#6b21a8] h-full rounded-full transition-all"
+                              style={{ width: `${barWidth}%` }}
+                            />
+                          </div>
                         </div>
-                        <div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
-                          <div
-                            className="bg-[#6b21a8] h-full rounded-full transition-all"
-                            style={{ width: `${barWidth}%` }}
-                          />
-                        </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })
+                  )}
                 </div>
               </div>
 
               <div className="pt-2 border-t border-slate-100 text-[10.5px] text-slate-400 font-medium flex justify-between mt-3">
-                <span>Physical Delivery Branches</span>
+                <span>Physical &amp; Digital Delivery Network</span>
                 <span>Total Network: <strong>{activeBranches.length} locations</strong></span>
               </div>
             </div>

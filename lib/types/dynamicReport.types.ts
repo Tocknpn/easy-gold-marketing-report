@@ -85,9 +85,12 @@ export interface HourlyMetric {
   total_tx: number;
   buy_tx: number;
   sell_tx: number;
+  total_weight_g?: number;
   buy_weight_g: number;
   sell_weight_g: number;
   total_amount_lak: number;
+  buy_amount_lak?: number;
+  sell_amount_lak?: number;
 }
 
 export interface BankMetric {
@@ -98,6 +101,8 @@ export interface BankMetric {
   share_pct: number;
   buy_tx?: number;
   sell_tx?: number;
+  buy_weight_g?: number;
+  sell_weight_g?: number;
   buy_amount_lak?: number;
   sell_amount_lak?: number;
   buy_share_pct?: number;
@@ -107,6 +112,8 @@ export interface BankMetric {
 export interface BranchMetric {
   branch_name: string;
   total_tx: number;
+  buy_tx?: number;
+  sell_tx?: number;
   total_weight_g: number;
   total_amount_lak: number;
   withdraw_tx: number;
@@ -115,8 +122,14 @@ export interface BranchMetric {
 export interface WeightBracketMetric {
   weight_bracket: string;
   count: number;
+  buy_count?: number;
+  sell_count?: number;
   total_weight_g: number;
+  buy_weight_g?: number;
+  sell_weight_g?: number;
   total_amount_lak: number;
+  buy_amount_lak?: number;
+  sell_amount_lak?: number;
 }
 
 export interface DayOfWeekMetric {
@@ -126,9 +139,12 @@ export interface DayOfWeekMetric {
   total_tx: number;
   buy_tx: number;
   sell_tx: number;
+  total_weight_g?: number;
   buy_weight_g: number;
   sell_weight_g: number;
   total_amount_lak: number;
+  buy_amount_lak?: number;
+  sell_amount_lak?: number;
 }
 
 export interface TrendPoint {
@@ -149,19 +165,51 @@ export interface TrendPoint {
   withdraw_weight_g?: number;
 }
 
+export interface PopComparisonMetrics {
+  prev_start_date: string;
+  prev_end_date: string;
+  prev_total_transaction: number;
+  prev_total_unique_user: number;
+  prev_new_register: number;
+  prev_total_gold_weight_g: number;
+  prev_gold_weight_buy_g: number;
+  prev_total_buy_transac: number;
+  prev_gold_weight_sell_g: number;
+  prev_total_sell_transac: number;
+  prev_withdraw_gold_g: number;
+  prev_withdraw_trans: number;
+  prev_net_gold_weight_g: number;
+  total_tx_pct: number;
+  unique_user_pct: number;
+  new_register_pct: number;
+  total_gold_flow_pct: number;
+  buy_weight_pct: number;
+  buy_tx_pct: number;
+  sell_weight_pct: number;
+  sell_tx_pct: number;
+  withdraw_weight_pct: number;
+  withdraw_tx_pct: number;
+  net_weight_pct: number;
+}
+
 export interface DynamicReportPayload {
   meta: {
     start_date: string;
     end_date: string;
+    latest_available_date?: string;
     generated_at: string;
+    source?: string;
+    elapsed_ms?: number;
   };
   dax_measures: DaxMeasuresPayload;
+  pop_comparison?: PopComparisonMetrics;
   hourly: HourlyMetric[];
   banks: BankMetric[];
   branches: BranchMetric[];
   weight_brackets: WeightBracketMetric[];
   day_of_week?: DayOfWeekMetric[];
   timeline_trend?: TrendPoint[];
+  year_trend?: TrendPoint[];
 }
 
 export interface DaxMeasureRow {

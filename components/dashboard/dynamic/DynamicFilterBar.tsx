@@ -58,6 +58,8 @@ interface DynamicFilterBarProps {
   hasExecuted?: boolean;
   isComparingPoP?: boolean;
   onToggleComparingPoP?: () => void;
+  latestAvailableDate?: string;
+  hasUnappliedChanges?: boolean;
 }
 
 export function DynamicFilterBar({
@@ -71,6 +73,8 @@ export function DynamicFilterBar({
   hasExecuted,
   isComparingPoP,
   onToggleComparingPoP,
+  latestAvailableDate = '2026-10-27',
+  hasUnappliedChanges = false,
 }: DynamicFilterBarProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [activeDropdown, setActiveDropdown] = useState<'banks' | 'branches' | 'txTypes' | null>(null);
@@ -206,52 +210,57 @@ export function DynamicFilterBar({
     return `${sel.length} Days Selected`;
   };
 
-  // Quick preset handlers
+  // Quick preset handlers anchored to Latest Uploaded Date in DB
   const handlePresetSelect = (preset: string) => {
-    const today = new Date();
-    const todayStr = today.toISOString().split('T')[0];
-    const yyyy = today.getFullYear();
-    const mm = String(today.getMonth() + 1).padStart(2, '0');
-    
-    // Yesterday
-    const yest = new Date(today);
-    yest.setDate(yest.getDate() - 1);
-    const yestStr = yest.toISOString().split('T')[0];
+    const anchorStr = latestAvailableDate && /^\d{4}-\d{2}-\d{2}$/.test(latestAvailableDate)
+      ? latestAvailableDate
+      : '2026-10-27';
+    const [aY, aM, aD] = anchorStr.split('-').map(Number);
+    const anchorDate = new Date(Date.UTC(aY, aM - 1, aD));
+    const fmt = (d: Date) => d.toISOString().split('T')[0];
 
-    // 7 days ago
-    const d7 = new Date(today);
-    d7.setDate(d7.getDate() - 6);
-    const d7Str = d7.toISOString().split('T')[0];
+    const yyyy = String(aY);
+    const mm = String(aM).padStart(2, '0');
 
-    // 30 days ago
-    const d30 = new Date(today);
-    d30.setDate(d30.getDate() - 29);
-    const d30Str = d30.toISOString().split('T')[0];
+    // Yesterday relative to latest DB date
+    const yest = new Date(anchorDate);
+    yest.setUTCDate(yest.getUTCDate() - 1);
+    const yestStr = fmt(yest);
+
+    // 7 days ago relative to latest DB date
+    const d7 = new Date(anchorDate);
+    d7.setUTCDate(d7.getUTCDate() - 6);
+    const d7Str = fmt(d7);
+
+    // 30 days ago relative to latest DB date
+    const d30 = new Date(anchorDate);
+    d30.setUTCDate(d30.getUTCDate() - 29);
+    const d30Str = fmt(d30);
 
     let start = `${yyyy}-${mm}-01`;
-    let end = todayStr;
+    let end = anchorStr;
 
     if (preset === 'today') {
-      start = todayStr;
-      end = todayStr;
+      start = anchorStr;
+      end = anchorStr;
     } else if (preset === 'yesterday') {
       start = yestStr;
       end = yestStr;
     } else if (preset === 'last7d') {
       start = d7Str;
-      end = todayStr;
+      end = anchorStr;
     } else if (preset === 'last30d') {
       start = d30Str;
-      end = todayStr;
+      end = anchorStr;
     } else if (preset === 'this_month') {
       start = `${yyyy}-${mm}-01`;
-      end = todayStr;
+      end = anchorStr;
     } else if (preset === 'last_month') {
-      const prevMonthFirst = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-      const prevMonthLast = new Date(today.getFullYear(), today.getMonth(), 0);
-      const prevY = prevMonthFirst.getFullYear();
-      const prevM = String(prevMonthFirst.getMonth() + 1).padStart(2, '0');
-      const prevLastD = String(prevMonthLast.getDate()).padStart(2, '0');
+      const prevMonthFirst = new Date(Date.UTC(aY, aM - 2, 1));
+      const prevMonthLast = new Date(Date.UTC(aY, aM - 1, 0));
+      const prevY = prevMonthFirst.getUTCFullYear();
+      const prevM = String(prevMonthFirst.getUTCMonth() + 1).padStart(2, '0');
+      const prevLastD = String(prevMonthLast.getUTCDate()).padStart(2, '0');
       start = `${prevY}-${prevM}-01`;
       end = `${prevY}-${prevM}-${prevLastD}`;
     } else if (preset === 'aug_month') {
@@ -262,7 +271,7 @@ export function DynamicFilterBar({
       end = '2026-09-30';
     } else if (preset === 'q4') {
       start = '2026-10-01';
-      end = '2026-12-31';
+      end = anchorStr;
     }
 
     onFilterChange({
@@ -314,12 +323,13 @@ export function DynamicFilterBar({
             { id: 'last7d', label: 'Last 7 Days' },
             { id: 'last30d', label: 'Last 30 Days' },
             { id: 'q3', label: 'Q3 (Jul-Sep)' },
-            { id: 'today', label: 'Today' },
+            { id: 'yesterday', label: 'Yesterday' },
+            { id: 'today', label: `Today (${latestAvailableDate.slice(5)})` },
           ].map((preset) => (
             <button
               key={preset.id}
               onClick={() => handlePresetSelect(preset.id)}
-              className={`px-2.5 py-1 text-xs font-bold rounded-lg transition-all ${
+              className={`px-2.5 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
                 filters.quickPreset === preset.id
                   ? 'bg-[#0c4ca3] text-white shadow-xs'
                   : 'bg-slate-100 text-slate-750 hover:bg-slate-200'
@@ -379,15 +389,25 @@ export function DynamicFilterBar({
             <button
               onClick={onExecuteQuery}
               disabled={isLoading}
-              className="flex items-center gap-2 px-4 py-1.5 rounded-xl text-xs font-black bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-500 hover:to-teal-600 text-white shadow-sm hover:shadow-md ring-1 ring-emerald-400/30 active:scale-95 transition-all disabled:opacity-50 cursor-pointer font-sans"
-              title="Execute live calculations on Supabase"
+              className={`flex items-center gap-2 px-4 py-1.5 rounded-xl text-xs font-black text-white shadow-sm hover:shadow-md active:scale-95 transition-all disabled:opacity-50 cursor-pointer font-sans ${
+                hasUnappliedChanges && !isLoading
+                  ? 'bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 ring-2 ring-amber-400 animate-pulse'
+                  : 'bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-500 hover:to-teal-600 ring-1 ring-emerald-400/30'
+              }`}
+              title="Execute live SQL calculations on Supabase"
             >
               {isLoading ? (
                 <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />
               ) : (
-                <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                <Sparkles className="w-3.5 h-3.5 text-amber-200" />
               )}
-              <span className="font-sans font-black tracking-wide">{isLoading ? 'Calculating...' : 'Calculate'}</span>
+              <span className="font-sans font-black tracking-wide">
+                {isLoading
+                  ? 'Querying SQL...'
+                  : hasUnappliedChanges
+                  ? 'Calculate (Apply Filters)'
+                  : 'Calculate'}
+              </span>
             </button>
           )}
 
