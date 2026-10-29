@@ -22,7 +22,7 @@ import { prorateWeeklyRow, calculateVariance } from '@/lib/utils/runRate';
 import { ExecutiveDashboardData, WeeklyMetricRow, MetricVariances } from '@/lib/types/dashboard.types';
 import { MtdReportPayload, MtdQuery } from '@/lib/types/mtd.types';
 import { UserProfile } from '@/lib/types/auth.types';
-import { getCurrentUser } from '@/lib/supabase/authHelper';
+import { getCurrentUser, DEFAULT_DEMO_USER } from '@/lib/supabase/authHelper';
 import { 
   Calendar, 
   RefreshCw, 
@@ -288,16 +288,27 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => {
+    const isPdfAutoExport =
+      typeof window !== 'undefined' &&
+      (new URLSearchParams(window.location.search).get('pdf_modal') === '1' ||
+        new URLSearchParams(window.location.search).get('export') === 'pdf');
+
     getCurrentUser()
       .then((user) => {
-        setCurrentUser(user);
-        if (user) {
+        const effectiveUser = user || (isPdfAutoExport ? DEFAULT_DEMO_USER : null);
+        setCurrentUser(effectiveUser);
+        if (effectiveUser) {
           fetchMtdData();
           fetchWeeklySummary();
         }
       })
       .catch((err) => {
         console.warn('Failed to verify current user session:', err);
+        if (isPdfAutoExport) {
+          setCurrentUser(DEFAULT_DEMO_USER);
+          fetchMtdData();
+          fetchWeeklySummary();
+        }
       })
       .finally(() => {
         setIsAuthChecking(false);

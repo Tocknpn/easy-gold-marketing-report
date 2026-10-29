@@ -122,13 +122,13 @@ export function ReportingPdfModal({
     }
   };
 
-  // Load MTD MoM and YoY
+  // Load MTD MoM and YoY (Supports both live API routes and direct Supabase RPCs for static export / Headless Chrome)
   const loadReportData = async () => {
     setLoading(true);
     try {
       const supabase = createClient();
 
-      const [rowsRes, momRes, wkRes] = await Promise.all([
+      const [rowsRes, momApiRes, wkApiRes] = await Promise.all([
         supabase
           .from('summary_daily_metrics')
           .select('*')
@@ -149,11 +149,13 @@ export function ReportingPdfModal({
       let curYear = passedMtdData?.current_month_year || 2026;
       let curMonth = passedMtdData?.current_month_num || 10;
 
-      if (momRes && momRes.ok) {
+      let momLoaded = false;
+      if (momApiRes && momApiRes.ok) {
         try {
-          const momJson = await momRes.json();
+          const momJson = await momApiRes.json();
           if (momJson?.metrics) {
             setMomMtd(momJson);
+            momLoaded = true;
             if (momJson.as_of_date) activeAsOf = momJson.as_of_date;
             if (momJson.current_month_year) curYear = momJson.current_month_year;
             if (momJson.current_month_num) curMonth = momJson.current_month_num;
@@ -163,18 +165,51 @@ export function ReportingPdfModal({
         }
       }
 
-      if (wkRes && wkRes.ok) {
+      if (!momLoaded) {
         try {
-          const wkJson = await wkRes.json();
+          const { data: rpcMom } = await supabase.rpc('get_mtd_forecast_report', {
+            p_as_of_date: activeAsOf,
+            p_comp_year: null,
+            p_comp_month: null,
+            p_mode: 'calendar_days',
+          });
+          if (rpcMom?.metrics) {
+            setMomMtd(rpcMom as MtdReportPayload);
+            if (rpcMom.as_of_date) activeAsOf = rpcMom.as_of_date;
+            if (rpcMom.current_month_year) curYear = rpcMom.current_month_year;
+            if (rpcMom.current_month_num) curMonth = rpcMom.current_month_num;
+          }
+        } catch (rpcErr) {
+          console.warn('Direct Supabase RPC get_mtd_forecast_report fallback:', rpcErr);
+        }
+      }
+
+      let wkLoaded = false;
+      if (wkApiRes && wkApiRes.ok) {
+        try {
+          const wkJson = await wkApiRes.json();
           if (wkJson?.current_week) {
             setWeekly(wkJson);
+            wkLoaded = true;
           }
         } catch (e) {
           console.warn('Live Weekly parse fallback:', e);
         }
       }
 
+      if (!wkLoaded) {
+        try {
+          const { data: rpcWk } = await supabase.rpc('get_executive_weekly_dashboard', { p_limit: 52 });
+          if (rpcWk?.current_week) {
+            setWeekly(rpcWk as ExecutiveDashboardData);
+          }
+        } catch (rpcWkErr) {
+          console.warn('Direct Supabase RPC get_executive_weekly_dashboard fallback:', rpcWkErr);
+        }
+      }
+
       // Fetch live YoY MTD using exact same as_of_date
+      let yoyLoaded = false;
       try {
         const yoyRes = await fetch(
           `/api/dashboard/mtd-forecast?as_of_date=${activeAsOf}&comp_year=${curYear - 1}&comp_month=${curMonth}&refresh=true&t=${Date.now()}`,
@@ -184,10 +219,27 @@ export function ReportingPdfModal({
           const yoyJson = await yoyRes.json();
           if (yoyJson?.metrics) {
             setYoyMtd(yoyJson);
+            yoyLoaded = true;
           }
         }
       } catch (e) {
         console.warn('Live YoY MTD fetch failed:', e);
+      }
+
+      if (!yoyLoaded) {
+        try {
+          const { data: rpcYoy } = await supabase.rpc('get_mtd_forecast_report', {
+            p_as_of_date: activeAsOf,
+            p_comp_year: curYear - 1,
+            p_comp_month: curMonth,
+            p_mode: 'calendar_days',
+          });
+          if (rpcYoy?.metrics) {
+            setYoyMtd(rpcYoy as MtdReportPayload);
+          }
+        } catch (rpcYoyErr) {
+          console.warn('Direct Supabase RPC YoY fallback:', rpcYoyErr);
+        }
       }
     } catch (err) {
       console.error('Failed to load comprehensive report data:', err);
@@ -202,6 +254,16 @@ export function ReportingPdfModal({
       loadReportData();
     }
   }, [isOpen]);
+
+  // Expose PDF generation hook on window for automated Headless Chrome daily email dispatch
+  useEffect(() => {
+    if (typeof window !== 'undefined' && isOpen) {
+      (window as any).__generateExecutivePdfBase64 = () => generateExecutivePdf('base64');
+      return () => {
+        delete (window as any).__generateExecutivePdfBase64;
+      };
+    }
+  });
 
   // Handle Save Settings
   const handleSaveSettings = async (e: React.FormEvent) => {

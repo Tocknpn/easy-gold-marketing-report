@@ -2334,17 +2334,29 @@ async function handleCronTrigger(env, forceRun = false) {
     // Guard: Prevent double-dispatches if cron fires multiple times within the window
     if (!forceRun) {
       const checkLogRes = await fetch(
-        `${supabaseUrl}/rest/v1/report_delivery_logs?report_date=eq.${todayDate}&trigger_type=eq.scheduled&status=eq.success&select=id&limit=1`,
+        `${supabaseUrl}/rest/v1/report_delivery_logs?report_date=eq.${todayDate}&trigger_type=eq.scheduled&status=in.(success,pending)&select=id,status,sent_at&order=sent_at.desc&limit=1`,
         { headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` } }
       );
       if (checkLogRes.ok) {
         const existing = await checkLogRes.json();
         if (existing && existing.length > 0) {
-          return {
-            skipped: true,
-            reason: `Daily report already successfully dispatched today (${todayDate})`,
-            reportDate: todayDate,
-          };
+          const row = existing[0];
+          if (row.status === 'success') {
+            return {
+              skipped: true,
+              reason: `Daily report already successfully dispatched today (${todayDate})`,
+              reportDate: todayDate,
+            };
+          }
+          // If status is 'pending' and created within the last 15 minutes, Headless Chrome is currently generating the PDF
+          const ageMs = Date.now() - new Date(row.sent_at).getTime();
+          if (row.status === 'pending' && ageMs < 15 * 60 * 1000) {
+            return {
+              skipped: true,
+              reason: `Scheduled PDF generation already in progress (${Math.round(ageMs / 1000)}s ago)`,
+              reportDate: todayDate,
+            };
+          }
         }
       }
     }
@@ -2355,7 +2367,8 @@ async function handleCronTrigger(env, forceRun = false) {
       ? s.target_emails.split(',').map((e) => e.trim()).filter(Boolean)
       : ['management@easygold.la'];
 
-    // 1. If GITHUB_PAT configured, trigger GitHub Action to generate vector PDF via headless Chromium
+    // Trigger GitHub Action to generate 5-page 16:9 PDF via Headless Chromium
+    // Never send a text-only email without PDF on scheduled runs!
     const ghRepo = env.GITHUB_REPO || 'Tocknpn/easy-gold-marketing-report';
     if (env.GITHUB_PAT) {
       try {
@@ -2369,32 +2382,48 @@ async function handleCronTrigger(env, forceRun = false) {
           body: JSON.stringify({ ref: 'main', inputs: { force: String(forceRun) } }),
         });
         if (ghRes.ok) {
+          // Record pending state so subsequent 1-minute cron ticks don't re-trigger while Chromium builds PDF
+          await fetch(`${supabaseUrl}/rest/v1/report_delivery_logs`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              apikey: supabaseKey,
+              Authorization: `Bearer ${supabaseKey}`,
+            },
+            body: JSON.stringify({
+              report_date: todayDate,
+              sent_at: new Date().toISOString(),
+              recipient: emailList.join(', '),
+              status: 'pending',
+              trigger_type: 'scheduled',
+              subject: `Easy Gold Executive Daily BI Report - ${todayDate} (Generating PDF...)`,
+              error_message: null,
+              execution_duration_ms: 0,
+            }),
+          }).catch(() => {});
+
           return {
             triggered: true,
             method: 'github_actions_chromium',
             reportDate: todayDate,
-            message: 'Dispatched automated Chromium workflow with vector PDF attachment',
+            recipients: emailList,
+            message: 'Dispatched automated Chromium workflow with 5-page PDF attachment',
           };
         }
       } catch (ghErr) {
-        console.warn('GitHub Action trigger failed, using direct gateway fallback:', ghErr);
+        console.warn('GitHub Action trigger error:', ghErr);
       }
     }
 
-    const dispatchResult = await executeEmailDispatch({
-      env,
-      recipientList: emailList,
-      reportDate: todayDate,
-      triggerType: 'scheduled',
-    });
-
+    // Do NOT send a text-only email or write a 'success' log from Worker cron so GitHub Actions scheduled workflow will send the PDF email
     return {
-      triggered: true,
+      skipped: true,
+      method: 'deferred_to_github_actions_pdf_runner',
       time: currentHHMM,
       targetTime: targetHHMM,
       todayDate,
       recipients: emailList,
-      result: dispatchResult,
+      reason: 'Deferred to GitHub Actions Headless Chrome runner so scheduled email always includes the 5-page PDF attachment.',
     };
   } catch (err) {
     console.error('handleCronTrigger execution error:', err);
