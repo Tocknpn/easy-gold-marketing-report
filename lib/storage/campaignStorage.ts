@@ -323,6 +323,8 @@ export async function loadCampaignSetups(userId?: string): Promise<CampaignSetup
           backward_weight_g: parsedLiveMetrics?.backward_weight_g ?? undefined,
           backward_nc: parsedLiveMetrics?.backward_nc ?? undefined,
           cached_as_of_date: parsedLiveMetrics?.max_db_date ?? d.as_of_date,
+          is_frozen: Boolean(parsedLiveMetrics?.is_frozen ?? false),
+          frozen_analytics: parsedLiveMetrics?.frozen_analytics ?? undefined,
           sql_script: d.sql_script || undefined,
           cpo_actual: d.cpo_actual !== undefined ? Number(d.cpo_actual) : undefined,
           cpo_target: d.cpo_target !== undefined ? Number(d.cpo_target) : undefined,
@@ -446,7 +448,7 @@ export async function saveCampaignSetup(campaign: CampaignSetupConfig, userId?: 
   }
 
   // Embed live metrics snapshot in SQL header if available for 100% loss-free persistence
-  if (toSave.actual_gold_weight_g !== undefined || toSave.backward_trans !== undefined) {
+  if (toSave.actual_gold_weight_g !== undefined || toSave.backward_trans !== undefined || toSave.is_frozen) {
     const metricsSnapshot = {
       ec_actual_mtd: toSave.customers_actual ?? 0,
       nc_actual_mtd: toSave.new_cust_actual ?? 0,
@@ -457,6 +459,8 @@ export async function saveCampaignSetup(campaign: CampaignSetupConfig, userId?: 
       backward_weight_g: toSave.backward_weight_g ?? 0,
       backward_nc: toSave.backward_nc ?? 0,
       max_db_date: toSave.cached_as_of_date || toSave.data_update_on,
+      is_frozen: Boolean(toSave.is_frozen ?? false),
+      frozen_analytics: toSave.frozen_analytics ?? undefined,
     };
     sqlScriptWithConfig = sqlScriptWithConfig.replace(/\/\* LIVE_METRICS_CACHE:[\s\S]*? \*\/\n?/, '');
     sqlScriptWithConfig = `/* LIVE_METRICS_CACHE: ${JSON.stringify(metricsSnapshot)} */\n` + sqlScriptWithConfig;

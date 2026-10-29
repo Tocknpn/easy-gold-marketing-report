@@ -62,6 +62,8 @@ export interface CampaignSetupConfig {
   backward_weight_g?: number;         // Backward benchmark gold weight (Grams)
   backward_nc?: number;               // Backward benchmark new customers
   cached_as_of_date?: string;         // Date up to which cached metrics were computed
+  is_frozen?: boolean;                // Flag indicating campaign ended and its final analytics are saved as static snapshot
+  frozen_analytics?: any;             // Frozen static JSON analytics payload (eliminates all DB calculation)
   cpo_actual?: number;                // Actual Cost Per Order
   cpo_target?: number;                // Target Cost Per Order
   cpa_actual?: number;                // Actual Cost Per Acquisition

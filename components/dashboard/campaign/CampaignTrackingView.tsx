@@ -48,7 +48,9 @@ import {
   Copy,
   Check,
   Eye,
-  EyeOff
+  EyeOff,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 
 interface CampaignTrackingViewProps {
@@ -92,8 +94,29 @@ export function CampaignTrackingView({
   // Filter & Search state
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [selectedStartMonth, setSelectedStartMonth] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
+  const [currentPage, setCurrentPage] = useState<number>(1);
+
+  // Discover all distinct Start Months available across all campaigns (sorted newest to oldest)
+  const availableStartMonths = useMemo(() => {
+    const monthsSet = new Set<string>();
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    for (const c of allCampaigns) {
+      if (c.campaign_date_start && c.campaign_date_start.length >= 7) {
+        const ym = c.campaign_date_start.substring(0, 7); // e.g. "2026-10"
+        monthsSet.add(ym);
+      }
+    }
+    const sorted = Array.from(monthsSet).sort().reverse();
+    return sorted.map((ym) => {
+      const [y, m] = ym.split('-');
+      const mIdx = parseInt(m, 10) - 1;
+      const label = `${monthNames[mIdx] || m} ${y}`;
+      return { value: ym, label };
+    });
+  }, [allCampaigns]);
 
   // Modals
   const [isSetupModalOpen, setIsSetupModalOpen] = useState(false);
@@ -137,6 +160,12 @@ export function CampaignTrackingView({
         const itemCat = (c.category_tag || '').toLowerCase();
         if (!itemCat.includes(selectedCategory.toLowerCase())) return false;
       }
+      // Start Month filter
+      if (selectedStartMonth !== 'all') {
+        if (!c.campaign_date_start || !c.campaign_date_start.startsWith(selectedStartMonth)) {
+          return false;
+        }
+      }
       // Search query filter (matches name, condition, bank, or tag)
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim();
@@ -148,7 +177,23 @@ export function CampaignTrackingView({
       }
       return true;
     });
-  }, [allCampaigns, selectedStatus, selectedCategory, searchQuery]);
+  }, [allCampaigns, selectedStatus, selectedCategory, selectedStartMonth, searchQuery]);
+
+  // Page Size: 12 for cards (clean responsive 3x4 / 4x3 grid), 25 for dense table
+  const pageSize = viewMode === 'cards' ? 12 : 25;
+  const totalPages = Math.max(1, Math.ceil(filteredCampaigns.length / pageSize));
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+
+  // Paginated campaigns
+  const paginatedCampaigns = useMemo(() => {
+    const startIdx = (safeCurrentPage - 1) * pageSize;
+    return filteredCampaigns.slice(startIdx, startIdx + pageSize);
+  }, [filteredCampaigns, safeCurrentPage, pageSize]);
+
+  // Reset to page 1 whenever filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedStatus, selectedCategory, selectedStartMonth, searchQuery, viewMode]);
 
   // Primary active campaign target
   const currentTargetCampaign = useMemo(() => {
@@ -165,7 +210,20 @@ export function CampaignTrackingView({
   }, [currentTargetCampaign, liveData, liveDataMap, activeCampaign?.id]);
 
   // Execute Live Calculate from Supabase for target campaign
-  const handleExecuteCalculate = useCallback(async (targetCamp: CampaignSetupConfig, overrideAsOfDate?: string) => {
+  const handleExecuteCalculate = useCallback(async (targetCamp: CampaignSetupConfig, overrideAsOfDate?: string, forceRecalc: boolean = false) => {
+    // 0ms Instant Recall: If campaign is completed and frozen, load frozen JSON without querying Supabase!
+    if (!forceRecalc && targetCamp.is_frozen && targetCamp.frozen_analytics) {
+      setLiveDataMap((prev) => {
+        const next = { ...prev, [targetCamp.id]: targetCamp.frozen_analytics };
+        saveLiveDataMapCache(next);
+        return next;
+      });
+      if (currentTargetCampaignRef.current?.id === targetCamp.id) {
+        setLiveData(targetCamp.frozen_analytics);
+      }
+      return;
+    }
+
     if (calculatingIdsRef.current.has(targetCamp.id)) return;
     calculatingIdsRef.current.add(targetCamp.id);
     setCalculatingIds(new Set(calculatingIdsRef.current));
@@ -376,6 +434,10 @@ WHERE created_at >= '${backwardWindow.start}'
 
         // Persist full actuals snapshot back to Supabase and in-memory list
         if (payload.ec_actual_mtd > 0) {
+          const isCampaignEnded = Boolean(
+            targetCamp.campaign_date_end && effectiveAsOfDate >= targetCamp.campaign_date_end
+          );
+
           const updatedCamp: CampaignSetupConfig = {
             ...targetCamp,
             customers_actual: payload.ec_actual_mtd,
@@ -387,6 +449,8 @@ WHERE created_at >= '${backwardWindow.start}'
             backward_weight_g: payload.backward_weight_g,
             backward_nc: payload.backward_nc,
             cached_as_of_date: payload.max_db_date || targetCamp.data_update_on,
+            is_frozen: isCampaignEnded,
+            frozen_analytics: isCampaignEnded ? payload : undefined,
             sql_script: payload.sql_script,
             data_update_on: payload.max_db_date || targetCamp.data_update_on,
           };
@@ -476,6 +540,10 @@ WHERE created_at >= '${backwardWindow.start}'
       // Stale-While-Revalidate: Identify campaigns that need background calculation
       const effectiveDbDate = latestDb || dbLatestDate || '2026-10-21';
       const campaignsToSync = list.filter((c: CampaignSetupConfig) => {
+        // If campaign is frozen with stored analytics snapshot, NEVER re-calculate
+        if (c.is_frozen && c.frozen_analytics) {
+          return false;
+        }
         const cached = liveDataMap[c.id];
         // If completed campaign and cache is at or beyond campaign end date, it's 100% permanently valid
         if (c.status === 'completed' && cached && cached.max_db_date && c.campaign_date_end && cached.max_db_date >= c.campaign_date_end) {
@@ -622,32 +690,39 @@ WHERE created_at >= '${backwardWindow.start}'
   AND transaction_type = '${camp.tx_type || 'BUY_GOLD'}'${bankFilter}${condFilter};`;
   }, [currentTargetCampaign, latestDataDate]);
 
-  // Save (Create / Update) Campaign
+  // Save (Create / Update) Campaign: Unfreezes campaign to force fresh recalculation
   const handleSaveCampaign = async (config: CampaignSetupConfig) => {
+    const unfrozenConfig: CampaignSetupConfig = {
+      ...config,
+      is_frozen: false,
+      frozen_analytics: undefined,
+    };
+
     // 1. Immediately update UI state in memory so edited date displays instantly
     setAllCampaigns((prev) => {
-      const idx = prev.findIndex((c) => c.id === config.id);
+      const idx = prev.findIndex((c) => c.id === unfrozenConfig.id);
       if (idx >= 0) {
         const next = [...prev];
-        next[idx] = config;
+        next[idx] = unfrozenConfig;
         return next;
       }
-      return [config, ...prev];
+      return [unfrozenConfig, ...prev];
     });
-    setActiveCampaign(config);
+    setActiveCampaign(unfrozenConfig);
 
     // 2. Persist to Supabase and localStorage
-    const saved = await saveCampaignSetup(config, currentUser?.id);
+    const saved = await saveCampaignSetup(unfrozenConfig, currentUser?.id);
     
-    // 3. Clear cached calculation and recalculate with new dates immediately
+    // 3. Clear cached calculation and force recalculate with new criteria immediately
     setLiveData(null);
     setLiveDataMap((prev) => {
       const next = { ...prev };
-      delete next[config.id];
+      delete next[unfrozenConfig.id];
+      saveLiveDataMapCache(next);
       return next;
     });
 
-    handleExecuteCalculate(saved);
+    handleExecuteCalculate(saved, undefined, true);
   };
 
   // Delete Campaign
@@ -851,6 +926,21 @@ WHERE created_at >= '${backwardWindow.start}'
             <option value="acquisition">New Acquisition</option>
           </select>
 
+          {/* Start Month Filter */}
+          <select
+            value={selectedStartMonth}
+            onChange={(e) => setSelectedStartMonth(e.target.value)}
+            className="bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-800 text-xs font-bold rounded-xl px-2.5 py-1.5 focus:ring-2 focus:ring-[#0c4ca3] focus:outline-hidden cursor-pointer"
+            title="Filter by campaign start month"
+          >
+            <option value="all">All Start Months</option>
+            {availableStartMonths.map((m) => (
+              <option key={m.value} value={m.value}>
+                {m.label}
+              </option>
+            ))}
+          </select>
+
           {/* Campaign Count Badge */}
           <span className="text-[11px] font-bold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-xl border border-slate-200 whitespace-nowrap">
             {filteredCampaigns.length} {filteredCampaigns.length === 1 ? 'Campaign' : 'Campaigns'}
@@ -930,7 +1020,7 @@ WHERE created_at >= '${backwardWindow.start}'
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 font-mono text-xs">
-                {filteredCampaigns.map((camp) => {
+                {paginatedCampaigns.map((camp) => {
                   const isSelected = currentTargetCampaign?.id === camp.id;
                   const itemAnalytics = computeCampaignAnalytics(camp, liveDataMap[camp.id]);
                   const { targetAchievement } = itemAnalytics;
@@ -1068,7 +1158,7 @@ WHERE created_at >= '${backwardWindow.start}'
       ) : (
         /* Compact Card Grid for 30+ Campaigns: 4-5 Columns with Low Height */
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3 animate-in fade-in duration-200">
-          {filteredCampaigns.map((camp) => (
+          {paginatedCampaigns.map((camp) => (
             <CampaignCardItem
               key={camp.id}
               campaign={camp}
@@ -1087,7 +1177,76 @@ WHERE created_at >= '${backwardWindow.start}'
             <div className="col-span-full bg-white rounded-2xl p-10 text-center border-2 border-dashed border-slate-200 space-y-2">
               <Sparkles className="w-7 h-7 text-slate-400 mx-auto" />
               <h4 className="text-sm font-bold text-slate-800">No campaigns found matching filter</h4>
-              <p className="text-xs text-slate-500">Reset the search query, status, or category to see campaigns.</p>
+              <p className="text-xs text-slate-500">Reset the search query, status, start month, or category to see campaigns.</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Pagination Controls Bar (Displays when there is at least 1 campaign) */}
+      {filteredCampaigns.length > 0 && (
+        <div className="bg-white rounded-2xl border border-slate-200/90 px-3 py-2 sm:px-4 sm:py-2.5 shadow-2xs flex items-center justify-between gap-3 flex-wrap">
+          {/* Item count text */}
+          <div className="text-xs text-slate-500 font-medium">
+            Showing <strong className="text-slate-800 font-mono">{Math.min(filteredCampaigns.length, (safeCurrentPage - 1) * pageSize + 1)}</strong> to{' '}
+            <strong className="text-slate-800 font-mono">{Math.min(filteredCampaigns.length, safeCurrentPage * pageSize)}</strong> of{' '}
+            <strong className="text-slate-900 font-mono">{filteredCampaigns.length}</strong> campaigns
+            {filteredCampaigns.some((c) => c.is_frozen) && (
+              <span className="ml-2 px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                ⚡ Frozen JSON Cache Active
+              </span>
+            )}
+          </div>
+
+          {/* Page Buttons */}
+          {totalPages > 1 && (
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                disabled={safeCurrentPage <= 1}
+                className="flex items-center gap-1 px-2.5 py-1 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-30 disabled:hover:bg-transparent transition-all cursor-pointer"
+                title="Previous page"
+              >
+                <ChevronLeft className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Prev</span>
+              </button>
+
+              <div className="flex items-center gap-1">
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map((pNum) => {
+                  // If lots of pages, only show current page +/- 2 and first/last
+                  const isCurrent = pNum === safeCurrentPage;
+                  const isNear = Math.abs(pNum - safeCurrentPage) <= 1 || pNum === 1 || pNum === totalPages;
+                  if (!isNear && totalPages > 7) {
+                    if (pNum === 2 || pNum === totalPages - 1) {
+                      return <span key={pNum} className="px-1 text-slate-400 text-xs">...</span>;
+                    }
+                    return null;
+                  }
+                  return (
+                    <button
+                      key={pNum}
+                      onClick={() => setCurrentPage(pNum)}
+                      className={`min-w-[28px] h-7 px-1.5 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer ${
+                        isCurrent
+                          ? 'bg-[#0c4ca3] text-white shadow-2xs'
+                          : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200'
+                      }`}
+                    >
+                      {pNum}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <button
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                disabled={safeCurrentPage >= totalPages}
+                className="flex items-center gap-1 px-2.5 py-1 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-30 disabled:hover:bg-transparent transition-all cursor-pointer"
+                title="Next page"
+              >
+                <span className="hidden sm:inline">Next</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
             </div>
           )}
         </div>
