@@ -255,11 +255,19 @@ export function computeCampaignAnalytics(
     mtd_buy_weight_g = effectiveLive!.mtd_buy_weight_g ?? Number((ec_actual_mtd * avgTicketWeightG).toFixed(1));
     mtd_buy_value_mil_lak = effectiveLive!.mtd_buy_value_mil_lak ?? Number(((ec_actual_mtd * avgTicketValueLak) / 1000000).toFixed(1));
 
-    backward_trans = effectiveLive!.backward_trans ?? Math.round(ec_actual_mtd * 0.74);
-    backward_val_mil = effectiveLive!.backward_val_mil ?? Number((mtd_buy_value_mil_lak * 0.75).toFixed(1));
-    backward_weight_g = effectiveLive!.backward_weight_g ?? Number((mtd_buy_weight_g * 0.76).toFixed(1));
+    backward_trans = (effectiveLive!.backward_trans && effectiveLive!.backward_trans > 0) 
+      ? effectiveLive!.backward_trans 
+      : Math.round(ec_actual_mtd * 0.74);
+    backward_val_mil = (effectiveLive!.backward_val_mil && effectiveLive!.backward_val_mil > 0) 
+      ? effectiveLive!.backward_val_mil 
+      : Number((mtd_buy_value_mil_lak * 0.75).toFixed(1));
+    backward_weight_g = (effectiveLive!.backward_weight_g && effectiveLive!.backward_weight_g > 0) 
+      ? effectiveLive!.backward_weight_g 
+      : Number((mtd_buy_weight_g * 0.76).toFixed(1));
     backward_ticket = backward_trans > 0 ? Number((backward_weight_g / backward_trans).toFixed(1)) : avgTicketWeightG;
-    backward_nc = effectiveLive!.backward_nc ?? Math.round(backward_trans * 0.061);
+    backward_nc = (effectiveLive!.backward_nc && effectiveLive!.backward_nc > 0) 
+      ? effectiveLive!.backward_nc 
+      : Math.round(backward_trans * 0.061);
   } else if (hasValidCustomActual && config.customers_actual) {
     // Priority 2: Explicitly calibrated customer actuals (never drop to 0)
     ec_actual_mtd = config.customers_actual;

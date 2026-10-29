@@ -1330,6 +1330,42 @@ export default {
         });
       }
 
+      // Handle GET: trigger daily automated batch sync or single campaign sync
+      if (request.method === 'GET') {
+        const DEFAULT_SUPABASE_URL = "https://wlufvvawlbyvpyaubzph.supabase.co";
+        const DEFAULT_SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndsdWZ2dmF3bGJ5dnB5YXVienBoIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MTg1MDY0MSwiZXhwIjoyMTA3NDI2NjQxfQ.CN2Omnb-aAuxAW80EqFZubEZhilRdOlwHg8VzPn2AHk";
+        const headerUrl = request.headers.get('x-supabase-url');
+        const headerKey = request.headers.get('x-supabase-key');
+        const supabaseUrl = headerUrl || (env && env.NEXT_PUBLIC_SUPABASE_URL) || DEFAULT_SUPABASE_URL;
+        const supabaseKey = headerKey || (env && env.NEXT_PUBLIC_SUPABASE_ANON_KEY) || DEFAULT_SUPABASE_KEY;
+
+        const campaignId = url.searchParams.get('campaign_id') || null;
+        try {
+          const syncRes = await fetch(`${supabaseUrl}/rest/v1/rpc/sync_active_campaigns_daily`, {
+            method: 'POST',
+            headers: {
+              apikey: supabaseKey,
+              Authorization: `Bearer ${supabaseKey}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ p_target_campaign_id: campaignId }),
+          });
+          const syncData = syncRes.ok ? await syncRes.json() : { error: await syncRes.text() };
+          return new Response(JSON.stringify({ success: syncRes.ok, batch_result: syncData }), {
+            status: syncRes.ok ? 200 : 500,
+            headers: {
+              'Content-Type': 'application/json',
+              'Access-Control-Allow-Origin': '*',
+            },
+          });
+        } catch (err) {
+          return new Response(JSON.stringify({ error: err.message }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+          });
+        }
+      }
+
       let config = {};
       try {
         const rawJson = await request.json();
@@ -1548,7 +1584,7 @@ WHERE created_at >= '${bwdStart}'
               } else if (banks.length > 1) {
                 bankFilter = `&or=(${banks.map(b => `bank.ilike.*${encodeURIComponent(b)}*`).join(',')})`;
               }
-              let ncUrl = `${supabaseUrl}/rest/v1/monthly_data?select=id&transaction_type=eq.OPEN_ACCOUNT${bankFilter}&created_at=gte.${startDate}&created_at=lte.${asOfDate}%2023:59:59&limit=1`;
+              let ncUrl = `${supabaseUrl}/rest/v1/monthly_data?select=id&transaction_type=eq.OPEN_ACCOUNT${bankFilter}&created_at=gte.${startDate}&created_at=lte.${effectiveCutoffDate}%2023:59:59&limit=1`;
               let bwdNcUrl = `${supabaseUrl}/rest/v1/monthly_data?select=id&transaction_type=eq.OPEN_ACCOUNT${bankFilter}&created_at=gte.${bwdStart}&created_at=lte.${bwdEnd}%2023:59:59&limit=1`;
 
               const [ncRes, bwdNcRes] = await Promise.all([
@@ -2071,9 +2107,50 @@ WHERE created_at >= '${bwdStart}'
 
   // Cloudflare Workers Scheduled Cron Trigger Handler
   async scheduled(event, env, ctx) {
-    ctx.waitUntil(handleCronTrigger(env));
+    ctx.waitUntil(Promise.all([
+      handleCronTrigger(env),
+      syncActiveCampaignsWorker(env),
+    ]));
   },
 };
+
+// Automated 3:00 AM Campaign Intelligence Engine Runner
+async function syncActiveCampaignsWorker(env) {
+  try {
+    const now = new Date();
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Vientiane',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    });
+    const currentHHMM = formatter.format(now); // e.g. "03:00"
+    const [hh, mm] = currentHHMM.split(':').map((x) => parseInt(x, 10));
+    // Only run during the 3:00 AM - 3:05 AM window
+    if (hh !== 3 || mm > 5) {
+      return;
+    }
+
+    const supabaseUrl = env.NEXT_PUBLIC_SUPABASE_URL || "https://wlufvvawlbyvpyaubzph.supabase.co";
+    const supabaseKey = env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndsdWZ2dmF3bGJ5dnB5YXVienBoIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MTg1MDY0MSwiZXhwIjoyMTA3NDI2NjQxfQ.CN2Omnb-aAuxAW80EqFZubEZhilRdOlwHg8VzPn2AHk";
+    
+    const res = await fetch(`${supabaseUrl}/rest/v1/rpc/sync_active_campaigns_daily`, {
+      method: 'POST',
+      headers: {
+        apikey: supabaseKey,
+        Authorization: `Bearer ${supabaseKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ p_target_campaign_id: null }),
+    });
+
+    if (res.ok) {
+      console.log('Successfully completed 3:00 AM Campaign Intelligence sync at ' + currentHHMM);
+    }
+  } catch (err) {
+    console.error('3:00 AM Campaign Intelligence sync failed:', err);
+  }
+}
 
 // ============================================================================
 // Shared Email Dispatch Helper (used by both UI manual test and cron trigger)

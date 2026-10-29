@@ -5,6 +5,39 @@ import { computeCampaignAnalytics, calculateDateDiffDays, computeBackwardDates }
 
 export const runtime = 'edge';
 
+// GET: Triggers automated daily 3:00 AM batch sync across all campaigns
+export async function GET(req: NextRequest) {
+  try {
+    const headerUrl = req.headers.get('x-supabase-url');
+    const headerKey = req.headers.get('x-supabase-key');
+    const supabaseUrl = headerUrl || process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+    const supabaseKey = headerKey || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+
+    if (!supabaseUrl || !supabaseKey) {
+      return NextResponse.json({ error: 'Supabase credentials missing' }, { status: 400 });
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseKey);
+    const campaignId = req.nextUrl.searchParams.get('campaign_id') || null;
+
+    const { data, error } = await supabase.rpc('sync_active_campaigns_daily', {
+      p_target_campaign_id: campaignId,
+    });
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({
+      success: true,
+      batch_result: data,
+      executed_at: new Date().toISOString(),
+    });
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message }, { status: 500 });
+  }
+}
+
 export async function POST(req: NextRequest) {
   try {
     const config: CampaignSetupConfig = await req.json();

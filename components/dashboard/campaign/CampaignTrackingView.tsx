@@ -131,6 +131,7 @@ export function CampaignTrackingView({
   });
   const [isExporting, setIsExporting] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isBatchSyncing, setIsBatchSyncing] = useState(false);
   const [dbLatestDate, setDbLatestDate] = useState<string>(() => {
     if (typeof window !== 'undefined') {
       return localStorage.getItem('easy_gold_latest_db_date') || '2026-10-21';
@@ -211,15 +212,16 @@ export function CampaignTrackingView({
 
   // Execute Live Calculate from Supabase for target campaign
   const handleExecuteCalculate = useCallback(async (targetCamp: CampaignSetupConfig, overrideAsOfDate?: string, forceRecalc: boolean = false) => {
-    // 0ms Instant Recall: If campaign is completed and frozen, load frozen JSON without querying Supabase!
-    if (!forceRecalc && targetCamp.is_frozen && targetCamp.frozen_analytics) {
+    // 0ms Instant Recall: If campaign has pre-computed result_json or is frozen, load JSON immediately without querying Supabase!
+    const precomputed = targetCamp.result_json || (targetCamp.is_frozen ? targetCamp.frozen_analytics : null);
+    if (!forceRecalc && precomputed && precomputed.ec_actual_mtd > 0) {
       setLiveDataMap((prev) => {
-        const next = { ...prev, [targetCamp.id]: targetCamp.frozen_analytics };
+        const next = { ...prev, [targetCamp.id]: precomputed };
         saveLiveDataMapCache(next);
         return next;
       });
       if (currentTargetCampaignRef.current?.id === targetCamp.id) {
-        setLiveData(targetCamp.frozen_analytics);
+        setLiveData(precomputed);
       }
       return;
     }
@@ -509,12 +511,15 @@ WHERE created_at >= '${backwardWindow.start}'
       const list = campaignList && campaignList.length > 0 ? campaignList : allCampaigns;
       setAllCampaigns(list);
 
-      // Hydrate liveDataMap from campaign embedded snapshots if localStorage didn't have them
+      // Hydrate liveDataMap from campaign result_json or embedded snapshots
       setLiveDataMap((prevMap) => {
         let updated = false;
         const nextMap = { ...prevMap };
         for (const c of list) {
-          if (!nextMap[c.id] && c.customers_actual && (c.actual_gold_weight_g !== undefined || c.backward_trans !== undefined)) {
+          if (c.result_json && c.result_json.ec_actual_mtd > 0) {
+            nextMap[c.id] = c.result_json;
+            updated = true;
+          } else if (!nextMap[c.id] && c.customers_actual && (c.actual_gold_weight_g !== undefined || c.backward_trans !== undefined)) {
             nextMap[c.id] = {
               ec_actual_mtd: c.customers_actual,
               nc_actual_mtd: c.new_cust_actual || 0,
@@ -540,7 +545,13 @@ WHERE created_at >= '${backwardWindow.start}'
       // Stale-While-Revalidate: Identify campaigns that need background calculation
       const effectiveDbDate = latestDb || dbLatestDate || '2026-10-21';
       const campaignsToSync = list.filter((c: CampaignSetupConfig) => {
-        // If campaign is frozen with stored analytics snapshot, NEVER re-calculate
+        // 1. If campaign has pre-computed result_json from 3:00 AM batch and is frozen or up to date, SKIP!
+        if (c.result_json && c.result_json.ec_actual_mtd > 0) {
+          if (c.is_frozen || c.status === 'completed' || c.result_json.max_db_date === effectiveDbDate) {
+            return false;
+          }
+        }
+        // 2. If campaign is frozen with stored analytics snapshot, NEVER re-calculate
         if (c.is_frozen && c.frozen_analytics) {
           return false;
         }
@@ -755,6 +766,21 @@ WHERE created_at >= '${backwardWindow.start}'
     setIsDetailModalOpen(true);
   };
 
+  // Trigger automated 3:00 AM backend engine sync on demand
+  const handleRunDailyBatchSync = async () => {
+    setIsBatchSyncing(true);
+    try {
+      const res = await fetch('/api/dashboard/campaign-analytics');
+      if (res.ok) {
+        await refreshCampaigns();
+      }
+    } catch (e) {
+      console.warn('Batch sync error:', e);
+    } finally {
+      setIsBatchSyncing(false);
+    }
+  };
+
 
   // Export report to CSV
   const handleExportCsv = () => {
@@ -859,6 +885,16 @@ WHERE created_at >= '${backwardWindow.start}'
 
         {/* Action Buttons */}
         <div className="flex items-center gap-2">
+          <button
+            onClick={handleRunDailyBatchSync}
+            disabled={isBatchSyncing}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-black bg-emerald-50 border border-emerald-300 text-emerald-800 hover:bg-emerald-100 shadow-2xs transition-all disabled:opacity-50 cursor-pointer"
+            title="Trigger automated backend engine batch (syncs all active campaigns into result_json)"
+          >
+            <Sparkles className={`w-3.5 h-3.5 text-emerald-600 ${isBatchSyncing ? 'animate-spin' : ''}`} />
+            <span>{isBatchSyncing ? 'Syncing Engine...' : '⚡ 3AM Engine Sync'}</span>
+          </button>
+
           <button
             onClick={handleExportCsv}
             disabled={isExporting || !analytics}
