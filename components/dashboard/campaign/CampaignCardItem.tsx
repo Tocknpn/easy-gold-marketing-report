@@ -321,18 +321,11 @@ export function CampaignCardItem({
             <span className="text-[8px] font-black uppercase text-slate-400 tracking-wider truncate block">
               BUY WEIGHT
             </span>
-            <div className="text-[11px] font-black font-mono text-slate-900 truncate">
-              {isRecording ? (
-                <div className="flex items-center gap-1 text-slate-400 font-sans text-[10px]">
-                  <span className="w-2.5 h-2.5 border-2 border-[#0c4ca3] border-t-transparent rounded-full animate-spin inline-block" />
-                  <span>Loading...</span>
-                </div>
-              ) : (
-                formatWeightShort(actWeight)
-              )}
+            <div className={`text-[11px] font-black font-mono text-slate-900 truncate ${isRecording ? 'opacity-80' : ''}`}>
+              {formatWeightShort(actWeight)}
             </div>
             <span className="block text-[9px] font-bold text-slate-500 truncate">
-              {isRecording ? '—' : hasWeightTarget ? `${formatWeightShort(tgtWeight)} tgt (${weightHitPct}%)` : hasRevenueTarget ? formatTargetRevenue(actRevenue) : 'Volume basis'}
+              {hasWeightTarget ? `${formatWeightShort(tgtWeight)} tgt (${weightHitPct}%)` : hasRevenueTarget ? formatTargetRevenue(actRevenue) : 'Volume basis'}
             </span>
           </div>
 
@@ -341,18 +334,11 @@ export function CampaignCardItem({
             <span className="text-[8px] font-black uppercase text-slate-400 tracking-wider truncate block">
               RR PROJECTION
             </span>
-            <div className="text-[11px] font-black font-mono text-slate-900 truncate">
-              {isRecording ? (
-                <div className="flex items-center gap-1 text-slate-400 font-sans text-[10px]">
-                  <span className="w-2.5 h-2.5 border-2 border-[#0c4ca3] border-t-transparent rounded-full animate-spin inline-block" />
-                  <span>Loading...</span>
-                </div>
-              ) : (
-                rrProjected.toLocaleString()
-              )}
+            <div className={`text-[11px] font-black font-mono text-slate-900 truncate ${isRecording ? 'opacity-80' : ''}`}>
+              {rrProjected.toLocaleString()}
             </div>
             <span className="block text-[9px] font-bold text-emerald-600 truncate">
-              {isRecording ? '—' : tgtEc > 0 ? `${Math.round((rrProjected / tgtEc) * 100)}% pace` : 'Healthy pace'}
+              {tgtEc > 0 ? `${Math.round((rrProjected / tgtEc) * 100)}% pace` : 'Healthy pace'}
             </span>
           </div>
         </div>

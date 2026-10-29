@@ -63,6 +63,7 @@ const VALID_TABS: ReportTab[] = ['targets', 'mtd', 'weekly', 'daily', 'campaign'
 export default function DashboardPage() {
   // View toggle: 'targets', 'mtd', 'weekly', 'daily', 'campaign', 'dynamic', 'pivot' with URL and localStorage sync
   const [activeReportTab, setActiveReportTab] = useState<ReportTab>('targets');
+  const [hasVisitedCampaignTab, setHasVisitedCampaignTab] = useState<boolean>(false);
 
   // User authentication & Admin management modal state
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
@@ -93,6 +94,7 @@ export default function DashboardPage() {
   // Tab change handler that updates state, localStorage, and browser URL query param (?tab=...)
   const handleTabChange = (tab: ReportTab) => {
     if (tab !== 'daily') lastNormalTabRef.current = tab;
+    if (tab === 'campaign') setHasVisitedCampaignTab(true);
     setActiveReportTab(tab);
     if (typeof window !== 'undefined') {
       // 'daily' is a wall-screen view: never make it the default landing tab
@@ -264,6 +266,9 @@ export default function DashboardPage() {
         setIsReportingPdfModalOpen(true);
       }
 
+      if (resolvedTab === 'campaign') {
+        setHasVisitedCampaignTab(true);
+      }
       setActiveReportTab(resolvedTab);
 
       // Keep URL clean and synchronized
@@ -1119,8 +1124,14 @@ export default function DashboardPage() {
         )}
 
         {/* TAB 4: CAMPAIGN TRACKING & TARGET INTELLIGENCE */}
-        {activeReportTab === 'campaign' && (
-          <div role="tabpanel" id="panel-campaign" aria-labelledby="tab-campaign" tabIndex={0} className="focus:outline-hidden">
+        {(hasVisitedCampaignTab || activeReportTab === 'campaign') && (
+          <div 
+            role="tabpanel" 
+            id="panel-campaign" 
+            aria-labelledby="tab-campaign" 
+            tabIndex={0} 
+            className={`focus:outline-hidden ${activeReportTab === 'campaign' ? 'block' : 'hidden'}`}
+          >
             <CampaignTrackingView
               currentUser={currentUser}
               onOpenAuthModal={() => setIsAuthModalOpen(true)}

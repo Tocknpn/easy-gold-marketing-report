@@ -2,6 +2,30 @@ import { CampaignSetupConfig } from '@/lib/types/campaign.types';
 import { createClient } from '@/lib/supabase/client';
 
 const LOCAL_STORAGE_CAMPAIGNS_KEY = 'easy_gold_saved_campaign_setups_v7';
+const LOCAL_STORAGE_METRICS_CACHE_KEY = 'easy_gold_campaign_live_metrics_v1';
+
+export function loadLiveDataMapCache(): Record<string, any> {
+  if (typeof window === 'undefined') return {};
+  try {
+    const raw = localStorage.getItem(LOCAL_STORAGE_METRICS_CACHE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object') return parsed;
+    }
+  } catch (e) {
+    console.warn('Failed to parse local campaign metrics cache:', e);
+  }
+  return {};
+}
+
+export function saveLiveDataMapCache(cache: Record<string, any>): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(LOCAL_STORAGE_METRICS_CACHE_KEY, JSON.stringify(cache));
+  } catch (e) {
+    console.warn('Failed to save local campaign metrics cache:', e);
+  }
+}
 
 const LEGACY_ID_MAP: Record<string, string> = {
   'campaign-buy-500k-mega': '10000000-0000-0000-0000-000000000001',
@@ -212,14 +236,28 @@ export async function loadCampaignSetups(userId?: string): Promise<CampaignSetup
         // Map database fields to CampaignSetupConfig
         const list = data.map((d: any) => {
           let parsedConditions: any = undefined;
-          if (d.sql_script && d.sql_script.includes('/* CONDITIONS_CONFIG:')) {
-            try {
-              const match = d.sql_script.match(/\/\* CONDITIONS_CONFIG:\s*(\[[\s\S]*?\])\s*\*\//);
-              if (match && match[1]) {
-                parsedConditions = JSON.parse(match[1]);
+          let parsedLiveMetrics: any = undefined;
+
+          if (d.sql_script) {
+            if (d.sql_script.includes('/* CONDITIONS_CONFIG:')) {
+              try {
+                const match = d.sql_script.match(/\/\* CONDITIONS_CONFIG:\s*(\[[\s\S]*?\])\s*\*\//);
+                if (match && match[1]) {
+                  parsedConditions = JSON.parse(match[1]);
+                }
+              } catch (e) {
+                console.warn('Could not parse encoded conditions:', e);
               }
-            } catch (e) {
-              console.warn('Could not parse encoded conditions:', e);
+            }
+            if (d.sql_script.includes('/* LIVE_METRICS_CACHE:')) {
+              try {
+                const match = d.sql_script.match(/\/\* LIVE_METRICS_CACHE:\s*(\{[\s\S]*?\})\s*\*\//);
+                if (match && match[1]) {
+                  parsedLiveMetrics = JSON.parse(match[1]);
+                }
+              } catch (e) {
+                console.warn('Could not parse encoded live metrics:', e);
+              }
             }
           }
           if (!parsedConditions) {
@@ -278,6 +316,13 @@ export async function loadCampaignSetups(userId?: string): Promise<CampaignSetup
           customers_target: d.customers_target !== undefined ? Number(d.customers_target) : undefined,
           new_cust_actual: (d.actual_nc !== undefined && d.actual_nc !== null && Number(d.actual_nc) > 0) ? Number(d.actual_nc) : (d.new_cust_actual !== undefined ? Number(d.new_cust_actual) : undefined),
           new_cust_target: d.new_cust_target !== undefined ? Number(d.new_cust_target) : undefined,
+          actual_gold_weight_g: parsedLiveMetrics?.mtd_buy_weight_g ?? (d.actual_gold_weight_g ? Number(d.actual_gold_weight_g) : undefined),
+          actual_revenue_mil: parsedLiveMetrics?.mtd_buy_value_mil_lak ?? (d.actual_revenue_mil ? Number(d.actual_revenue_mil) : undefined),
+          backward_trans: parsedLiveMetrics?.backward_trans ?? undefined,
+          backward_val_mil: parsedLiveMetrics?.backward_val_mil ?? undefined,
+          backward_weight_g: parsedLiveMetrics?.backward_weight_g ?? undefined,
+          backward_nc: parsedLiveMetrics?.backward_nc ?? undefined,
+          cached_as_of_date: parsedLiveMetrics?.max_db_date ?? d.as_of_date,
           sql_script: d.sql_script || undefined,
           cpo_actual: d.cpo_actual !== undefined ? Number(d.cpo_actual) : undefined,
           cpo_target: d.cpo_target !== undefined ? Number(d.cpo_target) : undefined,
@@ -400,6 +445,24 @@ export async function saveCampaignSetup(campaign: CampaignSetupConfig, userId?: 
     toSave.sql_script = sqlScriptWithConfig;
   }
 
+  // Embed live metrics snapshot in SQL header if available for 100% loss-free persistence
+  if (toSave.actual_gold_weight_g !== undefined || toSave.backward_trans !== undefined) {
+    const metricsSnapshot = {
+      ec_actual_mtd: toSave.customers_actual ?? 0,
+      nc_actual_mtd: toSave.new_cust_actual ?? 0,
+      mtd_buy_weight_g: toSave.actual_gold_weight_g ?? 0,
+      mtd_buy_value_mil_lak: toSave.actual_revenue_mil ?? 0,
+      backward_trans: toSave.backward_trans ?? 0,
+      backward_val_mil: toSave.backward_val_mil ?? 0,
+      backward_weight_g: toSave.backward_weight_g ?? 0,
+      backward_nc: toSave.backward_nc ?? 0,
+      max_db_date: toSave.cached_as_of_date || toSave.data_update_on,
+    };
+    sqlScriptWithConfig = sqlScriptWithConfig.replace(/\/\* LIVE_METRICS_CACHE:[\s\S]*? \*\/\n?/, '');
+    sqlScriptWithConfig = `/* LIVE_METRICS_CACHE: ${JSON.stringify(metricsSnapshot)} */\n` + sqlScriptWithConfig;
+    toSave.sql_script = sqlScriptWithConfig;
+  }
+
   if (supabaseUrl && !supabaseUrl.includes('placeholder')) {
     try {
       const supabase = createClient();
@@ -431,6 +494,8 @@ export async function saveCampaignSetup(campaign: CampaignSetupConfig, userId?: 
         status: toSave.status || 'active',
         actual_ec: toSave.customers_actual ?? 0,
         actual_nc: toSave.new_cust_actual ?? 0,
+        actual_gold_weight_g: toSave.actual_gold_weight_g ?? 0,
+        actual_revenue_mil: toSave.actual_revenue_mil ?? 0,
         sql_script: sqlScriptWithConfig || null,
         updated_at: new Date().toISOString(),
       };

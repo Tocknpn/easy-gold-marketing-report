@@ -233,20 +233,33 @@ export function computeCampaignAnalytics(
   const isBogus1731 = config.customers_actual === 1731 && config.ec_target !== 1731;
   const hasValidCustomActual = Boolean(config.customers_actual && config.customers_actual > 0 && !isBogus1731);
 
-  const hasLiveEc = liveData?.ec_actual_mtd !== undefined && (liveData.ec_actual_mtd > 0 || !hasValidCustomActual);
+  // If liveData is not provided, but config carries persisted live metrics from Supabase/cache, use them directly
+  const effectiveLive = liveData || (config.actual_gold_weight_g !== undefined || config.backward_trans !== undefined ? {
+    ec_actual_mtd: config.customers_actual,
+    nc_actual_mtd: config.new_cust_actual,
+    mtd_buy_weight_g: config.actual_gold_weight_g,
+    mtd_buy_value_mil_lak: config.actual_revenue_mil,
+    backward_trans: config.backward_trans,
+    backward_val_mil: config.backward_val_mil,
+    backward_weight_g: config.backward_weight_g,
+    backward_nc: config.backward_nc,
+    max_db_date: config.cached_as_of_date || config.data_update_on,
+  } : undefined);
+
+  const hasLiveEc = effectiveLive?.ec_actual_mtd !== undefined && (effectiveLive.ec_actual_mtd > 0 || !hasValidCustomActual);
 
   if (hasLiveEc) {
-    // Priority 1: Supabase Live Database Aggregation
-    ec_actual_mtd = liveData!.ec_actual_mtd ?? (config.customers_actual || 0);
-    nc_actual_mtd = liveData!.nc_actual_mtd ?? Math.round(ec_actual_mtd * 0.055);
-    mtd_buy_weight_g = liveData!.mtd_buy_weight_g ?? Number((ec_actual_mtd * avgTicketWeightG).toFixed(1));
-    mtd_buy_value_mil_lak = liveData!.mtd_buy_value_mil_lak ?? Number(((ec_actual_mtd * avgTicketValueLak) / 1000000).toFixed(1));
+    // Priority 1: Supabase Live Database Aggregation or Persisted Snapshot
+    ec_actual_mtd = effectiveLive!.ec_actual_mtd ?? (config.customers_actual || 0);
+    nc_actual_mtd = effectiveLive!.nc_actual_mtd ?? Math.round(ec_actual_mtd * 0.055);
+    mtd_buy_weight_g = effectiveLive!.mtd_buy_weight_g ?? Number((ec_actual_mtd * avgTicketWeightG).toFixed(1));
+    mtd_buy_value_mil_lak = effectiveLive!.mtd_buy_value_mil_lak ?? Number(((ec_actual_mtd * avgTicketValueLak) / 1000000).toFixed(1));
 
-    backward_trans = liveData!.backward_trans ?? Math.round(ec_actual_mtd * 0.74);
-    backward_val_mil = liveData!.backward_val_mil ?? Number((mtd_buy_value_mil_lak * 0.75).toFixed(1));
-    backward_weight_g = liveData!.backward_weight_g ?? Number((mtd_buy_weight_g * 0.76).toFixed(1));
+    backward_trans = effectiveLive!.backward_trans ?? Math.round(ec_actual_mtd * 0.74);
+    backward_val_mil = effectiveLive!.backward_val_mil ?? Number((mtd_buy_value_mil_lak * 0.75).toFixed(1));
+    backward_weight_g = effectiveLive!.backward_weight_g ?? Number((mtd_buy_weight_g * 0.76).toFixed(1));
     backward_ticket = backward_trans > 0 ? Number((backward_weight_g / backward_trans).toFixed(1)) : avgTicketWeightG;
-    backward_nc = liveData!.backward_nc ?? Math.round(backward_trans * 0.061);
+    backward_nc = effectiveLive!.backward_nc ?? Math.round(backward_trans * 0.061);
   } else if (hasValidCustomActual && config.customers_actual) {
     // Priority 2: Explicitly calibrated customer actuals (never drop to 0)
     ec_actual_mtd = config.customers_actual;

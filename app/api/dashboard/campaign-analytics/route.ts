@@ -30,27 +30,32 @@ export async function POST(req: NextRequest) {
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // 1. Get MAX(created_at) from monthly_data
-    let maxDbDateStr = config.data_update_on || '2026-10-21';
-    try {
-      const { data: maxDateRow, error: maxDateErr } = await supabase.rpc('get_max_monthly_data_date');
-      if (!maxDateErr && maxDateRow) {
-        maxDbDateStr = String(maxDateRow).split('T')[0];
-      }
-    } catch {
-      // Direct fast fallback using summary table
-      try {
-        const { data: latestDaily } = await supabase
-          .from('summary_daily_metrics')
-          .select('date_id')
-          .order('date_id', { ascending: false })
-          .limit(1);
+    // 1. Get MAX(created_at) from monthly_data (skip if client already provided verified date)
+    const clientProvidedDate = req.headers.get('x-latest-db-date') || config.data_update_on;
+    let maxDbDateStr = clientProvidedDate || '2026-10-21';
+    const shouldLookupDate = !clientProvidedDate || clientProvidedDate === '2026-10-21';
 
-        if (latestDaily && latestDaily.length > 0 && latestDaily[0].date_id) {
-          maxDbDateStr = latestDaily[0].date_id;
+    if (shouldLookupDate) {
+      try {
+        const { data: maxDateRow, error: maxDateErr } = await supabase.rpc('get_max_monthly_data_date');
+        if (!maxDateErr && maxDateRow) {
+          maxDbDateStr = String(maxDateRow).split('T')[0];
         }
-      } catch (e) {
-        console.warn('Could not query max date, using fallback:', e);
+      } catch {
+        // Direct fast fallback using summary table
+        try {
+          const { data: latestDaily } = await supabase
+            .from('summary_daily_metrics')
+            .select('date_id')
+            .order('date_id', { ascending: false })
+            .limit(1);
+
+          if (latestDaily && latestDaily.length > 0 && latestDaily[0].date_id) {
+            maxDbDateStr = latestDaily[0].date_id;
+          }
+        } catch (e) {
+          console.warn('Could not query max date, using fallback:', e);
+        }
       }
     }
 

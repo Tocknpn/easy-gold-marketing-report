@@ -55,6 +55,13 @@ export interface CampaignSetupConfig {
   customers_target?: number;          // Target Customers (e.g. 1731)
   new_cust_actual?: number;           // Actual New Customers
   new_cust_target?: number;           // Target New Customers
+  actual_gold_weight_g?: number;      // Actual MTD Gold Weight (Grams)
+  actual_revenue_mil?: number;        // Actual MTD Revenue (Mil LAK)
+  backward_trans?: number;            // Backward benchmark transactions
+  backward_val_mil?: number;          // Backward benchmark revenue (Mil LAK)
+  backward_weight_g?: number;         // Backward benchmark gold weight (Grams)
+  backward_nc?: number;               // Backward benchmark new customers
+  cached_as_of_date?: string;         // Date up to which cached metrics were computed
   cpo_actual?: number;                // Actual Cost Per Order
   cpo_target?: number;                // Target Cost Per Order
   cpa_actual?: number;                // Actual Cost Per Acquisition
