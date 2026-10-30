@@ -7,6 +7,8 @@ export interface DispatchEmailOptions {
   subject: string;
   reportDate: string;
   pdfBase64?: string;
+  quickBriefBase64?: string;
+  dailyVelocityBase64?: string;
   summaryData?: any;
 }
 
@@ -64,45 +66,73 @@ async function sendGmailApi(
   subject: string,
   htmlBody: string,
   pdfBase64?: string,
-  pdfFilename?: string
+  pdfFilename?: string,
+  quickBriefBase64?: string,
+  dailyVelocityBase64?: string
 ) {
-  let rawEmail: string;
+  const boundaryMixed = `easygold_mixed_${Date.now()}`;
+  const boundaryRelated = `easygold_related_${Date.now()}`;
+  const filename = pdfFilename || 'Easy_Gold_Executive_Report.pdf';
+
+  let rawEmailParts: string[] = [
+    `From: ${fromEmail}`,
+    `To: ${toList.join(', ')}`,
+    `Subject: =?utf-8?B?${Buffer.from(subject).toString('base64')}?=`,
+    'MIME-Version: 1.0',
+    `Content-Type: multipart/mixed; boundary="${boundaryMixed}"`,
+    '',
+    `--${boundaryMixed}`,
+    `Content-Type: multipart/related; boundary="${boundaryRelated}"`,
+    '',
+    `--${boundaryRelated}`,
+    'Content-Type: text/html; charset=utf-8',
+    '',
+    htmlBody,
+  ];
+
+  if (quickBriefBase64) {
+    rawEmailParts.push(
+      '',
+      `--${boundaryRelated}`,
+      'Content-Type: image/jpeg; name="quick_brief.jpg"',
+      'Content-Transfer-Encoding: base64',
+      'Content-ID: <quick_brief>',
+      'Content-Disposition: inline; filename="quick_brief.jpg"',
+      '',
+      quickBriefBase64
+    );
+  }
+
+  if (dailyVelocityBase64) {
+    rawEmailParts.push(
+      '',
+      `--${boundaryRelated}`,
+      'Content-Type: image/jpeg; name="daily_velocity.jpg"',
+      'Content-Transfer-Encoding: base64',
+      'Content-ID: <daily_velocity>',
+      'Content-Disposition: inline; filename="daily_velocity.jpg"',
+      '',
+      dailyVelocityBase64
+    );
+  }
+
+  rawEmailParts.push('', `--${boundaryRelated}--`);
+
   if (pdfBase64) {
-    const boundary = `easygold_boundary_${Date.now()}`;
-    const filename = pdfFilename || 'Easy_Gold_Executive_Report.pdf';
-    rawEmail = [
-      `From: ${fromEmail}`,
-      `To: ${toList.join(', ')}`,
-      `Subject: =?utf-8?B?${Buffer.from(subject).toString('base64')}?=`,
-      'MIME-Version: 1.0',
-      `Content-Type: multipart/mixed; boundary="${boundary}"`,
+    rawEmailParts.push(
       '',
-      `--${boundary}`,
-      'Content-Type: text/html; charset=utf-8',
-      '',
-      htmlBody,
-      '',
-      `--${boundary}`,
+      `--${boundaryMixed}`,
       `Content-Type: application/pdf; name="${filename}"`,
       'Content-Transfer-Encoding: base64',
       `Content-Disposition: attachment; filename="${filename}"`,
       '',
-      pdfBase64,
-      '',
-      `--${boundary}--`,
-    ].join('\r\n');
-  } else {
-    rawEmail = [
-      `From: ${fromEmail}`,
-      `To: ${toList.join(', ')}`,
-      `Subject: =?utf-8?B?${Buffer.from(subject).toString('base64')}?=`,
-      'MIME-Version: 1.0',
-      'Content-Type: text/html; charset=utf-8',
-      '',
-      htmlBody,
-    ].join('\r\n');
+      pdfBase64
+    );
   }
 
+  rawEmailParts.push('', `--${boundaryMixed}--`);
+
+  const rawEmail = rawEmailParts.join('\r\n');
   const raw = Buffer.from(rawEmail).toString('base64url');
   const res = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
     method: 'POST',
@@ -122,69 +152,50 @@ async function sendGmailApi(
 /**
  * Builds high-fidelity HTML email template for Easy Gold Executive Daily Report
  */
-export function buildReportEmailHtml(reportDate: string, summaryData?: any): string {
+export function buildReportEmailHtml(
+  reportDate: string,
+  options?: { quickBriefBase64?: string; dailyVelocityBase64?: string; useCid?: boolean }
+): string {
+  const useCid = options?.useCid !== false;
+  const qbSrc = options?.quickBriefBase64
+    ? useCid
+      ? 'cid:quick_brief'
+      : `data:image/jpeg;base64,${options.quickBriefBase64}`
+    : 'cid:quick_brief';
+
+  const dvSrc = options?.dailyVelocityBase64
+    ? useCid
+      ? 'cid:daily_velocity'
+      : `data:image/jpeg;base64,${options.dailyVelocityBase64}`
+    : 'cid:daily_velocity';
+
   return `
 <!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Easy Gold Executive Daily Report</title>
-  <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 24px; color: #0f172a; }
-    .container { max-width: 640px; margin: 0 auto; background: #ffffff; border-radius: 16px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
-    .header { background: #0c4ca3; padding: 28px 32px; color: #ffffff; }
-    .badge { display: inline-block; background: rgba(255,255,255,0.2); padding: 4px 10px; border-radius: 9999px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; }
-    .title { margin: 0; font-size: 22px; font-weight: 800; }
-    .subtitle { margin: 6px 0 0 0; font-size: 13px; opacity: 0.85; }
-    .content { padding: 32px; }
-    .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin: 24px 0; }
-    .card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px; }
-    .card-label { font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 4px; }
-    .card-value { font-size: 20px; font-weight: 900; color: #0f172a; }
-    .footer { background: #f8fafc; padding: 20px 32px; border-top: 1px solid #e2e8f0; font-size: 11px; color: #64748b; text-align: center; }
-    .btn { display: inline-block; background: #0c4ca3; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 8px; font-weight: 700; font-size: 13px; margin-top: 20px; }
-  </style>
+  <title>Daily Easy Gold Marketing BI report - ${reportDate}</title>
 </head>
-<body>
-  <div class="container">
-    <div class="header">
-      <div class="badge">Official BI Dispatch</div>
-      <h1 class="title">Executive Daily Performance Report</h1>
-      <p class="subtitle">Easy Gold Marketing & Financial Analytics - ${reportDate}</p>
-    </div>
-    <div class="content">
-      <p style="font-size: 14px; line-height: 1.6; margin-top: 0;">
-        Dear Executive Team,<br><br>
-        The daily Easy Gold Business Intelligence synthesis for <strong>${reportDate}</strong> has been generated and validated. 
-        All core metrics (MTD Pace, MoM / YoY growth, and target run-rates) are compiled below.
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 24px; color: #0f172a;">
+  <div style="max-width: 680px; margin: 0 auto; background: #ffffff; border-radius: 16px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+    <div style="padding: 28px 32px;">
+      <p style="font-size: 15px; line-height: 1.6; margin: 0 0 20px 0; color: #0f172a;">
+        Dear Team,<br><br>
+        Please see the email attached for the more information about the Easy Gold Marketing Report up to <strong>${reportDate}</strong>
       </p>
 
-      <div class="grid">
-        <div class="card">
-          <div class="card-label">Report Period</div>
-          <div class="card-value">${reportDate}</div>
+      <div style="margin: 20px 0 0 0;">
+        <div style="margin-bottom: 20px; border-radius: 12px; overflow: hidden; border: 1px solid #e2e8f0; background: #ffffff;">
+          <img src="${qbSrc}" alt="Quick Brief Top Line Performance" style="width: 100%; height: auto; display: block; border: 0;" />
         </div>
-        <div class="card">
-          <div class="card-label">Dispatch Status</div>
-          <div class="card-value" style="color: #059669;">Verified Active</div>
+        <div style="margin-bottom: 12px; border-radius: 12px; overflow: hidden; border: 1px solid #e2e8f0; background: #ffffff;">
+          <img src="${dvSrc}" alt="Easy Gold Marketing Daily Performance - Daily Velocity" style="width: 100%; height: auto; display: block; border: 0;" />
         </div>
-      </div>
-
-      <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 12px; padding: 16px; margin: 20px 0;">
-        <h4 style="margin: 0 0 6px 0; color: #166534; font-size: 13px; font-weight: 800;">Automated Dispatch Confirmed</h4>
-        <p style="margin: 0; font-size: 12px; color: #15803d; line-height: 1.5;">
-          This email was triggered via the Easy Gold Executive BI Engine. You can view the real-time interactive charts, MTD forecasting, and run-rate variance directly on the executive dashboard.
-        </p>
-      </div>
-
-      <div style="text-align: center;">
-        <a href="http://localhost:3000" class="btn" style="color: #ffffff;">Open Executive Dashboard</a>
       </div>
     </div>
-    <div class="footer">
-      Easy Gold Executive Marketing & Financial Reporting System<br>
-      Automated dispatch time: ${new Date().toLocaleString('en-US', { timeZone: 'Asia/Vientiane' })} (ICT / GMT+7)
+    <div style="background: #f8fafc; padding: 14px 32px; border-top: 1px solid #e2e8f0; font-size: 11px; color: #64748b; text-align: center;">
+      Easy Gold Marketing &amp; Financial Reporting
     </div>
   </div>
 </body>
@@ -214,10 +225,16 @@ export async function sendExecutiveReportEmail(options: DispatchEmailOptions): P
         body: JSON.stringify({
           to: recipientList.join(', '),
           subject: options.subject,
-          html: buildReportEmailHtml(options.reportDate, options.summaryData),
+          html: buildReportEmailHtml(options.reportDate, {
+            quickBriefBase64: options.quickBriefBase64,
+            dailyVelocityBase64: options.dailyVelocityBase64,
+            useCid: true,
+          }),
           pdfBase64: options.pdfBase64 || null,
+          quickBriefBase64: options.quickBriefBase64 || null,
+          dailyVelocityBase64: options.dailyVelocityBase64 || null,
           reportDate: options.reportDate,
-          body: `Easy Gold Executive Daily BI Report for ${options.reportDate}`,
+          body: `Daily Easy Gold Marketing BI report for ${options.reportDate}`,
         }),
       });
 
@@ -249,9 +266,15 @@ export async function sendExecutiveReportEmail(options: DispatchEmailOptions): P
         sender,
         recipientList,
         options.subject,
-        buildReportEmailHtml(options.reportDate, options.summaryData),
+        buildReportEmailHtml(options.reportDate, {
+          quickBriefBase64: options.quickBriefBase64,
+          dailyVelocityBase64: options.dailyVelocityBase64,
+          useCid: true,
+        }),
         options.pdfBase64,
-        pdfFilename
+        pdfFilename,
+        options.quickBriefBase64,
+        options.dailyVelocityBase64
       );
       return {
         sent: true,
@@ -269,19 +292,42 @@ export async function sendExecutiveReportEmail(options: DispatchEmailOptions): P
   if (resendApiKey) {
     try {
       const fromEmail = process.env.RESEND_FROM || 'Easy Gold Report <onboarding@resend.dev>';
+      const resendAttachments: any[] = [];
+      if (options.pdfBase64) {
+        resendAttachments.push({
+          filename: pdfFilename,
+          content: options.pdfBase64,
+        });
+      }
+      if (options.quickBriefBase64) {
+        resendAttachments.push({
+          filename: 'quick_brief.jpg',
+          content: options.quickBriefBase64,
+          content_id: 'quick_brief',
+          disposition: 'inline',
+        });
+      }
+      if (options.dailyVelocityBase64) {
+        resendAttachments.push({
+          filename: 'daily_velocity.jpg',
+          content: options.dailyVelocityBase64,
+          content_id: 'daily_velocity',
+          disposition: 'inline',
+        });
+      }
+
       const resendPayload: Record<string, any> = {
         from: fromEmail,
         to: recipientList,
         subject: options.subject,
-        html: buildReportEmailHtml(options.reportDate, options.summaryData),
+        html: buildReportEmailHtml(options.reportDate, {
+          quickBriefBase64: options.quickBriefBase64,
+          dailyVelocityBase64: options.dailyVelocityBase64,
+          useCid: true,
+        }),
       };
-      if (options.pdfBase64) {
-        resendPayload.attachments = [
-          {
-            filename: pdfFilename,
-            content: options.pdfBase64,
-          },
-        ];
+      if (resendAttachments.length > 0) {
+        resendPayload.attachments = resendAttachments;
       }
       const res = await fetch('https://api.resend.com/emails', {
         method: 'POST',
@@ -333,20 +379,39 @@ export async function sendExecutiveReportEmail(options: DispatchEmailOptions): P
         },
       });
 
+      const attachments: any[] = [];
+      if (options.pdfBase64) {
+        attachments.push({
+          filename: pdfFilename,
+          content: Buffer.from(options.pdfBase64, 'base64'),
+          contentType: 'application/pdf',
+        });
+      }
+      if (options.quickBriefBase64) {
+        attachments.push({
+          filename: 'quick_brief.jpg',
+          content: Buffer.from(options.quickBriefBase64, 'base64'),
+          cid: 'quick_brief',
+        });
+      }
+      if (options.dailyVelocityBase64) {
+        attachments.push({
+          filename: 'daily_velocity.jpg',
+          content: Buffer.from(options.dailyVelocityBase64, 'base64'),
+          cid: 'daily_velocity',
+        });
+      }
+
       const info = await transporter.sendMail({
         from: `"${process.env.EMAIL_FROM_NAME || 'Easy Gold Executive Report'}" <${smtpUser}>`,
         to: recipientString,
         subject: options.subject,
-        html: buildReportEmailHtml(options.reportDate, options.summaryData),
-        attachments: options.pdfBase64
-          ? [
-              {
-                filename: pdfFilename,
-                content: Buffer.from(options.pdfBase64, 'base64'),
-                contentType: 'application/pdf',
-              },
-            ]
-          : undefined,
+        html: buildReportEmailHtml(options.reportDate, {
+          quickBriefBase64: options.quickBriefBase64,
+          dailyVelocityBase64: options.dailyVelocityBase64,
+          useCid: true,
+        }),
+        attachments: attachments.length > 0 ? attachments : undefined,
       });
 
       return {

@@ -179,45 +179,71 @@ async function getGoogleServiceAccountToken(serviceAccount, impersonateUser) {
   return tokenData.access_token;
 }
 
-async function sendGmailWithServiceAccount({ accessToken, fromEmail, toEmails, subject, htmlBody, pdfBase64, pdfFilename }) {
+async function sendGmailWithServiceAccount({ accessToken, fromEmail, toEmails, subject, htmlBody, pdfBase64, pdfFilename, quickBriefBase64, dailyVelocityBase64 }) {
   const recipients = Array.isArray(toEmails) ? toEmails.join(', ') : toEmails;
-  let rawEmail;
+  const boundaryMixed = `easygold_mixed_${Date.now()}`;
+  const boundaryRelated = `easygold_related_${Date.now()}`;
+  const filename = pdfFilename || 'Easy_Gold_Executive_Report.pdf';
+
+  let rawEmailParts = [
+    `From: ${fromEmail}`,
+    `To: ${recipients}`,
+    `Subject: =?utf-8?B?${base64UrlEncode(subject)}?=`,
+    'MIME-Version: 1.0',
+    `Content-Type: multipart/mixed; boundary="${boundaryMixed}"`,
+    '',
+    `--${boundaryMixed}`,
+    `Content-Type: multipart/related; boundary="${boundaryRelated}"`,
+    '',
+    `--${boundaryRelated}`,
+    'Content-Type: text/html; charset=utf-8',
+    '',
+    htmlBody,
+  ];
+
+  if (quickBriefBase64) {
+    rawEmailParts.push(
+      '',
+      `--${boundaryRelated}`,
+      'Content-Type: image/jpeg; name="quick_brief.jpg"',
+      'Content-Transfer-Encoding: base64',
+      'Content-ID: <quick_brief>',
+      'Content-Disposition: inline; filename="quick_brief.jpg"',
+      '',
+      quickBriefBase64
+    );
+  }
+
+  if (dailyVelocityBase64) {
+    rawEmailParts.push(
+      '',
+      `--${boundaryRelated}`,
+      'Content-Type: image/jpeg; name="daily_velocity.jpg"',
+      'Content-Transfer-Encoding: base64',
+      'Content-ID: <daily_velocity>',
+      'Content-Disposition: inline; filename="daily_velocity.jpg"',
+      '',
+      dailyVelocityBase64
+    );
+  }
+
+  rawEmailParts.push('', `--${boundaryRelated}--`);
+
   if (pdfBase64) {
-    const boundary = `easygold_boundary_${Date.now()}`;
-    const filename = pdfFilename || 'Easy_Gold_Executive_Report.pdf';
-    rawEmail = [
-      `From: ${fromEmail}`,
-      `To: ${recipients}`,
-      `Subject: =?utf-8?B?${base64UrlEncode(subject)}?=`,
-      'MIME-Version: 1.0',
-      `Content-Type: multipart/mixed; boundary="${boundary}"`,
+    rawEmailParts.push(
       '',
-      `--${boundary}`,
-      'Content-Type: text/html; charset=utf-8',
-      '',
-      htmlBody,
-      '',
-      `--${boundary}`,
+      `--${boundaryMixed}`,
       `Content-Type: application/pdf; name="${filename}"`,
       'Content-Transfer-Encoding: base64',
       `Content-Disposition: attachment; filename="${filename}"`,
       '',
-      pdfBase64,
-      '',
-      `--${boundary}--`,
-    ].join('\r\n');
-  } else {
-    rawEmail = [
-      `From: ${fromEmail}`,
-      `To: ${recipients}`,
-      `Subject: =?utf-8?B?${base64UrlEncode(subject)}?=`,
-      'MIME-Version: 1.0',
-      'Content-Type: text/html; charset=utf-8',
-      '',
-      htmlBody,
-    ].join('\r\n');
+      pdfBase64
+    );
   }
 
+  rawEmailParts.push('', `--${boundaryMixed}--`);
+
+  const rawEmail = rawEmailParts.join('\r\n');
   const encodedMessage = base64UrlEncode(rawEmail);
 
   const sendRes = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
@@ -2073,6 +2099,8 @@ WHERE created_at >= '${bwdStart}'
           triggerType: body.trigger_type || 'manual_test',
           pdfBase64: body.pdfBase64 || null,
           pdfHtml: body.pdfHtml || null,
+          quickBriefBase64: body.quickBriefBase64 || null,
+          dailyVelocityBase64: body.dailyVelocityBase64 || null,
         });
 
         return new Response(JSON.stringify({
@@ -2155,7 +2183,7 @@ async function syncActiveCampaignsWorker(env) {
 // ============================================================================
 // Shared Email Dispatch Helper (used by both UI manual test and cron trigger)
 // ============================================================================
-async function executeEmailDispatch({ env, recipientList, reportDate, triggerType = 'manual_test', pdfBase64 = null, pdfHtml = null }) {
+async function executeEmailDispatch({ env, recipientList, reportDate, triggerType = 'manual_test', pdfBase64 = null, pdfHtml = null, quickBriefBase64 = null, dailyVelocityBase64 = null }) {
   const recipient = recipientList.join(', ');
   const supabaseUrl = env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -2164,29 +2192,36 @@ async function executeEmailDispatch({ env, recipientList, reportDate, triggerTyp
   let emailError = null;
   let provider = 'simulated';
 
+  const qbSrc = quickBriefBase64 ? 'cid:quick_brief' : 'cid:quick_brief';
+  const dvSrc = dailyVelocityBase64 ? 'cid:daily_velocity' : 'cid:daily_velocity';
+
   const emailHtml = `
 <!DOCTYPE html>
 <html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Daily Easy Gold Marketing BI report - ${reportDate}</title>
+</head>
 <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f8fafc; margin: 0; padding: 24px; color: #0f172a;">
-  <div style="max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 16px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
-    <div style="background: #0c4ca3; padding: 24px 32px; color: #ffffff;">
-      <span style="background: rgba(255,255,255,0.2); padding: 4px 10px; border-radius: 9999px; font-size: 11px; font-weight: 700; text-transform: uppercase;">Official BI Dispatch</span>
-      <h1 style="margin: 8px 0 0 0; font-size: 20px; font-weight: 800;">Easy Gold Daily Performance Report</h1>
-      <p style="margin: 4px 0 0 0; font-size: 13px; opacity: 0.85;">Date: ${reportDate}</p>
-    </div>
+  <div style="max-width: 680px; margin: 0 auto; background: #ffffff; border-radius: 16px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
     <div style="padding: 28px 32px;">
-      <p style="font-size: 14px; line-height: 1.6; margin-top: 0;">
-        Dear Executive Team,<br><br>
-        The daily Easy Gold Business Intelligence synthesis for <strong>${reportDate}</strong> has been compiled.
-        All core metrics (MTD Pace, MoM / YoY growth, and target run-rates) are compiled and verified.
+      <p style="font-size: 15px; line-height: 1.6; margin: 0 0 20px 0; color: #0f172a;">
+        Dear Team,<br><br>
+        Please see the email attached for the more information about the Easy Gold Marketing Report up to <strong>${reportDate}</strong>
       </p>
-      <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 14px; margin: 20px 0;">
-        <strong style="color: #166534; font-size: 13px;">✓ Live Cloudflare Web Dispatch Verified</strong>
-        <p style="margin: 4px 0 0 0; font-size: 12px; color: #15803d;">This report was dispatched automatically from the live Easy Gold Cloudflare edge network.</p>
+
+      <div style="margin: 20px 0 0 0;">
+        <div style="margin-bottom: 20px; border-radius: 12px; overflow: hidden; border: 1px solid #e2e8f0; background: #ffffff;">
+          <img src="${qbSrc}" alt="Quick Brief Top Line Performance" style="width: 100%; height: auto; display: block; border: 0;" />
+        </div>
+        <div style="margin-bottom: 12px; border-radius: 12px; overflow: hidden; border: 1px solid #e2e8f0; background: #ffffff;">
+          <img src="${dvSrc}" alt="Easy Gold Marketing Daily Performance - Daily Velocity" style="width: 100%; height: auto; display: block; border: 0;" />
+        </div>
       </div>
     </div>
-    <div style="background: #f8fafc; padding: 16px 32px; border-top: 1px solid #e2e8f0; font-size: 11px; color: #64748b; text-align: center;">
-      Easy Gold Marketing & Financial Reporting • Dispatched to ${recipient}
+    <div style="background: #f8fafc; padding: 14px 32px; border-top: 1px solid #e2e8f0; font-size: 11px; color: #64748b; text-align: center;">
+      Easy Gold Marketing &amp; Financial Reporting • Dispatched to ${recipient}
     </div>
   </div>
 </body>
@@ -2201,11 +2236,13 @@ async function executeEmailDispatch({ env, recipientList, reportDate, triggerTyp
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           to: recipientList.join(', '),
-          subject: `Easy Gold Executive Daily BI Report - ${reportDate}`,
+          subject: `Daily Easy Gold Marketing BI report - ${reportDate}`,
           html: emailHtml,
           pdfBase64: pdfBase64,
           pdfHtml: pdfHtml,
-          body: `Easy Gold Executive Daily BI Report for ${reportDate}`,
+          quickBriefBase64: quickBriefBase64,
+          dailyVelocityBase64: dailyVelocityBase64,
+          body: `Daily Easy Gold Marketing BI report for ${reportDate}`,
           reportDate: reportDate,
         }),
       });
@@ -2245,10 +2282,12 @@ async function executeEmailDispatch({ env, recipientList, reportDate, triggerTyp
           accessToken,
           fromEmail: sender,
           toEmails: recipientList,
-          subject: `Easy Gold Executive Daily BI Report - ${reportDate}`,
+          subject: `Daily Easy Gold Marketing BI report - ${reportDate}`,
           htmlBody: emailHtml,
           pdfBase64: pdfBase64,
           pdfFilename: `Easy_Gold_Executive_Report_${safeDate}.pdf`,
+          quickBriefBase64: quickBriefBase64,
+          dailyVelocityBase64: dailyVelocityBase64,
         });
 
         emailSent = true;
@@ -2264,20 +2303,37 @@ async function executeEmailDispatch({ env, recipientList, reportDate, triggerTyp
   if (!emailSent && env.RESEND_API_KEY) {
     try {
       const safeDate = (reportDate || 'Daily').replace(/\//g, '-');
+      const resendAttachments = [];
+      if (pdfBase64) {
+        resendAttachments.push({
+          filename: `Easy_Gold_Executive_Report_${safeDate}.pdf`,
+          content: pdfBase64,
+        });
+      }
+      if (quickBriefBase64) {
+        resendAttachments.push({
+          filename: 'quick_brief.jpg',
+          content: quickBriefBase64,
+          content_id: 'quick_brief',
+          disposition: 'inline',
+        });
+      }
+      if (dailyVelocityBase64) {
+        resendAttachments.push({
+          filename: 'daily_velocity.jpg',
+          content: dailyVelocityBase64,
+          content_id: 'daily_velocity',
+          disposition: 'inline',
+        });
+      }
+
       const resendBody = {
         from: env.RESEND_FROM || 'Easy Gold Report <onboarding@resend.dev>',
         to: recipientList,
-        subject: `Easy Gold Executive Daily BI Report - ${reportDate}`,
+        subject: `Daily Easy Gold Marketing BI report - ${reportDate}`,
         html: emailHtml,
+        attachments: resendAttachments.length > 0 ? resendAttachments : undefined,
       };
-      if (pdfBase64) {
-        resendBody.attachments = [
-          {
-            filename: `Easy_Gold_Executive_Report_${safeDate}.pdf`,
-            content: pdfBase64,
-          },
-        ];
-      }
       const resendRes = await fetch('https://api.resend.com/emails', {
         method: 'POST',
         headers: {
@@ -2317,7 +2373,7 @@ async function executeEmailDispatch({ env, recipientList, reportDate, triggerTyp
           recipient: recipient,
           status: emailSent || (!env.GOOGLE_APPS_SCRIPT_URL && !env.GOOGLE_SERVICE_ACCOUNT_KEY && !env.RESEND_API_KEY) ? 'success' : 'failed',
           trigger_type: triggerType,
-          subject: `Easy Gold Executive Daily BI Report - ${reportDate}`,
+          subject: `Daily Easy Gold Marketing BI report - ${reportDate}`,
           error_message: emailError || (!emailSent ? 'Simulated dispatch (No live credentials configured in Cloudflare)' : null),
           execution_duration_ms: 150,
         }),
@@ -2484,7 +2540,7 @@ async function handleCronTrigger(env, forceRun = false) {
             recipient: emailList.join(', '),
             status: 'pending',
             trigger_type: 'scheduled',
-            subject: `Easy Gold Executive Daily BI Report - ${todayDate} (Generating PDF...)`,
+            subject: `Daily Easy Gold Marketing BI report - ${todayDate} (Generating PDF...)`,
             error_message: null,
             execution_duration_ms: 0,
           }),

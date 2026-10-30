@@ -27,7 +27,7 @@ function doPost(e) {
       throw new Error("Missing 'to' recipient address");
     }
 
-    var subject = data.subject || "Easy Gold Executive Daily BI Report";
+    var subject = data.subject || "Daily Easy Gold Marketing BI report";
     var htmlBody = data.html || "<p>Daily Report Dispatch</p>";
     var plainBody = data.body || "Please open in an HTML-compatible email client.";
 
@@ -44,12 +44,26 @@ function doPost(e) {
       attachments.push(visualPdfBlob);
     }
 
+    // Prepare inline CID images for GmailApp
+    var inlineImages = {};
+    if (data.quickBriefBase64) {
+      var qbBytes = Utilities.base64Decode(String(data.quickBriefBase64).replace(/^data:image\/\w+;base64,/, '').replace(/\s/g, ''));
+      inlineImages["quick_brief"] = Utilities.newBlob(qbBytes, 'image/jpeg', 'quick_brief.jpg');
+    }
+    if (data.dailyVelocityBase64) {
+      var dvBytes = Utilities.base64Decode(String(data.dailyVelocityBase64).replace(/^data:image\/\w+;base64,/, '').replace(/\s/g, ''));
+      inlineImages["daily_velocity"] = Utilities.newBlob(dvBytes, 'image/jpeg', 'daily_velocity.jpg');
+    }
+
     var options = {
       htmlBody: htmlBody,
       name: "Easy Gold Executive Report"
     };
     if (attachments.length > 0) {
       options.attachments = attachments;
+    }
+    if (Object.keys(inlineImages).length > 0) {
+      options.inlineImages = inlineImages;
     }
 
     // Send email using native GmailApp

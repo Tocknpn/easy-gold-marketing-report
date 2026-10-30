@@ -255,12 +255,14 @@ export function ReportingPdfModal({
     }
   }, [isOpen]);
 
-  // Expose PDF generation hook on window for automated Headless Chrome daily email dispatch
+  // Expose PDF generation hook and email snapshot capture on window for automated Headless Chrome daily email dispatch
   useEffect(() => {
     if (typeof window !== 'undefined' && isOpen) {
       (window as any).__generateExecutivePdfBase64 = () => generateExecutivePdf('base64');
+      (window as any).__captureEmailSnapshots = () => captureEmailSnapshots();
       return () => {
         delete (window as any).__generateExecutivePdfBase64;
+        delete (window as any).__captureEmailSnapshots;
       };
     }
   });
@@ -307,6 +309,90 @@ export function ReportingPdfModal({
       setSettingsSaveMsg({ type: 'error', text: `Error saving settings: ${err?.message}` });
     } finally {
       setIsSavingSettings(false);
+    }
+  };
+
+  // Capture Email Inline Snapshots (Quick Brief 5 cards & Page 2 Daily Velocity)
+  const captureEmailSnapshots = async (): Promise<{ quickBriefBase64?: string; dailyVelocityBase64?: string }> => {
+    const previewContainer = document.getElementById('report-preview-container');
+    const prevDisplay = previewContainer ? previewContainer.style.display : '';
+    const prevPosition = previewContainer ? previewContainer.style.position : '';
+    const prevZIndex = previewContainer ? previewContainer.style.zIndex : '';
+    const prevWidth = previewContainer ? previewContainer.style.width : '';
+    const prevMaxWidth = previewContainer ? previewContainer.style.maxWidth : '';
+    const prevOverflow = previewContainer ? previewContainer.style.overflow : '';
+    const prevOpacity = previewContainer ? previewContainer.style.opacity : '';
+    const prevPadding = previewContainer ? previewContainer.style.padding : '';
+
+    try {
+      if (previewContainer) {
+        previewContainer.style.display = 'block';
+        previewContainer.style.position = 'fixed';
+        previewContainer.style.top = '0px';
+        previewContainer.style.left = '0px';
+        previewContainer.style.width = '1920px';
+        previewContainer.style.maxWidth = 'none';
+        previewContainer.style.padding = '0px';
+        previewContainer.style.overflow = 'visible';
+        previewContainer.style.zIndex = '-9999';
+        previewContainer.style.opacity = '1';
+        previewContainer.classList.remove('hidden');
+        void previewContainer.offsetHeight;
+      }
+
+      if (typeof document !== 'undefined' && document.fonts && document.fonts.ready) {
+        await document.fonts.ready;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 300));
+
+      const { domToCanvas } = await import('modern-screenshot');
+      let quickBriefBase64: string | undefined = undefined;
+      let dailyVelocityBase64: string | undefined = undefined;
+
+      const qbElem = document.getElementById('email-snap-quick-brief');
+      if (qbElem) {
+        const qbCanvas = await domToCanvas(qbElem, {
+          scale: 2.0,
+          backgroundColor: '#ffffff',
+          filter: (node) => !(node instanceof HTMLElement && node.dataset.html2canvasIgnore === 'true'),
+        });
+        if (qbCanvas && qbCanvas.width > 0 && qbCanvas.height > 0) {
+          quickBriefBase64 = qbCanvas.toDataURL('image/jpeg', 0.94).split(',')[1];
+        }
+      }
+
+      const p2Elem = document.getElementById('pdf-page-2');
+      if (p2Elem) {
+        const p2Canvas = await domToCanvas(p2Elem, {
+          scale: 2.0,
+          backgroundColor: '#ffffff',
+          width: 1920,
+          height: 1080,
+          filter: (node) => !(node instanceof HTMLElement && node.dataset.html2canvasIgnore === 'true'),
+        });
+        if (p2Canvas && p2Canvas.width > 0 && p2Canvas.height > 0) {
+          dailyVelocityBase64 = p2Canvas.toDataURL('image/jpeg', 0.94).split(',')[1];
+        }
+      }
+
+      return { quickBriefBase64, dailyVelocityBase64 };
+    } catch (e) {
+      console.warn('Failed capturing email snapshots:', e);
+      return {};
+    } finally {
+      if (previewContainer) {
+        previewContainer.style.display = prevDisplay;
+        previewContainer.style.position = prevPosition;
+        previewContainer.style.zIndex = prevZIndex;
+        previewContainer.style.width = prevWidth;
+        previewContainer.style.maxWidth = prevMaxWidth;
+        previewContainer.style.overflow = prevOverflow;
+        previewContainer.style.opacity = prevOpacity;
+        previewContainer.style.padding = prevPadding;
+        if (activeTab !== 'preview') {
+          previewContainer.classList.add('hidden');
+        }
+      }
     }
   };
 
@@ -461,13 +547,19 @@ export function ReportingPdfModal({
         throw new Error('Failed to generate high-definition visual report PDF');
       }
 
+      const snapshots = await captureEmailSnapshots();
+      const safeReportDate = momMtd?.as_of_date || new Date().toISOString().split('T')[0];
+
       const res = await fetch('/api/reports/send-daily-email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           recipient: emailList,
           trigger_type: 'manual_test',
+          report_date: safeReportDate,
           pdfBase64,
+          quickBriefBase64: snapshots.quickBriefBase64,
+          dailyVelocityBase64: snapshots.dailyVelocityBase64,
         }),
       });
 

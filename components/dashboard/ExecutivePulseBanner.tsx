@@ -70,7 +70,7 @@ export function ExecutivePulseBanner({
   const isWeeklyPositive = weeklyWoWVariance >= 0;
 
   return (
-    <div className="w-full bg-white text-slate-900 rounded-2xl p-3 sm:p-4 shadow-xs border border-slate-200/90 mb-4 transition-all">
+    <div id="email-snap-quick-brief" className="w-full bg-white text-slate-900 rounded-2xl p-3 sm:p-4 shadow-xs border border-slate-200/90 mb-4 transition-all">
       {/* Top Header Label */}
       <div className="flex items-center justify-between pb-2.5 mb-2.5 border-b border-slate-100">
         <div className="flex items-center gap-2">

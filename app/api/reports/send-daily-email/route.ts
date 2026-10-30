@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
     const supabase = createServerSupabaseClient();
     const creds = getGoogleServiceAccountCredentials();
 
-    let subject = `Easy Gold Executive Daily BI Report - ${reportDate}`;
+    let subject = `Daily Easy Gold Marketing BI report - ${reportDate}`;
 
     // Attempt real email delivery via configured transport (Google Apps Script, Gmail API, SMTP, or Resend)
     const dispatchResult = await sendExecutiveReportEmail({
@@ -22,6 +22,8 @@ export async function POST(request: NextRequest) {
       subject,
       reportDate,
       pdfBase64: body.pdfBase64 || undefined,
+      quickBriefBase64: body.quickBriefBase64 || undefined,
+      dailyVelocityBase64: body.dailyVelocityBase64 || undefined,
       summaryData: body.summaryData || undefined,
     });
 
