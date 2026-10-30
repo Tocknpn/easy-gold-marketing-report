@@ -90,7 +90,7 @@ export interface CampaignTargetAchievementPayload {
   is_ended: boolean;
   is_upcoming: boolean;
   status: CampaignStatus;
-
+  
   // EC Target
   ec_actual_mtd: number;
   ec_rr_projected: number;
@@ -105,7 +105,7 @@ export interface CampaignTargetAchievementPayload {
   unique_users_pct_hit_mtd: number;
   unique_users_pct_hit_rr: number;
   unique_users_mode_label: string;
-
+  
   // NC Target
   nc_actual_mtd: number;
   nc_rr_projected: number;
@@ -113,7 +113,7 @@ export interface CampaignTargetAchievementPayload {
   nc_pct_hit_mtd: number;             // e.g. 14%
   nc_pct_hit_rr: number;              // e.g. 34%
   nc_mode_label: string;
-
+  
   // Revenue Target
   revenue_target_mil?: number;
   mtd_buy_value_mil_lak: number;
@@ -131,7 +131,7 @@ export interface CampaignTargetAchievementPayload {
   // Ticket Size
   mtd_ticket_size_g: number;
   rr_ticket_size_g: number;
-
+  
   // Daily Averages & Pacing
   avg_buy_trans_target_per_day: number;
   act_buy_trans_per_day: number;
@@ -144,7 +144,7 @@ export interface CampaignBackwardComparisonPayload {
   mtd_days: number;
   backward_start: string;
   backward_end: string;
-
+  
   // Buy Transaction
   buy_trans_condition_label: string;
   buy_trans_mtd: number;
@@ -156,27 +156,27 @@ export interface CampaignBackwardComparisonPayload {
   unique_users_backward: number;
   unique_users_pct_compare: number;
   unique_users_mode_label: string;
-
+  
   // Buy Value
   buy_value_lak_mtd: number;
   buy_value_lak_backward: number;
   buy_value_pct_compare: number;      // e.g. +32%
-
+  
   // Buy Weight
   buy_weight_g_mtd: number;
   buy_weight_g_backward: number;
   buy_weight_pct_compare: number;     // e.g. +29%
-
+  
   // Buy Ticket Size
   ticket_size_g_mtd: number;
   ticket_size_g_backward: number;
   ticket_size_pct_compare: number;    // e.g. -4%
-
+  
   // New Customer (NC) Acquisition
   nc_mtd?: number;
   nc_backward?: number;
   nc_pct_compare?: number;            // e.g. -21%
-
+  
   // Baseline Normal RR comparison
   baseline_normal_rr_per_day?: number;
   avg_campaign_daily_actual?: number;
