@@ -2447,61 +2447,75 @@ async function handleCronTrigger(env, forceRun = false) {
     // Trigger GitHub Action to generate 5-page 16:9 PDF via Headless Chromium
     // Never send a text-only email without PDF on scheduled runs!
     const ghRepo = env.GITHUB_REPO || 'Tocknpn/easy-gold-marketing-report';
-    if (env.GITHUB_PAT) {
-      try {
-        const ghRes = await fetch(`https://api.github.com/repos/${ghRepo}/actions/workflows/daily-bi-report.yml/dispatches`, {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${env.GITHUB_PAT}`,
-            Accept: 'application/vnd.github.v3+json',
-            'User-Agent': 'Easy-Gold-Cloudflare-Worker',
-          },
-          body: JSON.stringify({ ref: 'main', inputs: { force: String(forceRun) } }),
-        });
-        if (ghRes.ok) {
-          // Record pending state so subsequent 1-minute cron ticks don't re-trigger while Chromium builds PDF
-          await fetch(`${supabaseUrl}/rest/v1/report_delivery_logs`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              apikey: supabaseKey,
-              Authorization: `Bearer ${supabaseKey}`,
-            },
-            body: JSON.stringify({
-              report_date: todayDate,
-              sent_at: new Date().toISOString(),
-              recipient: emailList.join(', '),
-              status: 'pending',
-              trigger_type: 'scheduled',
-              subject: `Easy Gold Executive Daily BI Report - ${todayDate} (Generating PDF...)`,
-              error_message: null,
-              execution_duration_ms: 0,
-            }),
-          }).catch(() => {});
-
-          return {
-            triggered: true,
-            method: 'github_actions_chromium',
-            reportDate: todayDate,
-            recipients: emailList,
-            message: 'Dispatched automated Chromium workflow with 5-page PDF attachment',
-          };
-        }
-      } catch (ghErr) {
-        console.warn('GitHub Action trigger error:', ghErr);
-      }
+    if (!env.GITHUB_PAT) {
+      console.warn('handleCronTrigger: GITHUB_PAT secret is missing from Cloudflare Worker environment.');
+      return {
+        skipped: true,
+        error: 'GITHUB_PAT secret missing on Cloudflare Worker. Cannot trigger GitHub Actions workflow_dispatch.',
+        time: currentHHMM,
+        targetTime: targetHHMM,
+        todayDate,
+        recipients: emailList,
+      };
     }
 
-    // Do NOT send a text-only email or write a 'success' log from Worker cron so GitHub Actions scheduled workflow will send the PDF email
-    return {
-      skipped: true,
-      method: 'deferred_to_github_actions_pdf_runner',
-      time: currentHHMM,
-      targetTime: targetHHMM,
-      todayDate,
-      recipients: emailList,
-      reason: 'Deferred to GitHub Actions Headless Chrome runner so scheduled email always includes the 5-page PDF attachment.',
-    };
+    try {
+      const ghRes = await fetch(`https://api.github.com/repos/${ghRepo}/actions/workflows/daily-bi-report.yml/dispatches`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${env.GITHUB_PAT}`,
+          Accept: 'application/vnd.github.v3+json',
+          'User-Agent': 'Easy-Gold-Cloudflare-Worker',
+        },
+        body: JSON.stringify({ ref: 'main', inputs: { force: String(forceRun) } }),
+      });
+      if (ghRes.ok) {
+        // Record pending state so subsequent 1-minute cron ticks don't re-trigger while Chromium builds PDF
+        await fetch(`${supabaseUrl}/rest/v1/report_delivery_logs`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            apikey: supabaseKey,
+            Authorization: `Bearer ${supabaseKey}`,
+          },
+          body: JSON.stringify({
+            report_date: todayDate,
+            sent_at: new Date().toISOString(),
+            recipient: emailList.join(', '),
+            status: 'pending',
+            trigger_type: 'scheduled',
+            subject: `Easy Gold Executive Daily BI Report - ${todayDate} (Generating PDF...)`,
+            error_message: null,
+            execution_duration_ms: 0,
+          }),
+        }).catch(() => {});
+
+        return {
+          triggered: true,
+          method: 'github_actions_chromium',
+          reportDate: todayDate,
+          recipients: emailList,
+          message: 'Dispatched automated Chromium workflow with 5-page PDF attachment',
+        };
+      } else {
+        const errText = await ghRes.text().catch(() => '');
+        console.warn(`GitHub Actions dispatch error HTTP ${ghRes.status}:`, errText);
+        return {
+          triggered: false,
+          error: `GitHub Actions dispatch returned HTTP ${ghRes.status}: ${errText}`,
+          time: currentHHMM,
+          targetTime: targetHHMM,
+        };
+      }
+    } catch (ghErr) {
+      console.warn('GitHub Action trigger network error:', ghErr);
+      return {
+        triggered: false,
+        error: `GitHub Action trigger network error: ${ghErr.message}`,
+        time: currentHHMM,
+        targetTime: targetHHMM,
+      };
+    }
   } catch (err) {
     console.error('handleCronTrigger execution error:', err);
     return { error: err?.message || String(err) };
