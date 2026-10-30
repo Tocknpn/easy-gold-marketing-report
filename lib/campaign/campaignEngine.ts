@@ -63,6 +63,8 @@ export function computeCampaignAnalytics(
   liveData?: {
     ec_actual_mtd?: number;
     nc_actual_mtd?: number;
+    unique_users_actual_mtd?: number;
+    mtd_unique_users?: number;
     mtd_buy_weight_g?: number;
     mtd_buy_value_mil_lak?: number;
     backward_trans?: number;
@@ -70,6 +72,8 @@ export function computeCampaignAnalytics(
     backward_weight_g?: number;
     backward_ticket?: number;
     backward_nc?: number;
+    backward_unique_users?: number;
+    backward_users?: number;
     max_db_date?: string;
   }
 ): CampaignAnalyticsPayload {
@@ -219,11 +223,13 @@ export function computeCampaignAnalytics(
   const conditionDailyBaseline = systemDailyBase * bankFactor * thresholdSelectivity;
 
   let ec_actual_mtd: number;
+  let unique_users_actual_mtd: number;
   let nc_actual_mtd: number;
   let mtd_buy_weight_g: number;
   let mtd_buy_value_mil_lak: number;
 
   let backward_trans: number;
+  let backward_unique_users: number;
   let backward_val_mil: number;
   let backward_weight_g: number;
   let backward_ticket: number;
@@ -237,9 +243,11 @@ export function computeCampaignAnalytics(
   const effectiveLive = liveData || (config.actual_gold_weight_g !== undefined || config.backward_trans !== undefined ? {
     ec_actual_mtd: config.customers_actual,
     nc_actual_mtd: config.new_cust_actual,
+    unique_users_actual_mtd: config.unique_users_actual,
     mtd_buy_weight_g: config.actual_gold_weight_g,
     mtd_buy_value_mil_lak: config.actual_revenue_mil,
     backward_trans: config.backward_trans,
+    backward_unique_users: (config as any).backward_unique_users,
     backward_val_mil: config.backward_val_mil,
     backward_weight_g: config.backward_weight_g,
     backward_nc: config.backward_nc,
@@ -251,6 +259,10 @@ export function computeCampaignAnalytics(
   if (hasLiveEc) {
     // Priority 1: Supabase Live Database Aggregation or Persisted Snapshot
     ec_actual_mtd = effectiveLive!.ec_actual_mtd ?? (config.customers_actual || 0);
+    unique_users_actual_mtd = effectiveLive!.unique_users_actual_mtd 
+      ?? (effectiveLive as any)!.mtd_unique_users 
+      ?? config.unique_users_actual 
+      ?? Math.round(ec_actual_mtd * 0.72);
     nc_actual_mtd = effectiveLive!.nc_actual_mtd ?? Math.round(ec_actual_mtd * 0.055);
     mtd_buy_weight_g = effectiveLive!.mtd_buy_weight_g ?? Number((ec_actual_mtd * avgTicketWeightG).toFixed(1));
     mtd_buy_value_mil_lak = effectiveLive!.mtd_buy_value_mil_lak ?? Number(((ec_actual_mtd * avgTicketValueLak) / 1000000).toFixed(1));
@@ -258,6 +270,11 @@ export function computeCampaignAnalytics(
     backward_trans = (effectiveLive!.backward_trans && effectiveLive!.backward_trans > 0) 
       ? effectiveLive!.backward_trans 
       : Math.round(ec_actual_mtd * 0.74);
+    backward_unique_users = (effectiveLive!.backward_unique_users && effectiveLive!.backward_unique_users > 0)
+      ? effectiveLive!.backward_unique_users
+      : ((effectiveLive as any)!.backward_users && (effectiveLive as any)!.backward_users > 0)
+      ? (effectiveLive as any)!.backward_users
+      : Math.round(backward_trans * 0.72);
     backward_val_mil = (effectiveLive!.backward_val_mil && effectiveLive!.backward_val_mil > 0) 
       ? effectiveLive!.backward_val_mil 
       : Number((mtd_buy_value_mil_lak * 0.75).toFixed(1));
@@ -271,6 +288,7 @@ export function computeCampaignAnalytics(
   } else if (hasValidCustomActual && config.customers_actual) {
     // Priority 2: Explicitly calibrated customer actuals (never drop to 0)
     ec_actual_mtd = config.customers_actual;
+    unique_users_actual_mtd = config.unique_users_actual || Math.round(ec_actual_mtd * 0.72);
     nc_actual_mtd = config.new_cust_actual && config.new_cust_actual > 0 
       ? config.new_cust_actual 
       : Math.round(ec_actual_mtd * 0.055);
@@ -279,6 +297,7 @@ export function computeCampaignAnalytics(
       mtd_buy_weight_g = 393521.8;
       mtd_buy_value_mil_lak = 1238167.9;
       backward_trans = 107937;
+      backward_unique_users = 77715;
       backward_val_mil = 1085248.9;
       backward_weight_g = 350944.6;
       backward_ticket = 3.0;
@@ -288,6 +307,7 @@ export function computeCampaignAnalytics(
       mtd_buy_value_mil_lak = Number(((ec_actual_mtd * avgTicketValueLak) / 1000000).toFixed(1));
 
       backward_trans = Math.max(1, Math.round(ec_actual_mtd / 1.35));
+      backward_unique_users = Math.max(1, Math.round(unique_users_actual_mtd / 1.35));
       backward_val_mil = Number(((backward_trans * avgTicketValueLak) / 1000000).toFixed(1));
       backward_weight_g = Number((backward_trans * avgTicketWeightG).toFixed(1));
       backward_ticket = avgTicketWeightG;
@@ -296,6 +316,7 @@ export function computeCampaignAnalytics(
   } else if (is_upcoming) {
     // Priority 3: Upcoming campaign (Starts in future -> 0 MTD volume, benchmark is pre-campaign horizon)
     ec_actual_mtd = 0;
+    unique_users_actual_mtd = 0;
     nc_actual_mtd = 0;
     mtd_buy_weight_g = 0;
     mtd_buy_value_mil_lak = 0;
@@ -303,6 +324,7 @@ export function computeCampaignAnalytics(
     // Backward baseline over total_days prior to campaign start for this specific condition & bank
     const bwdDaily = conditionDailyBaseline * 0.74;
     backward_trans = Math.max(1, Math.round(bwdDaily * backward_days));
+    backward_unique_users = Math.max(1, Math.round(backward_trans * 0.72));
     backward_weight_g = Number((backward_trans * avgTicketWeightG).toFixed(1));
     backward_val_mil = Number(((backward_trans * avgTicketValueLak) / 1000000).toFixed(1));
     backward_ticket = avgTicketWeightG;
@@ -315,11 +337,14 @@ export function computeCampaignAnalytics(
       // Pacing aligns with planned target and elapsed progress (averaging ~98.5% healthy campaign run-rate)
       const pacingRatio = 0.985;
       ec_actual_mtd = Math.max(1, Math.round(config.ec_target * timeRatio * pacingRatio));
+      const targetUu = config.unique_users_target || Math.round(config.ec_target * 0.72);
+      unique_users_actual_mtd = Math.max(1, Math.round(targetUu * timeRatio * pacingRatio));
 
       const targetNc = config.nc_target > 0 ? config.nc_target : Math.round(config.ec_target * 0.056);
       nc_actual_mtd = Math.max(1, Math.round(targetNc * timeRatio * 0.98));
     } else {
       ec_actual_mtd = Math.max(1, Math.round(conditionDailyBaseline * elapsed_days));
+      unique_users_actual_mtd = Math.max(1, Math.round(ec_actual_mtd * 0.72));
       nc_actual_mtd = Math.max(1, Math.round(ec_actual_mtd * 0.055));
     }
 
@@ -328,6 +353,7 @@ export function computeCampaignAnalytics(
 
     // Backward baseline proportional to elapsed duration: normal historical pacing without promo lift (~+35% campaign lift)
     backward_trans = Math.max(1, Math.round(ec_actual_mtd / 1.35));
+    backward_unique_users = Math.max(1, Math.round(unique_users_actual_mtd / 1.35));
     backward_weight_g = Number((backward_trans * avgTicketWeightG).toFixed(1));
     backward_val_mil = Number(((backward_trans * avgTicketValueLak) / 1000000).toFixed(1));
     backward_ticket = avgTicketWeightG;
@@ -344,6 +370,13 @@ export function computeCampaignAnalytics(
     : is_ended 
     ? ec_actual_mtd 
     : Math.round(ec_actual_mtd * runRateFactor);
+
+  const unique_users_target = config.unique_users_target || 0;
+  const unique_users_rr_projected = is_upcoming
+    ? unique_users_target
+    : is_ended
+    ? unique_users_actual_mtd
+    : Math.round(unique_users_actual_mtd * runRateFactor);
 
   const nc_rr_projected = is_upcoming 
     ? config.nc_target 
@@ -376,6 +409,9 @@ export function computeCampaignAnalytics(
   const ec_pct_hit_mtd = ec_target > 0 ? Math.round((ec_actual_mtd / ec_target) * 100) : 0;
   const ec_pct_hit_rr = ec_target > 0 ? Math.round((ec_rr_projected / ec_target) * 100) : 0;
 
+  const unique_users_pct_hit_mtd = unique_users_target > 0 ? Math.round((unique_users_actual_mtd / unique_users_target) * 100) : 0;
+  const unique_users_pct_hit_rr = unique_users_target > 0 ? Math.round((unique_users_rr_projected / unique_users_target) * 100) : 0;
+
   const nc_pct_hit_mtd = nc_target > 0 ? Math.round((nc_actual_mtd / nc_target) * 100) : 0;
   const nc_pct_hit_rr = nc_target > 0 ? Math.round((nc_rr_projected / nc_target) * 100) : 0;
 
@@ -396,6 +432,14 @@ export function computeCampaignAnalytics(
     ? Math.round(((act_buy_trans_per_day - avg_buy_trans_target_per_day) / avg_buy_trans_target_per_day) * 100)
     : 0;
 
+  const unique_users_mode_label = (config.unique_users_filter_mode === 'time_only' || rules.length === 0)
+    ? 'Unique Users (Time Only)'
+    : 'Unique Users (In Tier)';
+
+  const nc_mode_label = config.nc_qualification_mode === 'first_purchase_tier'
+    ? '1st Buy @ Reg Time (Tier)'
+    : 'All Registers';
+
   const targetAchievement: CampaignTargetAchievementPayload = {
     elapsed_days,
     total_days,
@@ -410,11 +454,18 @@ export function computeCampaignAnalytics(
     ec_target,
     ec_pct_hit_mtd,
     ec_pct_hit_rr,
+    unique_users_actual_mtd,
+    unique_users_rr_projected,
+    unique_users_target,
+    unique_users_pct_hit_mtd,
+    unique_users_pct_hit_rr,
+    unique_users_mode_label,
     nc_actual_mtd,
     nc_rr_projected,
     nc_target,
     nc_pct_hit_mtd,
     nc_pct_hit_rr,
+    nc_mode_label,
     revenue_target_mil: revenue_target,
     mtd_buy_value_mil_lak,
     rr_buy_value_mil_lak,
@@ -440,6 +491,7 @@ export function computeCampaignAnalytics(
   };
 
   const buy_trans_pct_compare = calcPctGrowth(ec_actual_mtd, backward_trans);
+  const unique_users_pct_compare = calcPctGrowth(unique_users_actual_mtd, backward_unique_users);
   const buy_value_pct_compare = calcPctGrowth(mtd_buy_value_mil_lak, backward_val_mil);
   const buy_weight_pct_compare = calcPctGrowth(mtd_buy_weight_g, backward_weight_g);
   const ticket_size_pct_compare = calcPctGrowth(mtd_ticket_size_g, backward_ticket);
@@ -460,6 +512,10 @@ export function computeCampaignAnalytics(
     buy_trans_mtd: ec_actual_mtd,
     buy_trans_backward: backward_trans,
     buy_trans_pct_compare,
+    unique_users_mtd: unique_users_actual_mtd,
+    unique_users_backward: backward_unique_users,
+    unique_users_pct_compare,
+    unique_users_mode_label,
     buy_value_lak_mtd: mtd_buy_value_mil_lak,
     buy_value_lak_backward: backward_val_mil,
     buy_value_pct_compare,

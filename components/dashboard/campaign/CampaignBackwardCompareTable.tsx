@@ -176,6 +176,38 @@ export function CampaignBackwardCompareTable({ data, asOfDate, isLoading = false
               </td>
             </tr>
 
+            {/* 1.5 Unique Users (Requirement #1 & #2) */}
+            <tr className="hover:bg-cyan-50/30 transition-colors">
+              <td className="py-2 px-3 border-r border-slate-200 font-sans">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="w-2 h-2 rounded-full bg-cyan-600 shrink-0" />
+                  <span className="font-bold text-slate-900">Unique Users</span>
+                  <span className="text-[10px] text-cyan-800 bg-cyan-50 px-1.5 py-0.5 rounded-sm font-semibold border border-cyan-200">
+                    {data.unique_users_mode_label || 'Within Tier'}
+                  </span>
+                </div>
+              </td>
+              <td className="py-2 px-3 border-r border-slate-200 text-right align-middle">
+                <span className="text-xs font-black text-cyan-950">
+                  {formatNum(data.unique_users_mtd)}
+                </span>
+                <span className="text-[10px] text-slate-400 font-sans font-normal ml-1">users</span>
+              </td>
+              <td className="py-2 px-3 border-r border-slate-200 text-right align-middle">
+                <span className="text-xs font-bold text-slate-700">
+                  {formatNum(data.unique_users_backward)}
+                </span>
+                <span className="text-[10px] text-slate-400 font-sans font-normal ml-1">users</span>
+              </td>
+              <td className="py-2 px-3 text-right align-middle bg-slate-50/50">
+                {renderComparePill(
+                  data.unique_users_pct_compare, 
+                  data.unique_users_mtd - data.unique_users_backward, 
+                  'users'
+                )}
+              </td>
+            </tr>
+
             {/* 2. New Customers (NC) */}
             <tr className="hover:bg-purple-50/30 transition-colors">
               <td className="py-2 px-3 border-r border-slate-200 font-sans">
@@ -183,7 +215,7 @@ export function CampaignBackwardCompareTable({ data, asOfDate, isLoading = false
                   <span className="w-2 h-2 rounded-full bg-purple-600 shrink-0" />
                   <span className="font-bold text-slate-900">New Customers (NC)</span>
                   <span className="text-[10px] text-purple-900 bg-purple-50 px-1.5 py-0.5 rounded-sm font-semibold border border-purple-200">
-                    Registers
+                    {ncPctCompare !== undefined && data.nc_backward !== undefined ? (data.nc_mtd !== undefined && (data as any).nc_mode_label ? (data as any).nc_mode_label : 'Registers') : 'Registers'}
                   </span>
                 </div>
               </td>

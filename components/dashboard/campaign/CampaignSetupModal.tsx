@@ -1,17 +1,17 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { 
-  CampaignSetupConfig, 
-  CampaignConditionType, 
+import {
+  CampaignSetupConfig,
+  CampaignConditionType,
   CampaignOperator,
   CampaignConditionRule
 } from '@/lib/types/campaign.types';
-import { 
-  X, 
-  Target, 
-  Calendar, 
-  Settings, 
+import {
+  X,
+  Target,
+  Calendar,
+  Settings,
   Sparkles,
   ArrowRight,
   Check,
@@ -58,7 +58,7 @@ export function CampaignSetupModal({
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [categoryTag, setCategoryTag] = useState('Volume Driver');
-  
+
   // Dates
   const [startDate, setStartDate] = useState('2026-08-24');
   const [endDate, setEndDate] = useState('2026-12-25');
@@ -104,14 +104,20 @@ export function CampaignSetupModal({
   };
 
   // Targets
-  const [selectedTargets, setSelectedTargets] = useState<('ec' | 'nc' | 'revenue' | 'weight')[]>([
+  const [selectedTargets, setSelectedTargets] = useState<('ec' | 'unique_users' | 'nc' | 'revenue' | 'weight')[]>([
     'ec',
     'nc',
     'revenue',
     'weight',
   ]);
   const [ecTarget, setEcTarget] = useState<number>(307500);
+  const [uniqueUsersTarget, setUniqueUsersTarget] = useState<number>(25000);
+  const [uniqueUsersFilterMode, setUniqueUsersFilterMode] = useState<'condition_tier' | 'time_only'>('condition_tier');
+
   const [ncTarget, setNcTarget] = useState<number>(0);
+  const [ncQualificationMode, setNcQualificationMode] = useState<'all_registers' | 'first_purchase_tier'>('all_registers');
+  const [ncFirstPurchaseUseMainCondition, setNcFirstPurchaseUseMainCondition] = useState<boolean>(true);
+  const [ncConditions, setNcConditions] = useState<CampaignConditionRule[]>([]);
   const [revenueTarget, setRevenueTarget] = useState<number>(2876304.2);
   const [goldWeightTarget, setGoldWeightTarget] = useState<number>(913509.7);
   const [baselineDailyRr, setBaselineDailyRr] = useState<number | undefined>(undefined);
@@ -155,7 +161,7 @@ export function CampaignSetupModal({
       if (Array.isArray(campaignToEdit.conditions)) {
         setConditions(campaignToEdit.conditions);
       } else if (
-        campaignToEdit.condition_operator === 'all' || 
+        campaignToEdit.condition_operator === 'all' ||
         (campaignToEdit.condition_label && campaignToEdit.condition_label.toLowerCase().includes('no condition'))
       ) {
         setConditions([]);
@@ -178,7 +184,12 @@ export function CampaignSetupModal({
       setBank(campaignToEdit.bank || 'all');
       setSelectedTargets(campaignToEdit.target_types || ['ec', 'nc']);
       setEcTarget(campaignToEdit.ec_target ?? 307500);
+      setUniqueUsersTarget(campaignToEdit.unique_users_target ?? 25000);
+      setUniqueUsersFilterMode(campaignToEdit.unique_users_filter_mode || 'condition_tier');
       setNcTarget(campaignToEdit.nc_target ?? 0);
+      setNcQualificationMode(campaignToEdit.nc_qualification_mode || 'all_registers');
+      setNcFirstPurchaseUseMainCondition(campaignToEdit.nc_first_purchase_use_main_condition ?? true);
+      setNcConditions(Array.isArray(campaignToEdit.nc_conditions) ? campaignToEdit.nc_conditions : []);
       setRevenueTarget(campaignToEdit.revenue_target_mil ?? 2876304.2);
       setGoldWeightTarget(campaignToEdit.gold_weight_target_g ?? 913509.7);
       setBaselineDailyRr(campaignToEdit.baseline_daily_rr);
@@ -224,7 +235,12 @@ export function CampaignSetupModal({
       setBank('all');
       setSelectedTargets(['ec', 'nc']);
       setEcTarget(50000);
+      setUniqueUsersTarget(35000);
+      setUniqueUsersFilterMode('condition_tier');
       setNcTarget(2500);
+      setNcQualificationMode('all_registers');
+      setNcFirstPurchaseUseMainCondition(true);
+      setNcConditions([]);
       setRevenueTarget(150000);
       setGoldWeightTarget(150000);
       setBaselineDailyRr(79.0);
@@ -258,17 +274,17 @@ export function CampaignSetupModal({
 
     const parts = conditions.map((c) => {
       const isW = c.metric === 'weight';
-      const valStr = isW 
-        ? `${c.value}g` 
-        : c.value >= 1_000_000 
-        ? `${(c.value / 1_000_000).toFixed(1).replace(/\.0$/, '')}M` 
-        : c.value >= 1000 
-        ? `${c.value / 1000}k` 
-        : `${c.value}`;
+      const valStr = isW
+        ? `${c.value}g`
+        : c.value >= 1_000_000
+          ? `${(c.value / 1_000_000).toFixed(1).replace(/\.0$/, '')}M`
+          : c.value >= 1000
+            ? `${c.value / 1000}k`
+            : `${c.value}`;
 
       if (c.operator === 'between') {
-        const maxStr = isW 
-          ? `${c.max_value || c.value}g` 
+        const maxStr = isW
+          ? `${c.max_value || c.value}g`
           : `${(c.max_value || c.value) / 1000}k`;
         return isW ? `Weight ${c.value}-${maxStr}` : `Amount ${valStr}-${maxStr}`;
       }
@@ -304,8 +320,8 @@ export function CampaignSetupModal({
 
   // Condition Handlers
   const handleAddCondition = () => {
-    const newMetric = conditions.length === 0 
-      ? 'amount' 
+    const newMetric = conditions.length === 0
+      ? 'amount'
       : (conditions[conditions.length - 1].metric === 'amount' ? 'weight' : 'amount');
     const newRule: CampaignConditionRule = {
       id: `cond-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
@@ -337,7 +353,7 @@ export function CampaignSetupModal({
     setIsCustomLabelUserEdited(false);
   };
 
-  const toggleTargetType = (type: 'ec' | 'nc' | 'revenue' | 'weight') => {
+  const toggleTargetType = (type: 'ec' | 'unique_users' | 'nc' | 'revenue' | 'weight') => {
     if (selectedTargets.includes(type)) {
       if (selectedTargets.length > 1) {
         setSelectedTargets(selectedTargets.filter((t) => t !== type));
@@ -354,8 +370,8 @@ export function CampaignSetupModal({
     setIsSaving(true);
     try {
       const isUuid = campaignToEdit && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(campaignToEdit.id);
-      const generatedId = typeof crypto !== 'undefined' && crypto.randomUUID 
-        ? crypto.randomUUID() 
+      const generatedId = typeof crypto !== 'undefined' && crypto.randomUUID
+        ? crypto.randomUUID()
         : `10000000-0000-0000-0000-${Date.now().toString().padStart(12, '0').slice(-12)}`;
 
       const effectiveLabel = conditionLabel.trim() || computedConditionLabel;
@@ -383,7 +399,12 @@ export function CampaignSetupModal({
         bank: bank || 'all',
         target_types: selectedTargets,
         ec_target: selectedTargets.includes('ec') ? Number(ecTarget) : 0,
+        unique_users_target: selectedTargets.includes('unique_users') ? Number(uniqueUsersTarget) : 0,
+        unique_users_filter_mode: uniqueUsersFilterMode,
         nc_target: selectedTargets.includes('nc') ? Number(ncTarget) : 0,
+        nc_qualification_mode: ncQualificationMode,
+        nc_first_purchase_use_main_condition: ncFirstPurchaseUseMainCondition,
+        nc_conditions: ncConditions,
         revenue_target_mil: selectedTargets.includes('revenue') ? Number(revenueTarget) : undefined,
         gold_weight_target_g: selectedTargets.includes('weight') ? Number(goldWeightTarget) : undefined,
         baseline_daily_rr: baselineDailyRr ? Number(baselineDailyRr) : undefined,
@@ -415,7 +436,7 @@ export function CampaignSetupModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-200">
-      <div 
+      <div
         className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-3xl overflow-hidden flex flex-col max-h-[92vh]"
         onClick={(e) => e.stopPropagation()}
       >
@@ -442,7 +463,7 @@ export function CampaignSetupModal({
 
         {/* Scrollable Form Body */}
         <form onSubmit={(e) => handleSubmit(e, false)} className="p-6 space-y-5 overflow-y-auto">
-          
+
           {/* 1. Identity & Details */}
           <div className="space-y-3">
             <h4 className="text-xs font-black uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
@@ -507,9 +528,8 @@ export function CampaignSetupModal({
               </h4>
 
               <div className="flex items-center gap-2">
-                <span className={`text-[10px] font-black px-2 py-0.5 rounded-md ${
-                  isEnded ? 'bg-slate-200 text-slate-800' : isUpcoming ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'
-                }`}>
+                <span className={`text-[10px] font-black px-2 py-0.5 rounded-md ${isEnded ? 'bg-slate-200 text-slate-800' : isUpcoming ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'
+                  }`}>
                   {isEnded ? '🏁 Status: Ended' : isUpcoming ? '⏳ Status: Upcoming' : '🟢 Status: Active'}
                 </span>
                 <span className="text-[11px] font-mono font-bold text-blue-900 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200">
@@ -586,8 +606,8 @@ export function CampaignSetupModal({
                   <span>3. Condition Rules & Eligibility</span>
                 </h4>
                 <p className="text-[10px] text-slate-500 mt-0.5">
-                  {conditions.length === 0 
-                    ? 'No conditions active (matching all transactions)' 
+                  {conditions.length === 0
+                    ? 'No conditions active (matching all transactions)'
                     : `${conditions.length} condition rule${conditions.length > 1 ? 's' : ''} combined with AND logic`}
                 </p>
               </div>
@@ -670,10 +690,10 @@ export function CampaignSetupModal({
                           value={cond.metric}
                           onChange={(e) => {
                             const m = e.target.value as 'amount' | 'weight';
-                            handleUpdateCondition(idx, { 
-                              metric: m, 
+                            handleUpdateCondition(idx, {
+                              metric: m,
                               value: m === 'weight' ? 2.0 : 500000,
-                              max_value: m === 'weight' ? 5.0 : 2000000 
+                              max_value: m === 'weight' ? 5.0 : 2000000
                             });
                           }}
                           className="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-[#0c4ca3] focus:outline-hidden"
@@ -809,11 +829,10 @@ export function CampaignSetupModal({
                 <button
                   type="button"
                   onClick={() => handleToggleBank('all')}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
-                    bank === 'all'
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${bank === 'all'
                       ? 'bg-indigo-600 text-white shadow-2xs'
                       : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
-                  }`}
+                    }`}
                 >
                   <span>🏦 All Banks (ທຸກທະນາຄານ)</span>
                   {bank === 'all' && <Check className="w-3 h-3" />}
@@ -825,11 +844,10 @@ export function CampaignSetupModal({
                       key={b.id}
                       type="button"
                       onClick={() => handleToggleBank(b.id)}
-                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
-                        isSelected
+                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${isSelected
                           ? 'bg-indigo-600 text-white shadow-2xs ring-1 ring-indigo-500'
                           : 'bg-white border border-slate-200 text-slate-700 hover:border-slate-300 hover:bg-slate-50'
-                      }`}
+                        }`}
                     >
                       <span>{b.label}</span>
                       {isSelected && <Check className="w-3 h-3" />}
@@ -853,15 +871,14 @@ export function CampaignSetupModal({
             </div>
 
             {/* Target Select Buttons */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
               <button
                 type="button"
                 onClick={() => toggleTargetType('ec')}
-                className={`p-2.5 rounded-xl border text-xs font-bold flex items-center justify-between transition-all ${
-                  selectedTargets.includes('ec')
+                className={`p-2.5 rounded-xl border text-xs font-bold flex items-center justify-between transition-all ${selectedTargets.includes('ec')
                     ? 'bg-blue-50 border-[#0c4ca3] text-[#0c4ca3]'
                     : 'bg-white border-slate-200 text-slate-500'
-                }`}
+                  }`}
               >
                 <span>Buy Transactions</span>
                 {selectedTargets.includes('ec') && <Check className="w-3.5 h-3.5" />}
@@ -869,12 +886,23 @@ export function CampaignSetupModal({
 
               <button
                 type="button"
+                onClick={() => toggleTargetType('unique_users')}
+                className={`p-2.5 rounded-xl border text-xs font-bold flex items-center justify-between transition-all ${selectedTargets.includes('unique_users')
+                    ? 'bg-cyan-50 border-cyan-600 text-cyan-800'
+                    : 'bg-white border-slate-200 text-slate-500'
+                  }`}
+              >
+                <span>Unique Users</span>
+                {selectedTargets.includes('unique_users') && <Check className="w-3.5 h-3.5" />}
+              </button>
+
+              <button
+                type="button"
                 onClick={() => toggleTargetType('nc')}
-                className={`p-2.5 rounded-xl border text-xs font-bold flex items-center justify-between transition-all ${
-                  selectedTargets.includes('nc')
+                className={`p-2.5 rounded-xl border text-xs font-bold flex items-center justify-between transition-all ${selectedTargets.includes('nc')
                     ? 'bg-purple-50 border-purple-600 text-purple-700'
                     : 'bg-white border-slate-200 text-slate-500'
-                }`}
+                  }`}
               >
                 <span>NC (New Customers)</span>
                 {selectedTargets.includes('nc') && <Check className="w-3.5 h-3.5" />}
@@ -883,11 +911,10 @@ export function CampaignSetupModal({
               <button
                 type="button"
                 onClick={() => toggleTargetType('revenue')}
-                className={`p-2.5 rounded-xl border text-xs font-bold flex items-center justify-between transition-all ${
-                  selectedTargets.includes('revenue')
+                className={`p-2.5 rounded-xl border text-xs font-bold flex items-center justify-between transition-all ${selectedTargets.includes('revenue')
                     ? 'bg-emerald-50 border-emerald-600 text-emerald-700'
                     : 'bg-white border-slate-200 text-slate-500'
-                }`}
+                  }`}
               >
                 <span>Revenue (Mil LAK)</span>
                 {selectedTargets.includes('revenue') && <Check className="w-3.5 h-3.5" />}
@@ -896,18 +923,17 @@ export function CampaignSetupModal({
               <button
                 type="button"
                 onClick={() => toggleTargetType('weight')}
-                className={`p-2.5 rounded-xl border text-xs font-bold flex items-center justify-between transition-all ${
-                  selectedTargets.includes('weight')
+                className={`p-2.5 rounded-xl border text-xs font-bold flex items-center justify-between transition-all ${selectedTargets.includes('weight')
                     ? 'bg-amber-50 border-amber-500 text-amber-800'
                     : 'bg-white border-slate-200 text-slate-500'
-                }`}
+                  }`}
               >
                 <span>Gold Weight (Grams)</span>
                 {selectedTargets.includes('weight') && <Check className="w-3.5 h-3.5" />}
               </button>
             </div>
 
-            {/* Target Value Inputs */}
+            {/* Target Value Inputs & Qualification Modes */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
               {selectedTargets.includes('ec') && (
                 <div>
@@ -924,18 +950,122 @@ export function CampaignSetupModal({
                 </div>
               )}
 
+              {selectedTargets.includes('unique_users') && (
+                <div className="bg-cyan-50/60 border border-cyan-200/80 rounded-2xl p-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-xs font-bold text-cyan-950">
+                      Unique Users Target *
+                    </label>
+                    <span className="text-[10px] font-bold text-cyan-700">Requirement #1 &amp; #2</span>
+                  </div>
+                  <input
+                    type="number"
+                    value={uniqueUsersTarget}
+                    onChange={(e) => setUniqueUsersTarget(Number(e.target.value))}
+                    className="w-full px-3 py-1.5 text-xs border border-cyan-300 rounded-xl bg-white focus:ring-2 focus:ring-cyan-500 focus:outline-hidden font-mono font-bold"
+                    required
+                  />
+                  {/* Unique Users Qualification Mode Toggle */}
+                  <div className="pt-1">
+                    <span className="block text-[10px] font-bold text-cyan-900 mb-1">
+                      User Qualification Mode:
+                    </span>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setUniqueUsersFilterMode('condition_tier')}
+                        className={`px-2 py-1.5 rounded-lg text-[10px] font-bold text-left transition-all ${uniqueUsersFilterMode === 'condition_tier'
+                            ? 'bg-cyan-700 text-white shadow-2xs'
+                            : 'bg-white border border-cyan-200 text-cyan-900 hover:bg-cyan-100/50'
+                          }`}
+                      >
+                        <div>🎯 Within Tier (Req #2)</div>
+                        <div className="text-[9px] opacity-80 font-normal">Has buy trans in condition tier</div>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setUniqueUsersFilterMode('time_only')}
+                        className={`px-2 py-1.5 rounded-lg text-[10px] font-bold text-left transition-all ${uniqueUsersFilterMode === 'time_only'
+                            ? 'bg-cyan-700 text-white shadow-2xs'
+                            : 'bg-white border border-cyan-200 text-cyan-900 hover:bg-cyan-100/50'
+                          }`}
+                      >
+                        <div>⏱️ Time Only (Req #1)</div>
+                        <div className="text-[9px] opacity-80 font-normal">All unique buyers in time window</div>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {selectedTargets.includes('nc') && (
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    NC Target (New Customers Count) *
-                  </label>
+                <div className="bg-purple-50/60 border border-purple-200/80 rounded-2xl p-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-xs font-bold text-purple-950">
+                      NC Target (New Customers Count) *
+                    </label>
+                    <span className="text-[10px] font-bold text-purple-700">Requirement #3</span>
+                  </div>
                   <input
                     type="number"
                     value={ncTarget}
                     onChange={(e) => setNcTarget(Number(e.target.value))}
-                    className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-[#0c4ca3] focus:outline-hidden font-mono font-bold"
+                    className="w-full px-3 py-1.5 text-xs border border-purple-300 rounded-xl bg-white focus:ring-2 focus:ring-purple-500 focus:outline-hidden font-mono font-bold"
                     required
                   />
+
+                  {/* NC Qualification Mode Selection */}
+                  <div className="pt-1">
+                    <span className="block text-[10px] font-bold text-purple-900 mb-1">
+                      New Customer Qualification Mode:
+                    </span>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setNcQualificationMode('all_registers')}
+                        className={`px-2 py-1.5 rounded-lg text-[10px] font-bold text-left transition-all ${ncQualificationMode === 'all_registers'
+                            ? 'bg-purple-700 text-white shadow-2xs'
+                            : 'bg-white border border-purple-200 text-purple-900 hover:bg-purple-100/50'
+                          }`}
+                      >
+                        <div>📋 All New Registers</div>
+                        <div className="text-[9px] opacity-80 font-normal">All OPEN_ACCOUNT in period</div>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setNcQualificationMode('first_purchase_tier')}
+                        className={`px-2 py-1.5 rounded-lg text-[10px] font-bold text-left transition-all ${ncQualificationMode === 'first_purchase_tier'
+                            ? 'bg-purple-700 text-white shadow-2xs'
+                            : 'bg-white border border-purple-200 text-purple-900 hover:bg-purple-100/50'
+                          }`}
+                      >
+                        <div>⚡ 1st Buy @ Reg Time</div>
+                        <div className="text-[9px] opacity-80 font-normal">Exact same timestamp + Tier</div>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Optional First Purchase Condition Inheritance / Custom Threshold */}
+                  {ncQualificationMode === 'first_purchase_tier' && (
+                    <div className="pt-1 bg-white/70 border border-purple-200 rounded-xl p-2 text-[10px]">
+                      <label className="flex items-center gap-1.5 font-bold text-purple-950 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={ncFirstPurchaseUseMainCondition}
+                          onChange={(e) => setNcFirstPurchaseUseMainCondition(e.target.checked)}
+                          className="rounded-xs text-purple-700"
+                        />
+                        <span>Inherit Section 3 Condition Rules for 1st Buy</span>
+                      </label>
+                      <p className="text-[9px] text-purple-700 mt-0.5 ml-4">
+                        {ncFirstPurchaseUseMainCondition
+                          ? `Uses: ${conditionLabel || 'Buy trans >= 500k'}`
+                          : 'Custom First Purchase threshold will be configured'}
+                      </p>
+                    </div>
+                  )}
                 </div>
               )}
 

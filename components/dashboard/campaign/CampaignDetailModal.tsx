@@ -2,17 +2,17 @@
 
 import React from 'react';
 import { CampaignSetupConfig, CampaignAnalyticsPayload } from '@/lib/types/campaign.types';
-import { 
-  X, 
-  Target, 
-  Calendar, 
-  Clock, 
-  TrendingUp, 
-  Award, 
-  BarChart3, 
-  Flame, 
-  FileCode2, 
-  CheckCircle2, 
+import {
+  X,
+  Target,
+  Calendar,
+  Clock,
+  TrendingUp,
+  Award,
+  BarChart3,
+  Flame,
+  FileCode2,
+  CheckCircle2,
   AlertCircle,
   HelpCircle,
   Layers,
@@ -49,7 +49,7 @@ export function CampaignDetailModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-200">
-      <div 
+      <div
         className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-4xl overflow-hidden flex flex-col max-h-[92vh]"
         onClick={(e) => e.stopPropagation()}
       >
@@ -79,9 +79,8 @@ export function CampaignDetailModal({
                 <span className="px-2.5 py-0.5 rounded-full text-xs font-bold uppercase bg-brand-gold text-slate-950">
                   {campaign.category_tag || 'Marketing Campaign'}
                 </span>
-                <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold uppercase ${
-                  isEnded ? 'bg-slate-800 text-slate-200' : isUpcoming ? 'bg-amber-500/20 text-amber-200' : 'bg-emerald-500/30 text-emerald-200'
-                }`}>
+                <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold uppercase ${isEnded ? 'bg-slate-800 text-slate-200' : isUpcoming ? 'bg-amber-500/20 text-amber-200' : 'bg-emerald-500/30 text-emerald-200'
+                  }`}>
                   {isEnded ? '🏁 Completed' : isUpcoming ? '⏳ Upcoming' : '🟢 Active In Progress'}
                 </span>
               </div>
@@ -93,7 +92,7 @@ export function CampaignDetailModal({
 
         {/* Scrollable Content Body */}
         <div className="p-6 space-y-6 overflow-y-auto">
-          
+
           {/* Section 1: Campaign Rules & Timeline Specs */}
           <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4">
             <h3 className="text-xs font-black uppercase tracking-wider text-slate-700 mb-3 flex items-center gap-1.5">
@@ -183,9 +182,8 @@ export function CampaignDetailModal({
                       {t1.ec_actual_mtd.toLocaleString()}
                     </td>
                     <td className="py-3 px-3 text-right">
-                      <span className={`px-2 py-0.5 rounded-md font-bold ${
-                        t1.ec_pct_hit_mtd >= 100 ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-50 text-blue-800'
-                      }`}>
+                      <span className={`px-2 py-0.5 rounded-md font-bold ${t1.ec_pct_hit_mtd >= 100 ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-50 text-blue-800'
+                        }`}>
                         {t1.ec_pct_hit_mtd}%
                       </span>
                     </td>
@@ -193,18 +191,49 @@ export function CampaignDetailModal({
                       {t1.ec_rr_projected.toLocaleString()}
                     </td>
                     <td className="py-3 px-3 text-right">
-                      <span className={`px-2 py-0.5 rounded-md font-bold ${
-                        t1.ec_pct_hit_rr >= 100 ? 'bg-emerald-100 text-emerald-800' : t1.ec_pct_hit_rr >= 80 ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800'
-                      }`}>
+                      <span className={`px-2 py-0.5 rounded-md font-bold ${t1.ec_pct_hit_rr >= 100 ? 'bg-emerald-100 text-emerald-800' : t1.ec_pct_hit_rr >= 80 ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800'
+                        }`}>
                         {t1.ec_pct_hit_rr}%
                       </span>
+                    </td>
+                  </tr>
+
+                  {/* Unique Users */}
+                  <tr className="hover:bg-slate-50">
+                    <td className="py-3 px-4 font-sans font-bold text-cyan-900">
+                      Unique Users ({t1.unique_users_mode_label || 'Within Tier'})
+                    </td>
+                    <td className="py-3 px-3 text-right font-bold text-slate-700 font-mono tabular-nums">
+                      {t1.unique_users_target > 0 ? t1.unique_users_target.toLocaleString() : '-'}
+                    </td>
+                    <td className="py-3 px-3 text-right font-bold text-cyan-800 font-mono tabular-nums">
+                      {t1.unique_users_actual_mtd.toLocaleString()}
+                    </td>
+                    <td className="py-3 px-3 text-right">
+                      {t1.unique_users_target > 0 ? (
+                        <span className={`px-2 py-0.5 rounded-md font-bold font-mono tabular-nums ${t1.unique_users_pct_hit_mtd >= 100 ? 'bg-emerald-100 text-emerald-800' : 'bg-cyan-50 text-cyan-900'
+                          }`}>
+                          {t1.unique_users_pct_hit_mtd}%
+                        </span>
+                      ) : '-'}
+                    </td>
+                    <td className="py-3 px-3 text-right font-bold text-slate-900 font-mono tabular-nums">
+                      {t1.unique_users_rr_projected.toLocaleString()}
+                    </td>
+                    <td className="py-3 px-3 text-right">
+                      {t1.unique_users_target > 0 ? (
+                        <span className={`px-2 py-0.5 rounded-md font-bold font-mono tabular-nums ${t1.unique_users_pct_hit_rr >= 100 ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
+                          }`}>
+                          {t1.unique_users_pct_hit_rr}%
+                        </span>
+                      ) : '-'}
                     </td>
                   </tr>
 
                   {/* NC Target */}
                   <tr className="hover:bg-slate-50">
                     <td className="py-3 px-4 font-sans font-bold text-brand-navy">
-                      NC: New Customers (First-ever buyers)
+                      NC: New Customers ({t1.nc_mode_label || 'All Registers'})
                     </td>
                     <td className="py-3 px-3 text-right font-bold text-slate-700 font-mono tabular-nums">
                       {t1.nc_target.toLocaleString()}
@@ -213,9 +242,8 @@ export function CampaignDetailModal({
                       {t1.nc_actual_mtd.toLocaleString()}
                     </td>
                     <td className="py-3 px-3 text-right">
-                      <span className={`px-2 py-0.5 rounded-md font-bold font-mono tabular-nums ${
-                        t1.nc_pct_hit_mtd >= 100 ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-50 text-brand-navy'
-                      }`}>
+                      <span className={`px-2 py-0.5 rounded-md font-bold font-mono tabular-nums ${t1.nc_pct_hit_mtd >= 100 ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-50 text-brand-navy'
+                        }`}>
                         {t1.nc_pct_hit_mtd}%
                       </span>
                     </td>
@@ -223,9 +251,8 @@ export function CampaignDetailModal({
                       {t1.nc_rr_projected.toLocaleString()}
                     </td>
                     <td className="py-3 px-3 text-right">
-                      <span className={`px-2 py-0.5 rounded-md font-bold font-mono tabular-nums ${
-                        t1.nc_pct_hit_rr >= 100 ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
-                      }`}>
+                      <span className={`px-2 py-0.5 rounded-md font-bold font-mono tabular-nums ${t1.nc_pct_hit_rr >= 100 ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
+                        }`}>
                         {t1.nc_pct_hit_rr}%
                       </span>
                     </td>
@@ -286,7 +313,7 @@ export function CampaignDetailModal({
               <span>Same Period Backward Comparison (Baseline Growth Delta)</span>
             </h3>
 
-            <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-5 gap-3">
               <div className="bg-emerald-50/60 border border-emerald-200 rounded-2xl p-4">
                 <span className="text-[10px] font-bold text-emerald-800 uppercase">Buy Transactions</span>
                 <div className="flex items-baseline gap-2 mt-1">
@@ -296,6 +323,18 @@ export function CampaignDetailModal({
                 </div>
                 <div className="text-[11px] text-emerald-900/80 font-mono mt-1">
                   {t2.buy_trans_mtd.toLocaleString()} vs {t2.buy_trans_backward.toLocaleString()}
+                </div>
+              </div>
+
+              <div className="bg-cyan-50/60 border border-cyan-200 rounded-2xl p-4">
+                <span className="text-[10px] font-bold text-cyan-800 uppercase">Unique Users</span>
+                <div className="flex items-baseline gap-2 mt-1">
+                  <span className="text-2xl font-black text-cyan-950 font-mono">
+                    {t2.unique_users_pct_compare > 0 ? `+${t2.unique_users_pct_compare}%` : `${t2.unique_users_pct_compare}%`}
+                  </span>
+                </div>
+                <div className="text-[11px] text-cyan-900/80 font-mono mt-1">
+                  {t2.unique_users_mtd.toLocaleString()} vs {t2.unique_users_backward.toLocaleString()}
                 </div>
               </div>
 
@@ -359,7 +398,7 @@ export function CampaignDetailModal({
               <span className="font-mono text-[10px] text-emerald-400">Data Source: {analytics.dataSource || 'supabase_live'}</span>
             </div>
             <pre className="text-[11px] font-mono text-emerald-400 bg-slate-950/80 p-3 rounded-xl overflow-x-auto whitespace-pre">
-{analytics.sql_script || `-- 1. Actual MTD Performance (${campaign.campaign_date_start} to ${campaign.data_update_on || '2026-10-21'})
+              {analytics.sql_script || `-- 1. Actual MTD Performance (${campaign.campaign_date_start} to ${campaign.data_update_on || '2026-10-21'})
 SELECT 
     COUNT(*) AS ec_actual_mtd,
     COUNT(DISTINCT phone) AS unique_customers_mtd,
@@ -370,12 +409,12 @@ WHERE created_at >= '${campaign.campaign_date_start}'
   AND created_at <= '${campaign.data_update_on || '2026-10-21'} 23:59:59'
   AND status = 'ສໍາເລັດ'
   AND transaction_type = '${campaign.tx_type || 'BUY_GOLD'}'${(() => {
-    if (!campaign.bank || campaign.bank === 'all') return '';
-    const banks = campaign.bank.split(',').map((b: string) => b.trim()).filter(Boolean);
-    if (banks.length === 1) return `\n  AND bank ILIKE '%${banks[0]}%'`;
-    if (banks.length > 1) return `\n  AND (${banks.map((b: string) => `bank ILIKE '%${b}%'`).join(' OR ')})`;
-    return '';
-  })()}${campaign.condition_value ? `\n  AND ${(campaign.condition_type || '').includes('weight') ? 'gold_weight' : 'total_amount'} ${campaign.condition_operator || '>='} ${campaign.condition_value}` : ''};`}
+                  if (!campaign.bank || campaign.bank === 'all') return '';
+                  const banks = campaign.bank.split(',').map((b: string) => b.trim()).filter(Boolean);
+                  if (banks.length === 1) return `\n  AND bank ILIKE '%${banks[0]}%'`;
+                  if (banks.length > 1) return `\n  AND (${banks.map((b: string) => `bank ILIKE '%${b}%'`).join(' OR ')})`;
+                  return '';
+                })()}${campaign.condition_value ? `\n  AND ${(campaign.condition_type || '').includes('weight') ? 'gold_weight' : 'total_amount'} ${campaign.condition_operator || '>='} ${campaign.condition_value}` : ''};`}
             </pre>
           </div>
 

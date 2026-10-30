@@ -152,9 +152,54 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    const uniqueUsersMode = config.unique_users_filter_mode || (rules.length === 0 ? 'time_only' : 'condition_tier');
+    const ncMode = config.nc_qualification_mode || 'all_registers';
+    const ncUseMainCond = config.nc_first_purchase_use_main_condition ?? true;
+    const effectiveNcRules = (ncMode === 'first_purchase_tier' && !ncUseMainCond && Array.isArray(config.nc_conditions) && config.nc_conditions.length > 0)
+      ? config.nc_conditions
+      : rules;
+
+    let ncCondSql = '';
+    for (const r of effectiveNcRules) {
+      const col = r.metric === 'weight' ? 'b.gold_weight' : 'b.total_amount';
+      const val = Number(r.value) || 0;
+      if (r.operator === 'between') {
+        const maxV = r.max_value !== undefined ? Number(r.max_value) : val;
+        ncCondSql += `\n  AND ${col} >= ${val} AND ${col} <= ${maxV}`;
+      } else if (r.operator === '<=') {
+        ncCondSql += `\n  AND ${col} <= ${val}`;
+      } else if (r.operator === '==') {
+        ncCondSql += `\n  AND ${col} = ${val}`;
+      } else {
+        ncCondSql += `\n  AND ${col} >= ${val}`;
+      }
+    }
+
+    const ncQuerySnippet = ncMode === 'first_purchase_tier'
+      ? `-- NC First Purchase Mode (OPEN_ACCOUNT paired with BUY_GOLD at exact same timestamp meeting tier)
+SELECT COUNT(DISTINCT o.phone) AS nc_actual_mtd
+FROM public.monthly_data o
+INNER JOIN public.monthly_data b
+   ON b.phone = o.phone
+  AND b.created_at = o.created_at
+WHERE o.created_at >= '${config.campaign_date_start}'
+  AND o.created_at <= '${effectiveCutoffDate} 23:59:59'
+  AND o.status IN ('ສໍາເລັດ', 'ສຳເລັດ')
+  AND o.transaction_type = 'OPEN_ACCOUNT'
+  AND b.status IN ('ສໍາເລັດ', 'ສຳເລັດ')
+  AND b.transaction_type = 'BUY_GOLD'${bankSql.replace(/\bbank\b/g, 'o.bank')}${ncCondSql};`
+      : `-- Standard NC Mode (All OPEN_ACCOUNT in period)
+SELECT COUNT(*) AS nc_actual_mtd
+FROM public.monthly_data
+WHERE created_at >= '${config.campaign_date_start}'
+  AND created_at <= '${effectiveCutoffDate} 23:59:59'
+  AND status IN ('ສໍາເລັດ', 'ສຳເລັດ')
+  AND transaction_type = 'OPEN_ACCOUNT'${bankSql};`;
+
     const sqlScript = `-- ============================================================================
 -- CAMPAIGN INTELLIGENCE: ${config.campaign_name || 'Campaign Target'}
 -- Rule: ${config.condition_label || (rules.length === 0 ? 'No Condition (All Trans)' : 'Custom Filter')} | Bank: ${effectiveBank.toUpperCase()}
+-- Unique Users Mode: ${uniqueUsersMode.toUpperCase()} | NC Mode: ${ncMode.toUpperCase()}
 -- ============================================================================
 
 -- 1. Actual MTD Performance (${config.campaign_date_start} to ${effectiveCutoffDate})
@@ -169,9 +214,13 @@ WHERE created_at >= '${config.campaign_date_start}'
   AND status IN ('ສໍາເລັດ', 'ສຳເລັດ')
   AND transaction_type = '${txType}'${bankSql}${condSql};
 
--- 2. Equal Backward Benchmark Baseline (${backwardWindow.start} to ${backwardWindow.end}, ${elapsedDays || totalDays} days)
+-- 2. New Customer Acquisition (NC)
+${ncQuerySnippet}
+
+-- 3. Equal Backward Benchmark Baseline (${backwardWindow.start} to ${backwardWindow.end}, ${elapsedDays || totalDays} days)
 SELECT 
     COUNT(*) AS buy_trans_backward,
+    COUNT(DISTINCT phone) AS unique_users_backward,
     ROUND(COALESCE(SUM(gold_weight), 0)::numeric, 1) AS buy_weight_g_backward,
     ROUND(COALESCE(SUM(total_amount), 0)::numeric / 1000000.0, 1) AS buy_value_lak_backward
 FROM public.monthly_data
@@ -202,6 +251,10 @@ WHERE created_at >= '${backwardWindow.start}'
           p_cond_max: rpcCondMax,
           p_tx_type: txType,
           p_bank: effectiveBank || 'all',
+          p_conditions: rules.length > 0 ? rules : null,
+          p_unique_users_mode: uniqueUsersMode,
+          p_nc_mode: ncMode,
+          p_nc_conditions: effectiveNcRules.length > 0 ? effectiveNcRules : null,
         });
 
         if (!rpcError && rpcData && rpcData.mtd_transac !== undefined) {
@@ -303,10 +356,12 @@ WHERE created_at >= '${backwardWindow.start}'
         if (mtdCount > 0 || isUpcoming || bwdCount > 0) {
           liveAgg = {
             mtd_transac: mtdCount,
+            mtd_unique_users: mtdRes.data ? new Set(mtdRes.data.map((r: any) => r.phone)).size : 0,
             mtd_new_customers: 0,
             mtd_gold_weight_g: mtdWeightG,
             mtd_revenue_mil_lak: mtdRevenueMil,
             backward_transac: bwdCount,
+            backward_unique_users: 0,
             backward_gold_weight_g: bwdWeightG,
             backward_revenue_mil_lak: bwdRevenueMil,
           };
@@ -363,10 +418,12 @@ WHERE created_at >= '${backwardWindow.start}'
     const liveDataPayload = liveAgg
       ? {
           ec_actual_mtd: Number(liveAgg.mtd_transac) || 0,
+          unique_users_actual_mtd: Number(liveAgg.mtd_unique_users) || 0,
           nc_actual_mtd: exactNc,
           mtd_buy_weight_g: Number(liveAgg.mtd_gold_weight_g) || 0,
           mtd_buy_value_mil_lak: Number(liveAgg.mtd_revenue_mil_lak) || 0,
           backward_trans: Number(liveAgg.backward_transac) || 0,
+          backward_unique_users: Number(liveAgg.backward_unique_users) || 0,
           backward_val_mil: Number(liveAgg.backward_revenue_mil_lak) || 0,
           backward_weight_g: Number(liveAgg.backward_gold_weight_g) || 0,
           backward_nc: exactBwdNc,

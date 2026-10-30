@@ -109,9 +109,9 @@ export function CampaignTargetTable({ data, asOfDate, isLoading = false }: Campa
                 <span className="inline-flex items-center gap-1.5">
                   <span>{data.pct_time_gone}%</span>
                   <div className="w-10 h-1.5 rounded-full bg-slate-200 overflow-hidden hidden sm:inline-block">
-                    <div 
-                      className="h-full bg-blue-600 rounded-full" 
-                      style={{ width: `${Math.min(data.pct_time_gone, 100)}%` }} 
+                    <div
+                      className="h-full bg-blue-600 rounded-full"
+                      style={{ width: `${Math.min(data.pct_time_gone, 100)}%` }}
                     />
                   </div>
                 </span>
@@ -158,49 +158,120 @@ export function CampaignTargetTable({ data, asOfDate, isLoading = false }: Campa
             </tr>
 
             {/* FOCUS ROW: Buy Trans % Target Hit */}
-            <tr className={`border-y transition-colors ${
-              isEcBehind 
-                ? 'bg-rose-50/70 border-rose-200 text-rose-900' 
+            <tr className={`border-y transition-colors ${isEcBehind
+                ? 'bg-rose-50/70 border-rose-200 text-rose-900'
                 : 'bg-emerald-50/70 border-emerald-200 text-emerald-900'
-            }`}>
+              }`}>
               <td className="py-1.5 px-3 border-r border-slate-200 font-sans font-black flex items-center gap-1.5">
                 <span className={`w-2 h-2 rounded-full ${isEcBehind ? 'bg-rose-500' : 'bg-emerald-500'}`} />
                 <span className="text-xs uppercase tracking-tight">% Target Hit (Buy Focus)</span>
               </td>
               <td className="py-1.5 px-3 border-r border-slate-200 text-right font-black">
-                <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-mono font-black border ${
-                  data.ec_pct_hit_mtd >= 100
+                <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-mono font-black border ${data.ec_pct_hit_mtd >= 100
                     ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
                     : ecPaceDelta >= 0
-                    ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                    : 'bg-rose-50 text-rose-800 border-rose-200'
-                }`}>
-                  <span>{data.ec_pct_hit_mtd}%</span>
-                  <span className={`text-[9px] font-sans font-bold px-1 py-0.2 rounded ${
-                    ecPaceDelta >= 0 ? 'bg-emerald-200/80 text-emerald-900' : 'bg-rose-200/80 text-rose-900'
+                      ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                      : 'bg-rose-50 text-rose-800 border-rose-200'
                   }`}>
+                  <span>{data.ec_pct_hit_mtd}%</span>
+                  <span className={`text-[9px] font-sans font-bold px-1 py-0.2 rounded ${ecPaceDelta >= 0 ? 'bg-emerald-200/80 text-emerald-900' : 'bg-rose-200/80 text-rose-900'
+                    }`}>
                     {ecPaceDelta >= 0 ? `+${ecPaceDelta}% Ahead` : `${ecPaceDelta}% Slow`}
                   </span>
                 </span>
               </td>
               <td className="py-1.5 px-3 text-right font-black">
-                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-mono font-black shadow-2xs ${
-                  isEcBehind ? 'bg-rose-600 text-white' : 'bg-emerald-600 text-white'
-                }`}>
+                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-mono font-black shadow-2xs ${isEcBehind ? 'bg-rose-600 text-white' : 'bg-emerald-600 text-white'
+                  }`}>
                   {isEcBehind ? <AlertTriangle className="w-3 h-3" /> : <CheckCircle2 className="w-3 h-3" />}
                   <span>{data.ec_pct_hit_rr}%</span>
                 </span>
               </td>
             </tr>
 
+            {/* 2.5 Unique Users Target Group (Requirement #1 & #2) */}
+            <tr className="bg-cyan-50/50 border-t border-b border-cyan-100">
+              <td colSpan={3} className="py-1 px-3 font-sans font-black text-[10px] text-cyan-900 uppercase tracking-wider">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-cyan-600" />
+                    <span>Unique Buyers (Unique Users)</span>
+                  </div>
+                  <span className="text-[9px] px-1.5 py-0.2 rounded bg-cyan-100 text-cyan-800 font-bold">
+                    {data.unique_users_mode_label || 'Within Tier'}
+                  </span>
+                </div>
+              </td>
+            </tr>
+
+            {/* Unique Users Actual */}
+            <tr className="hover:bg-slate-50/80 transition-colors">
+              <td className="py-1.5 px-3 border-r border-slate-200 font-sans font-bold text-slate-800">
+                <span className="text-cyan-800">Unique Users MTD</span>
+              </td>
+              <td className="py-1.5 px-3 border-r border-slate-200 text-right font-bold text-slate-900">
+                {formatNum(data.unique_users_actual_mtd)}
+              </td>
+              <td className="py-1.5 px-3 text-right font-bold text-slate-900">
+                {formatNum(data.unique_users_rr_projected)}
+              </td>
+            </tr>
+
+            {/* Unique Users Target (If targeted) */}
+            {data.unique_users_target > 0 && (
+              <>
+                <tr className="hover:bg-slate-50/80 transition-colors">
+                  <td className="py-1.5 px-3 border-r border-slate-200 font-sans font-medium text-slate-700">
+                    Campaign Target (Unique Users)
+                  </td>
+                  <td className="py-1.5 px-3 border-r border-slate-200 text-right font-bold text-slate-700">
+                    {formatNum(data.unique_users_target)}
+                  </td>
+                  <td className="py-1.5 px-3 text-right font-bold text-slate-700">
+                    {formatNum(data.unique_users_target)}
+                  </td>
+                </tr>
+
+                <tr className={`border-y transition-colors ${data.unique_users_pct_hit_rr < 100
+                    ? 'bg-rose-50/70 border-rose-200 text-rose-900'
+                    : 'bg-emerald-50/70 border-emerald-200 text-emerald-900'
+                  }`}>
+                  <td className="py-1.5 px-3 border-r border-slate-200 font-sans font-black flex items-center gap-1.5">
+                    <span className={`w-2 h-2 rounded-full ${data.unique_users_pct_hit_rr < 100 ? 'bg-rose-500' : 'bg-emerald-500'}`} />
+                    <span className="text-xs uppercase tracking-tight">% Target Hit (Unique Users)</span>
+                  </td>
+                  <td className="py-1.5 px-3 border-r border-slate-200 text-right font-black">
+                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-mono font-black border ${data.unique_users_pct_hit_mtd >= 100
+                        ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                        : 'bg-cyan-50 text-cyan-900 border-cyan-200'
+                      }`}>
+                      <span>{data.unique_users_pct_hit_mtd}%</span>
+                    </span>
+                  </td>
+                  <td className="py-1.5 px-3 text-right font-black">
+                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-mono font-black shadow-2xs ${data.unique_users_pct_hit_rr < 100 ? 'bg-rose-600 text-white' : 'bg-emerald-600 text-white'
+                      }`}>
+                      {data.unique_users_pct_hit_rr < 100 ? <AlertTriangle className="w-3 h-3" /> : <CheckCircle2 className="w-3 h-3" />}
+                      <span>{data.unique_users_pct_hit_rr}%</span>
+                    </span>
+                  </td>
+                </tr>
+              </>
+            )}
+
             {/* 3. NC Target Group Header (Only if NC target > 0) */}
             {data.nc_target > 0 && (
               <>
                 <tr className="bg-purple-50/50 border-t border-b border-purple-100">
                   <td colSpan={3} className="py-1 px-3 font-sans font-black text-[10px] text-purple-900 uppercase tracking-wider">
-                    <div className="flex items-center gap-1.5">
-                      <span className="w-1.5 h-1.5 rounded-full bg-purple-600" />
-                      <span>New Customer Acquisition Target (NC)</span>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5">
+                        <span className="w-1.5 h-1.5 rounded-full bg-purple-600" />
+                        <span>New Customer Acquisition Target (NC)</span>
+                      </div>
+                      <span className="text-[9px] px-1.5 py-0.2 rounded bg-purple-100 text-purple-800 font-bold">
+                        {data.nc_mode_label || 'All Registers'}
+                      </span>
                     </div>
                   </td>
                 </tr>
@@ -232,35 +303,31 @@ export function CampaignTargetTable({ data, asOfDate, isLoading = false }: Campa
                 </tr>
 
                 {/* FOCUS ROW: NC % Target Hit */}
-                <tr className={`border-y transition-colors ${
-                  isNcBehind 
-                    ? 'bg-rose-50/70 border-rose-200 text-rose-900' 
+                <tr className={`border-y transition-colors ${isNcBehind
+                    ? 'bg-rose-50/70 border-rose-200 text-rose-900'
                     : 'bg-emerald-50/70 border-emerald-200 text-emerald-900'
-                }`}>
+                  }`}>
                   <td className="py-1.5 px-3 border-r border-slate-200 font-sans font-black flex items-center gap-1.5">
                     <span className={`w-2 h-2 rounded-full ${isNcBehind ? 'bg-rose-500' : 'bg-emerald-500'}`} />
                     <span className="text-xs uppercase tracking-tight">% Target Hit (NC Focus)</span>
                   </td>
                   <td className="py-1.5 px-3 border-r border-slate-200 text-right font-black">
-                    <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-mono font-black border ${
-                      data.nc_pct_hit_mtd >= 100
+                    <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-mono font-black border ${data.nc_pct_hit_mtd >= 100
                         ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
                         : ncPaceDelta >= 0
-                        ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                        : 'bg-rose-50 text-rose-800 border-rose-200'
-                    }`}>
-                      <span>{data.nc_pct_hit_mtd}%</span>
-                      <span className={`text-[9px] font-sans font-bold px-1 py-0.2 rounded ${
-                        ncPaceDelta >= 0 ? 'bg-emerald-200/80 text-emerald-900' : 'bg-rose-200/80 text-rose-900'
+                          ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                          : 'bg-rose-50 text-rose-800 border-rose-200'
                       }`}>
+                      <span>{data.nc_pct_hit_mtd}%</span>
+                      <span className={`text-[9px] font-sans font-bold px-1 py-0.2 rounded ${ncPaceDelta >= 0 ? 'bg-emerald-200/80 text-emerald-900' : 'bg-rose-200/80 text-rose-900'
+                        }`}>
                         {ncPaceDelta >= 0 ? `+${ncPaceDelta}% Ahead` : `${ncPaceDelta}% Slow`}
                       </span>
                     </span>
                   </td>
                   <td className="py-1.5 px-3 text-right font-black">
-                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-mono font-black shadow-2xs ${
-                      isNcBehind ? 'bg-rose-600 text-white' : 'bg-emerald-600 text-white'
-                    }`}>
+                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-mono font-black shadow-2xs ${isNcBehind ? 'bg-rose-600 text-white' : 'bg-emerald-600 text-white'
+                      }`}>
                       {isNcBehind ? <AlertTriangle className="w-3 h-3" /> : <CheckCircle2 className="w-3 h-3" />}
                       <span>{data.nc_pct_hit_rr}%</span>
                     </span>
@@ -354,9 +421,8 @@ export function CampaignTargetTable({ data, asOfDate, isLoading = false }: Campa
             </tr>
 
             {/* FOCUS ROW: Daily Compare */}
-            <tr className={`border-t font-bold transition-colors ${
-              isDailyBehind ? 'bg-rose-50/90 text-rose-950' : 'bg-emerald-50/90 text-emerald-950'
-            }`}>
+            <tr className={`border-t font-bold transition-colors ${isDailyBehind ? 'bg-rose-50/90 text-rose-950' : 'bg-emerald-50/90 text-emerald-950'
+              }`}>
               <td className="py-1.5 px-3 border-r border-slate-200 font-sans font-black flex items-center gap-1.5">
                 {isDailyBehind ? <TrendingDown className="w-3.5 h-3.5 text-rose-600" /> : <TrendingUp className="w-3.5 h-3.5 text-emerald-600" />}
                 <span className="text-xs uppercase tracking-tight">Daily Pace Compare (Velocity)</span>
@@ -365,9 +431,8 @@ export function CampaignTargetTable({ data, asOfDate, isLoading = false }: Campa
                 -
               </td>
               <td className="py-1.5 px-3 text-right font-black">
-                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-mono font-black shadow-2xs ${
-                  isDailyBehind ? 'bg-rose-600 text-white' : 'bg-emerald-600 text-white'
-                }`}>
+                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-mono font-black shadow-2xs ${isDailyBehind ? 'bg-rose-600 text-white' : 'bg-emerald-600 text-white'
+                  }`}>
                   {data.daily_compare_pct > 0 ? `+${data.daily_compare_pct}%` : `${data.daily_compare_pct}%`}
                   <span className="text-[9px] font-sans font-normal opacity-90">
                     {data.daily_compare_pct >= 0 ? 'Ahead' : 'Behind'}

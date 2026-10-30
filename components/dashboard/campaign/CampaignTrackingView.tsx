@@ -3,33 +3,33 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { CampaignSetupConfig, CampaignAnalyticsPayload } from '@/lib/types/campaign.types';
 import { UserProfile } from '@/lib/types/auth.types';
-import { 
-  loadCampaignSetups, 
-  saveCampaignSetup, 
+import {
+  loadCampaignSetups,
+  saveCampaignSetup,
   deleteCampaignSetup,
   loadLiveDataMapCache,
   saveLiveDataMapCache,
-  INITIAL_PRESET_CAMPAIGNS 
+  INITIAL_PRESET_CAMPAIGNS
 } from '@/lib/storage/campaignStorage';
 import { computeCampaignAnalytics, computeBackwardDates, calculateDateDiffDays } from '@/lib/campaign/campaignEngine';
 import { createClient } from '@/lib/supabase/client';
-import { 
-  CampaignCardItem, 
-  formatKipShort, 
-  formatWeightShort, 
-  formatTargetRevenue, 
-  formatEventDateRange 
+import {
+  CampaignCardItem,
+  formatKipShort,
+  formatWeightShort,
+  formatTargetRevenue,
+  formatEventDateRange
 } from './CampaignCardItem';
 import { CampaignDetailModal } from './CampaignDetailModal';
 import { CampaignSetupModal } from './CampaignSetupModal';
 import { CampaignTargetTable } from './CampaignTargetTable';
 import { CampaignBackwardCompareTable } from './CampaignBackwardCompareTable';
-import { 
-  LayoutGrid, 
-  Table2, 
-  FileSpreadsheet, 
-  Plus, 
-  RefreshCw, 
+import {
+  LayoutGrid,
+  Table2,
+  FileSpreadsheet,
+  Plus,
+  RefreshCw,
   SlidersHorizontal,
   Info,
   Sparkles,
@@ -71,7 +71,7 @@ export function CampaignTrackingView({
           const parsed = JSON.parse(raw);
           if (Array.isArray(parsed) && parsed.length > 0) return parsed;
         }
-      } catch {}
+      } catch { }
     }
     return [];
   });
@@ -84,13 +84,13 @@ export function CampaignTrackingView({
           const parsed = JSON.parse(raw);
           if (Array.isArray(parsed) && parsed.length > 0) return parsed[0];
         }
-      } catch {}
+      } catch { }
     }
     return null;
   });
 
   const [isLoadingCampaigns, setIsLoadingCampaigns] = useState<boolean>(true);
-  
+
   // Filter & Search state
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
@@ -237,16 +237,16 @@ export function CampaignTrackingView({
       const envUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://wlufvvawlbyvpyaubzph.supabase.co';
       const envKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndsdWZ2dmF3bGJ5dnB5YXVienBoIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MTg1MDY0MSwiZXhwIjoyMTA3NDI2NjQxfQ.CN2Omnb-aAuxAW80EqFZubEZhilRdOlwHg8VzPn2AHk';
 
-      const headers: Record<string, string> = { 
+      const headers: Record<string, string> = {
         'Content-Type': 'application/json',
         'x-supabase-url': storedUrl || envUrl,
         'x-supabase-key': storedKey || envKey,
       };
 
       let payload: any = null;
-      const effectiveAsOfDate = overrideAsOfDate 
-        || ((targetCamp.auto_sync_max_date !== false && dbLatestDate) 
-          ? dbLatestDate 
+      const effectiveAsOfDate = overrideAsOfDate
+        || ((targetCamp.auto_sync_max_date !== false && dbLatestDate)
+          ? dbLatestDate
           : (targetCamp.data_update_on || dbLatestDate || '2026-10-21'));
 
       try {
@@ -294,11 +294,11 @@ export function CampaignTrackingView({
           const rules = Array.isArray(targetCamp.conditions) && targetCamp.conditions.length > 0
             ? targetCamp.conditions
             : [{
-                metric: ((targetCamp.condition_type || '').includes('weight') || (targetCamp.condition_label || '').toLowerCase().includes('g')) ? ('weight' as const) : ('amount' as const),
-                operator: targetCamp.condition_operator || '>=',
-                value: Number(targetCamp.condition_value) || 0,
-                max_value: targetCamp.condition_max_value ? Number(targetCamp.condition_max_value) : undefined,
-              }];
+              metric: ((targetCamp.condition_type || '').includes('weight') || (targetCamp.condition_label || '').toLowerCase().includes('g')) ? ('weight' as const) : ('amount' as const),
+              operator: targetCamp.condition_operator || '>=',
+              value: Number(targetCamp.condition_value) || 0,
+              max_value: targetCamp.condition_max_value ? Number(targetCamp.condition_max_value) : undefined,
+            }];
           const firstRule = rules[0];
           const isWeight = firstRule ? firstRule.metric === 'weight' : false;
           const condOp = firstRule ? firstRule.operator : '>=';
@@ -352,17 +352,17 @@ export function CampaignTrackingView({
           }
 
           if (rpcData && rpcData.mtd_transac !== undefined) {
-            const finalNc = Number(rpcData.mtd_new_customers) > 0 
-              ? Number(rpcData.mtd_new_customers) 
+            const finalNc = Number(rpcData.mtd_new_customers) > 0
+              ? Number(rpcData.mtd_new_customers)
               : ((ncCount !== null && ncCount !== undefined && ncCount > 0) ? ncCount : 0);
 
             // Construct dynamic SQL script for Supabase query bridge
             const bList = targetCamp.bank && targetCamp.bank !== 'all' ? targetCamp.bank.split(',').map((b: string) => b.trim()).filter(Boolean) : [];
-            const bankSql = bList.length === 1 
-              ? `\n  AND bank ILIKE '%${bList[0]}%'` 
-              : bList.length > 1 
-              ? `\n  AND (${bList.map((b: string) => `bank ILIKE '%${b}%'`).join(' OR ')})` 
-              : '';
+            const bankSql = bList.length === 1
+              ? `\n  AND bank ILIKE '%${bList[0]}%'`
+              : bList.length > 1
+                ? `\n  AND (${bList.map((b: string) => `bank ILIKE '%${b}%'`).join(' OR ')})`
+                : '';
             let condSql = '';
             for (const r of rules) {
               const col = r.metric === 'weight' ? 'gold_weight' : 'total_amount';
@@ -636,22 +636,22 @@ WHERE created_at >= '${backwardWindow.start}'
     const isEnded = camp.campaign_date_end && latestDataDate >= camp.campaign_date_end;
     const effectiveCutoff = isEnded ? camp.campaign_date_end : latestDataDate;
     const banks = camp.bank && camp.bank !== 'all' ? camp.bank.split(',').map((b: string) => b.trim()).filter(Boolean) : [];
-    const bankFilter = banks.length === 1 
-      ? `\n  AND bank ILIKE '%${banks[0]}%'` 
-      : banks.length > 1 
-      ? `\n  AND (${banks.map((b: string) => `bank ILIKE '%${b}%'`).join(' OR ')})` 
-      : '';
+    const bankFilter = banks.length === 1
+      ? `\n  AND bank ILIKE '%${banks[0]}%'`
+      : banks.length > 1
+        ? `\n  AND (${banks.map((b: string) => `bank ILIKE '%${b}%'`).join(' OR ')})`
+        : '';
 
     const rules = Array.isArray(camp.conditions)
       ? camp.conditions
       : (camp.condition_operator !== 'all' && Number(camp.condition_value) > 0 && !camp.condition_label?.toLowerCase().includes('no condition'))
         ? [{
-            id: '1',
-            metric: ((camp.condition_type || '').includes('weight') || (camp.condition_label || '').toLowerCase().includes('g')) ? ('weight' as const) : ('amount' as const),
-            operator: camp.condition_operator || '>=',
-            value: Number(camp.condition_value) || 0,
-            max_value: camp.condition_max_value,
-          }]
+          id: '1',
+          metric: ((camp.condition_type || '').includes('weight') || (camp.condition_label || '').toLowerCase().includes('g')) ? ('weight' as const) : ('amount' as const),
+          operator: camp.condition_operator || '>=',
+          value: Number(camp.condition_value) || 0,
+          max_value: camp.condition_max_value,
+        }]
         : [];
 
     let condFilter = '';
@@ -723,7 +723,7 @@ WHERE created_at >= '${backwardWindow.start}'
 
     // 2. Persist to Supabase and localStorage
     const saved = await saveCampaignSetup(unfrozenConfig, currentUser?.id);
-    
+
     // 3. Clear cached calculation and force recalculate with new criteria immediately
     setLiveData(null);
     setLiveDataMap((prev) => {
@@ -805,7 +805,15 @@ WHERE created_at >= '${backwardWindow.start}'
           `${analytics.targetAchievement.ec_pct_hit_rr}%`,
         ],
         [
-          'New Customers (NC)',
+          `Unique Users (${analytics.targetAchievement.unique_users_mode_label})`,
+          analytics.targetAchievement.unique_users_actual_mtd,
+          analytics.targetAchievement.unique_users_rr_projected,
+          analytics.targetAchievement.unique_users_target || 'N/A',
+          `${analytics.targetAchievement.unique_users_pct_hit_mtd}%`,
+          `${analytics.targetAchievement.unique_users_pct_hit_rr}%`,
+        ],
+        [
+          `New Customers (NC - ${analytics.targetAchievement.nc_mode_label})`,
           analytics.targetAchievement.nc_actual_mtd,
           analytics.targetAchievement.nc_rr_projected,
           analytics.targetAchievement.nc_target,
@@ -835,6 +843,12 @@ WHERE created_at >= '${backwardWindow.start}'
           analytics.backwardComparison.buy_trans_mtd,
           analytics.backwardComparison.buy_trans_backward,
           `${analytics.backwardComparison.buy_trans_pct_compare}%`,
+        ],
+        [
+          `Unique Users (${analytics.backwardComparison.unique_users_mode_label})`,
+          analytics.backwardComparison.unique_users_mtd,
+          analytics.backwardComparison.unique_users_backward,
+          `${analytics.backwardComparison.unique_users_pct_compare}%`,
         ],
         [
           'Buy Value (Mil LAK)',
@@ -928,7 +942,7 @@ WHERE created_at >= '${backwardWindow.start}'
               className="w-full bg-slate-50 hover:bg-slate-100 focus:bg-white border border-slate-200 text-slate-800 text-xs font-medium rounded-xl pl-8 pr-3 py-1.5 focus:ring-2 focus:ring-[#0c4ca3] focus:outline-hidden transition-all"
             />
             {searchQuery && (
-              <button 
+              <button
                 onClick={() => setSearchQuery('')}
                 className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 hover:text-slate-700 font-bold"
               >
@@ -988,11 +1002,10 @@ WHERE created_at >= '${backwardWindow.start}'
           <div className="flex items-center bg-slate-100 p-0.5 rounded-xl border border-slate-200">
             <button
               onClick={() => setViewMode('cards')}
-              className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                viewMode === 'cards' 
-                  ? 'bg-white text-slate-900 shadow-2xs' 
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${viewMode === 'cards'
+                  ? 'bg-white text-slate-900 shadow-2xs'
                   : 'text-slate-500 hover:text-slate-800'
-              }`}
+                }`}
               title="Compact Card Grid"
             >
               <LayoutGrid className="w-3.5 h-3.5" />
@@ -1000,11 +1013,10 @@ WHERE created_at >= '${backwardWindow.start}'
             </button>
             <button
               onClick={() => setViewMode('table')}
-              className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                viewMode === 'table' 
-                  ? 'bg-white text-slate-900 shadow-2xs' 
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${viewMode === 'table'
+                  ? 'bg-white text-slate-900 shadow-2xs'
                   : 'text-slate-500 hover:text-slate-800'
-              }`}
+                }`}
               title="High-Density Table View (up to 30+ campaigns)"
             >
               <Table2 className="w-3.5 h-3.5" />
@@ -1065,21 +1077,18 @@ WHERE created_at >= '${backwardWindow.start}'
                   const statusLabel = isCompleted ? 'Completed' : isUpcoming ? 'Upcoming' : 'Active';
 
                   return (
-                    <tr 
+                    <tr
                       key={camp.id}
                       onClick={() => handleSelectCampaign(camp)}
-                      className={`hover:bg-blue-50/50 transition-colors cursor-pointer ${
-                        isSelected ? 'bg-blue-50/80 font-bold ring-1 ring-inset ring-brand-navy/30' : ''
-                      }`}
+                      className={`hover:bg-blue-50/50 transition-colors cursor-pointer ${isSelected ? 'bg-blue-50/80 font-bold ring-1 ring-inset ring-brand-navy/30' : ''
+                        }`}
                     >
                       {/* Status */}
                       <td className="py-2 px-3 whitespace-nowrap">
-                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-semibold ${
-                          isCompleted ? 'bg-emerald-100 text-emerald-800' : isUpcoming ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-brand-navy'
-                        }`}>
-                          <span className={`w-1.5 h-1.5 rounded-full ${
-                            isCompleted ? 'bg-emerald-500' : isUpcoming ? 'bg-amber-500' : 'bg-brand-navy animate-pulse'
-                          }`} />
+                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-semibold ${isCompleted ? 'bg-emerald-100 text-emerald-800' : isUpcoming ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-brand-navy'
+                          }`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${isCompleted ? 'bg-emerald-500' : isUpcoming ? 'bg-amber-500' : 'bg-brand-navy animate-pulse'
+                            }`} />
                           <span>{statusLabel}</span>
                         </span>
                       </td>
@@ -1112,9 +1121,8 @@ WHERE created_at >= '${backwardWindow.start}'
                         <span className="text-slate-900 font-bold">
                           {targetAchievement.ec_actual_mtd.toLocaleString()} / {targetAchievement.ec_target.toLocaleString()}
                         </span>
-                        <span className={`ml-1.5 px-1.5 py-0.2 rounded text-[10px] font-bold ${
-                          targetAchievement.ec_pct_hit_mtd >= 100 ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-700'
-                        }`}>
+                        <span className={`ml-1.5 px-1.5 py-0.2 rounded text-[10px] font-bold ${targetAchievement.ec_pct_hit_mtd >= 100 ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-700'
+                          }`}>
                           {targetAchievement.ec_pct_hit_mtd}%
                         </span>
                       </td>
@@ -1126,9 +1134,8 @@ WHERE created_at >= '${backwardWindow.start}'
                           {targetAchievement.nc_target > 0 && ` / ${targetAchievement.nc_target.toLocaleString()}`}
                         </span>
                         {targetAchievement.nc_target > 0 && (
-                          <span className={`ml-1.5 px-1.5 py-0.2 rounded text-[10px] font-bold ${
-                            targetAchievement.nc_pct_hit_mtd >= 100 ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-700'
-                          }`}>
+                          <span className={`ml-1.5 px-1.5 py-0.2 rounded text-[10px] font-bold ${targetAchievement.nc_pct_hit_mtd >= 100 ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-700'
+                            }`}>
                             {targetAchievement.nc_pct_hit_mtd}%
                           </span>
                         )}
@@ -1152,11 +1159,10 @@ WHERE created_at >= '${backwardWindow.start}'
                         <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
                           <button
                             onClick={() => handleSelectCampaign(camp)}
-                            className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
-                              isSelected 
-                                ? 'bg-[#0c4ca3] text-white border-[#0c4ca3]' 
+                            className={`px-2 py-0.5 rounded text-[10px] font-bold border ${isSelected
+                                ? 'bg-[#0c4ca3] text-white border-[#0c4ca3]'
                                 : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
-                            }`}
+                              }`}
                           >
                             {isSelected ? 'Active' : 'Inspect'}
                           </button>
@@ -1262,11 +1268,10 @@ WHERE created_at >= '${backwardWindow.start}'
                     <button
                       key={pNum}
                       onClick={() => setCurrentPage(pNum)}
-                      className={`min-w-[28px] h-7 px-1.5 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer ${
-                        isCurrent
+                      className={`min-w-[28px] h-7 px-1.5 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer ${isCurrent
                           ? 'bg-[#0c4ca3] text-white shadow-2xs'
                           : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200'
-                      }`}
+                        }`}
                     >
                       {pNum}
                     </button>
@@ -1344,15 +1349,15 @@ WHERE created_at >= '${backwardWindow.start}'
           {/* Side-by-Side Detailed Analytics Tables: Content-Sized (No 100% Artificial Stretching) */}
           <div className="flex flex-wrap items-start gap-4 justify-start">
             {/* Table 1: Target Achievement & Run Rate Projections */}
-            <CampaignTargetTable 
-              data={analytics.targetAchievement} 
+            <CampaignTargetTable
+              data={analytics.targetAchievement}
               asOfDate={latestDataDate}
               isLoading={calculatingIds.has(currentTargetCampaign.id)}
             />
 
             {/* Table 2: Comparison vs Same Period Backward (Past Baseline Benchmark) */}
-            <CampaignBackwardCompareTable 
-              data={analytics.backwardComparison} 
+            <CampaignBackwardCompareTable
+              data={analytics.backwardComparison}
               asOfDate={latestDataDate}
               isLoading={calculatingIds.has(currentTargetCampaign.id)}
             />
@@ -1390,8 +1395,8 @@ WHERE created_at >= '${backwardWindow.start}'
 
                 <button
                   onClick={() => {
-                    const isSqlCurrent = liveData?.sql_script 
-                      && !liveData.sql_script.includes('2026-10-19') 
+                    const isSqlCurrent = liveData?.sql_script
+                      && !liveData.sql_script.includes('2026-10-19')
                       && !liveData.sql_script.includes('2026-10-18')
                       && liveData.sql_script.includes(latestDataDate);
                     const rawSql = isSqlCurrent ? liveData.sql_script : defaultGeneratedSql;

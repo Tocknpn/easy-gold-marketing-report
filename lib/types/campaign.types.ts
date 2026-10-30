@@ -38,9 +38,15 @@ export interface CampaignSetupConfig {
   status?: CampaignStatus;
 
   // Multiple Targets Configuration
-  target_types: ('ec' | 'nc' | 'revenue' | 'weight')[];
+  target_types: ('ec' | 'unique_users' | 'nc' | 'revenue' | 'weight')[];
   ec_target: number;                  // Existing/Total Transactions Target (e.g. 307500 or 12800)
+  unique_users_target?: number;       // Unique Users Target (e.g. 25000)
+  unique_users_actual?: number;       // Actual Unique Users
+  unique_users_filter_mode?: 'condition_tier' | 'time_only'; // Requirement #1 (time_only) vs #2 (condition_tier)
   nc_target: number;                  // New Customers Target (e.g. 17220 or 2500)
+  nc_qualification_mode?: 'all_registers' | 'first_purchase_tier'; // Requirement #3: First purchase at exact same timestamp with tier
+  nc_first_purchase_use_main_condition?: boolean; // Default true: inherits Section 3 condition rules
+  nc_conditions?: CampaignConditionRule[]; // Custom condition override for NC first purchase
   revenue_target_mil?: number;        // Revenue Target in Million LAK
   gold_weight_target_g?: number;      // Gold Weight Target in Grams
   baseline_daily_rr?: number;         // e.g. 79.0 (Avg Normal RR per Day baseline)
@@ -84,21 +90,30 @@ export interface CampaignTargetAchievementPayload {
   is_ended: boolean;
   is_upcoming: boolean;
   status: CampaignStatus;
-  
+
   // EC Target
   ec_actual_mtd: number;
   ec_rr_projected: number;
   ec_target: number;
   ec_pct_hit_mtd: number;             // e.g. 40%
   ec_pct_hit_rr: number;              // e.g. 95%
-  
+
+  // Unique Users Target
+  unique_users_actual_mtd: number;
+  unique_users_rr_projected: number;
+  unique_users_target: number;
+  unique_users_pct_hit_mtd: number;
+  unique_users_pct_hit_rr: number;
+  unique_users_mode_label: string;
+
   // NC Target
   nc_actual_mtd: number;
   nc_rr_projected: number;
   nc_target: number;
   nc_pct_hit_mtd: number;             // e.g. 14%
   nc_pct_hit_rr: number;              // e.g. 34%
-  
+  nc_mode_label: string;
+
   // Revenue Target
   revenue_target_mil?: number;
   mtd_buy_value_mil_lak: number;
@@ -116,7 +131,7 @@ export interface CampaignTargetAchievementPayload {
   // Ticket Size
   mtd_ticket_size_g: number;
   rr_ticket_size_g: number;
-  
+
   // Daily Averages & Pacing
   avg_buy_trans_target_per_day: number;
   act_buy_trans_per_day: number;
@@ -129,33 +144,39 @@ export interface CampaignBackwardComparisonPayload {
   mtd_days: number;
   backward_start: string;
   backward_end: string;
-  
+
   // Buy Transaction
   buy_trans_condition_label: string;
   buy_trans_mtd: number;
   buy_trans_backward: number;
   buy_trans_pct_compare: number;      // e.g. +35%
-  
+
+  // Unique Users
+  unique_users_mtd: number;
+  unique_users_backward: number;
+  unique_users_pct_compare: number;
+  unique_users_mode_label: string;
+
   // Buy Value
   buy_value_lak_mtd: number;
   buy_value_lak_backward: number;
   buy_value_pct_compare: number;      // e.g. +32%
-  
+
   // Buy Weight
   buy_weight_g_mtd: number;
   buy_weight_g_backward: number;
   buy_weight_pct_compare: number;     // e.g. +29%
-  
+
   // Buy Ticket Size
   ticket_size_g_mtd: number;
   ticket_size_g_backward: number;
   ticket_size_pct_compare: number;    // e.g. -4%
-  
+
   // New Customer (NC) Acquisition
   nc_mtd?: number;
   nc_backward?: number;
   nc_pct_compare?: number;            // e.g. -21%
-  
+
   // Baseline Normal RR comparison
   baseline_normal_rr_per_day?: number;
   avg_campaign_daily_actual?: number;
