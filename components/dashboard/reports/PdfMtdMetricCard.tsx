@@ -217,7 +217,7 @@ export function PdfMtdMetricCard({
         <div className="px-2 py-1.5 rounded-xl bg-slate-50 border border-slate-200/80 text-[10.5px] flex items-center justify-between gap-1 whitespace-nowrap">
           <div className="flex items-center gap-1 text-slate-500 font-semibold shrink-0">
             <Gauge className="w-3.5 h-3.5 text-[#0c4ca3] shrink-0" />
-            <span>Velocity:</span>
+            <span>Avg.:</span>
           </div>
           <div className="font-extrabold text-slate-800 shrink-0 flex items-center gap-1 tabular-nums">
             <span>{currentDailyRate.toLocaleString()}</span>
