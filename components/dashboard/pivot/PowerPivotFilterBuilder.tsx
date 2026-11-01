@@ -25,6 +25,8 @@ interface FilterBuilderProps {
   compact?: boolean;
   /** Skip rendering the Datetime From-To + status bar inline (caller renders <DatetimeRangeBar> elsewhere). */
   hideDatetimeBar?: boolean;
+  /** Extra buttons rendered in the same row as "+ Row filter" / "+ Measure filter" (e.g. a Top N Leaderboard toggle). */
+  extraActions?: React.ReactNode;
 }
 
 const inputCls =
@@ -276,6 +278,7 @@ export function PowerPivotFilterBuilder({
   conflicts = [],
   compact,
   hideDatetimeBar,
+  extraActions,
 }: FilterBuilderProps) {
   const update = (id: string, patch: Partial<PowerPivotFilter>) =>
     onChange(filters.map((f) => (f.id === id ? { ...f, ...patch } : f)));
@@ -303,6 +306,12 @@ export function PowerPivotFilterBuilder({
   const minDate = meta?.min_date || '2026-01-01';
   const maxDate = meta?.max_date || '2026-10-28';
 
+  const hasDatetimeFilter = filters.some((f) => f.scope === 'row' && f.field === 'datetime');
+  const addDatetimeRange = () => {
+    if (hasDatetimeFilter) return;
+    addRow({ field: 'datetime', op: 'between', value: `${minDate} 00:00`, value2: `${maxDate} 23:59` });
+  };
+
   const changeField = (f: PowerPivotFilter, field: string) => {
     const def = getFilterField(field);
     const op = (def ? OPS_BY_KIND[def.kind][0].id : '>=') as FilterOp;
@@ -323,10 +332,6 @@ export function PowerPivotFilterBuilder({
     { label: 'Weight >= 2g', make: () => ({ field: 'gold_weight', op: '>=', value: '2' }) },
     { label: 'Weight 1g - 5g', make: () => ({ field: 'gold_weight', op: 'between', value: '1', value2: '5' }) },
     {
-      label: 'Datetime From-To (HH:mm)',
-      make: () => ({ field: 'datetime', op: 'between', value: `${minDate} 00:00`, value2: `${maxDate} 23:59` }),
-    },
-    {
       label: 'Hour 08:00 - 17:00',
       make: () => ({ field: 'hour', op: 'between', value: '8', value2: '17' }),
     },
@@ -336,7 +341,9 @@ export function PowerPivotFilterBuilder({
 
   return (
     <div className="space-y-2.5">
-      {!compact && !hideDatetimeBar && <DatetimeRangeBar filters={filters} onChange={onChange} meta={meta} />}
+      {!compact && !hideDatetimeBar && hasDatetimeFilter && (
+        <DatetimeRangeBar filters={filters} onChange={onChange} meta={meta} />
+      )}
 
       {filters.length === 0 && (
         <div className="text-[11px] text-slate-400 italic px-1">
@@ -344,7 +351,7 @@ export function PowerPivotFilterBuilder({
         </div>
       )}
 
-      {filters.map((f) => {
+      {filters.filter((f) => !(f.scope === 'row' && f.field === 'datetime')).map((f) => {
         const isMeasure = f.scope === 'measure';
         const def = getFilterField(f.field);
         const kind = isMeasure ? 'num' : def?.kind || 'num';
@@ -495,6 +502,16 @@ export function PowerPivotFilterBuilder({
             <Plus className="w-3 h-3" /> <Sigma className="w-3 h-3" /> Measure filter
           </button>
         )}
+        {!compact && !hideDatetimeBar && !hasDatetimeFilter && (
+          <button
+            type="button"
+            onClick={addDatetimeRange}
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-black bg-sky-600 text-white hover:bg-sky-700"
+          >
+            <Plus className="w-3 h-3" /> <Clock className="w-3 h-3" /> Datetime Range
+          </button>
+        )}
+        {!compact && extraActions}
         {!compact && (
           <>
             <span className="text-[10px] text-slate-400 font-bold ml-1">Quick add:</span>

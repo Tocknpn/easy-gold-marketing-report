@@ -69,7 +69,7 @@ import {
   downloadExcel,
 } from '@/lib/pivot/powerPivotApi';
 import { PowerPivotGrid } from './PowerPivotGrid';
-import { PowerPivotFilterBuilder, DatetimeRangeBar } from './PowerPivotFilterBuilder';
+import { PowerPivotFilterBuilder } from './PowerPivotFilterBuilder';
 import { MeasureManagerModal } from './MeasureManagerModal';
 
 interface Props {
@@ -155,36 +155,6 @@ function Zone({
           </span>
         ))}
       </div>
-    </div>
-  );
-}
-
-// ----------------------------------------------------------------------------
-// Collapsible section (used for Advanced Filters: Top N Leaderboard + Datetime Range)
-// ----------------------------------------------------------------------------
-function CollapsibleSection({
-  title,
-  defaultOpen = false,
-  children,
-}: {
-  title: string;
-  defaultOpen?: boolean;
-  children: React.ReactNode;
-}) {
-  const [open, setOpen] = useState(defaultOpen);
-  return (
-    <div className="rounded-xl border border-amber-200/80 bg-gradient-to-r from-amber-50/80 via-blue-50/40 to-slate-50 overflow-hidden">
-      <button
-        type="button"
-        onClick={() => setOpen(!open)}
-        className="w-full flex items-center justify-between gap-2 px-3 py-2 cursor-pointer"
-      >
-        <span className="inline-flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-amber-900">
-          <Trophy className="w-4 h-4 text-[#e5a812]" /> {title}
-        </span>
-        <ChevronDown className={`w-4 h-4 text-amber-700 transition-transform ${open ? 'rotate-180' : ''}`} />
-      </button>
-      {open && <div className="px-3 pb-3 space-y-2.5">{children}</div>}
     </div>
   );
 }
@@ -362,11 +332,16 @@ export function PowerPivotStudio({ currentUser }: Props) {
   const [conflictModalOpen, setConflictModalOpen] = useState(false);
   const [customTopNInput, setCustomTopNInput] = useState('');
 
+  // Top N Leaderboard panel: hidden until opened via the "+ Top N Leaderboard" button,
+  // but stays visible whenever a Top N limit is actually active (e.g. from a loaded profile)
+  const [topNOpen, setTopNOpen] = useState(false);
+
   const allMeasures = useMemo(() => getAllMeasures(config.customMeasures), [config.customMeasures]);
   const measureLabel = useCallback((id: string) => allMeasures.find((m) => m.id === id)?.label || id, [allMeasures]);
   const dimLabel = useCallback((id: string) => DIMENSIONS.find((d) => d.id === id)?.label || id, []);
 
   const conflicts = useMemo(() => validatePivotConfig(config), [config]);
+  const topNPanelOpen = topNOpen || config.topN !== null;
 
   const activeProfile = profiles.find((p) => p.id === activeId);
   const isDirty = activeProfile ? JSON.stringify(activeProfile.config) !== JSON.stringify(config) : true;
@@ -493,7 +468,7 @@ export function PowerPivotStudio({ currentUser }: Props) {
     await deletePowerPivotProfile(activeProfile.id);
     const list = await loadPowerPivotProfiles(currentUser?.id);
     setProfiles(list);
-    selectProfile(list[0]?.id || 'preset-daily-buy');
+    selectProfile(list[0]?.id || 'preset-pivot-default');
     flash(`Profile "${name}" deleted`);
   };
 
@@ -1028,12 +1003,12 @@ export function PowerPivotStudio({ currentUser }: Props) {
                 </div>
               </div>
 
-              <CollapsibleSection title="Advanced Filters (Top N Leaderboard & Datetime Range)" defaultOpen={false}>
-                <div className="space-y-2.5">
+              {topNPanelOpen && (
+                <div className="mb-2.5 p-3 rounded-xl bg-gradient-to-r from-amber-50/80 via-blue-50/40 to-slate-50 border border-amber-200/80 space-y-2.5">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="inline-flex items-center gap-1 text-[11px] font-black uppercase text-amber-900">
-                        Top N Leaderboard:
+                      <span className="inline-flex items-center gap-1.5 text-[11px] font-black uppercase text-amber-900">
+                        <Trophy className="w-4 h-4 text-[#e5a812]" /> Top N Leaderboard:
                       </span>
                       <button
                         type="button"
@@ -1176,11 +1151,20 @@ export function PowerPivotStudio({ currentUser }: Props) {
                     ))}
                   </div>
 
-                  <div className="pt-1 border-t border-amber-200/60">
-                    <DatetimeRangeBar filters={config.filters} onChange={(filters) => patch({ filters })} meta={meta} />
+                  <div className="flex justify-end pt-1 border-t border-amber-200/60">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        patch({ topN: null });
+                        setTopNOpen(false);
+                      }}
+                      className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold text-amber-800 bg-amber-100 hover:bg-amber-200 border border-amber-300 cursor-pointer"
+                    >
+                      <X className="w-3 h-3" /> Hide Top N Leaderboard
+                    </button>
                   </div>
                 </div>
-              </CollapsibleSection>
+              )}
 
               <PowerPivotFilterBuilder
                 filters={config.filters}
@@ -1188,7 +1172,17 @@ export function PowerPivotStudio({ currentUser }: Props) {
                 meta={meta}
                 measures={allMeasures}
                 conflicts={conflicts}
-                hideDatetimeBar
+                extraActions={
+                  !topNPanelOpen && (
+                    <button
+                      type="button"
+                      onClick={() => setTopNOpen(true)}
+                      className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-black bg-amber-500 text-slate-950 hover:bg-amber-600"
+                    >
+                      <Plus className="w-3 h-3" /> <Trophy className="w-3 h-3" /> Top N Leaderboard
+                    </button>
+                  )
+                }
               />
             </div>
 
