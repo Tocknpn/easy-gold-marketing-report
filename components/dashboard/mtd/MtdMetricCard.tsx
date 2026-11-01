@@ -211,7 +211,7 @@ export function MtdMetricCard({
             </div>
           </div>
 
-          <div className="text-right">
+          <div className="text-left">
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight block">
               vs. Full {comparisonMonthLabel}
             </span>
@@ -252,7 +252,7 @@ export function MtdMetricCard({
         <div className="px-2 py-1.5 rounded-xl bg-slate-50 border border-slate-200/80 text-[10px] sm:text-[10.5px] flex items-center justify-between gap-1 flex-nowrap whitespace-nowrap overflow-hidden">
           <div className="flex items-center gap-1 text-slate-500 font-semibold shrink-0">
             <Gauge className="w-3 h-3 text-[#0c4ca3] shrink-0" />
-            <span>Velocity:</span>
+            <span>Avg.:</span>
           </div>
           <div className="font-extrabold text-slate-800 shrink-0 flex items-center gap-1">
             <span>{currentDailyRate.toLocaleString()}</span>
