@@ -63,6 +63,12 @@ function calcPctDelta(curr: number, prev: number): number {
   return Number((((curr - prev) / Math.abs(prev)) * 100).toFixed(1));
 }
 
+// Dynamic BI JSON cache (mirrors worker.js — see sql/54_dynamic_bi_report_cache.sql).
+// Dev reads the same Supabase cache prod's 3AM cron writes, so local testing sees
+// the same fast path; dev just never triggers the cron itself.
+const DYNAMIC_BI_CACHEABLE_PRESETS = ['today', 'yesterday', 'last7d', 'last30d', 'this_month', 'last_month', 'aug_month', 'q3'];
+const STATIC_DYNAMIC_BI_PRESETS = new Set(['last_month', 'aug_month', 'q3']);
+
 export async function GET(request: NextRequest) {
   const startedAt = Date.now();
 
@@ -207,6 +213,53 @@ export async function GET(request: NextRequest) {
         : [];
 
     // ============================================================================
+    // STEP 0: Supabase JSON Cache — mirrors worker.js's prod fast path (see
+    // sql/54_dynamic_bi_report_cache.sql). Only serves when FRESH; a stale or
+    // missing row just falls through to the normal live compute below, since
+    // dev has no 3AM cron to kick a background refresh.
+    // ============================================================================
+    const bypassCache = searchParams.get('refresh') === 'true';
+    const hasAdvancedFilters =
+      banks.length > 0 || branches.length > 0 || txTypes.length > 0 ||
+      minWeight !== null || maxWeight !== null || minAmount !== null || maxAmount !== null ||
+      selectedHours.length > 0 || startHourParam !== null || endHourParam !== null ||
+      selectedDaysOfWeek.length > 0 || customerSegment !== 'all' ||
+      statusParam !== 'ສໍາເລັດ' || searchKeyword !== '';
+    const isCacheablePresetConfig = !hasAdvancedFilters && DYNAMIC_BI_CACHEABLE_PRESETS.includes(quickPreset);
+
+    if (isCacheablePresetConfig && !bypassCache) {
+      try {
+        const { data: cacheRow } = await supabase
+          .from('dynamic_bi_report_cache')
+          .select('*')
+          .eq('preset_id', quickPreset)
+          .maybeSingle();
+
+        if (cacheRow && cacheRow.payload) {
+          const isFresh = STATIC_DYNAMIC_BI_PRESETS.has(quickPreset)
+            ? cacheRow.resolved_start_date === startDate && cacheRow.resolved_end_date === endDate
+            : cacheRow.latest_available_date === latestAvailableDate;
+
+          if (isFresh) {
+            const servedPayload = {
+              ...cacheRow.payload,
+              meta: {
+                ...cacheRow.payload.meta,
+                source: 'supabase_json_cache',
+                elapsed_ms: Date.now() - startedAt,
+                cache_computed_at: cacheRow.computed_at,
+                cache_latest_available_date: cacheRow.latest_available_date,
+              },
+            };
+            return NextResponse.json(servedPayload, { status: 200, headers: { 'Cache-Control': 'no-store' } });
+          }
+        }
+      } catch (e) {
+        console.warn('Dynamic BI Supabase cache read failed (dev), falling back to live compute:', e);
+      }
+    }
+
+    // ============================================================================
     // STEP 1: Try Upgraded Single-Pass SQL Engine (sql/48_dynamic_bi_complete_live_engine.sql)
     // ============================================================================
     try {
@@ -236,6 +289,20 @@ export async function GET(request: NextRequest) {
         Array.isArray(v4Data.hourly) &&
         v4Data.hourly.length === 24
       ) {
+        if (isCacheablePresetConfig) {
+          supabase
+            .rpc('upsert_dynamic_bi_cache', {
+              p_preset_id: quickPreset,
+              p_is_static: STATIC_DYNAMIC_BI_PRESETS.has(quickPreset),
+              p_resolved_start_date: startDate,
+              p_resolved_end_date: endDate,
+              p_latest_available_date: latestAvailableDate,
+              p_payload: v4Data,
+            })
+            .then(({ error }: { error: any }) => {
+              if (error) console.error('Dynamic BI cache write-through failed (dev, v4 path):', error);
+            });
+        }
         return NextResponse.json(v4Data as DynamicReportPayload, {
           status: 200,
           headers: { 'Cache-Control': 'no-store' },
@@ -1122,6 +1189,21 @@ export async function GET(request: NextRequest) {
       day_of_week: dayOfWeekList,
       timeline_trend: timelineTrend,
     };
+
+    if (isCacheablePresetConfig) {
+      supabase
+        .rpc('upsert_dynamic_bi_cache', {
+          p_preset_id: quickPreset,
+          p_is_static: STATIC_DYNAMIC_BI_PRESETS.has(quickPreset),
+          p_resolved_start_date: startDate,
+          p_resolved_end_date: endDate,
+          p_latest_available_date: latestAvailableDate,
+          p_payload: responsePayload,
+        })
+        .then(({ error }: { error: any }) => {
+          if (error) console.error('Dynamic BI cache write-through failed (dev):', error);
+        });
+    }
 
     return NextResponse.json(responsePayload, {
       status: 200,

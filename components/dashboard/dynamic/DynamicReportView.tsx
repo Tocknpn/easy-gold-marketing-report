@@ -8,6 +8,8 @@ import {
   Database,
   CheckCircle2,
   Sparkles,
+  Zap,
+  Clock,
 } from 'lucide-react';
 import { DynamicFilterState, DynamicReportPayload } from '@/lib/types/dynamicReport.types';
 import { DEFAULT_FILTER_STATE } from '@/lib/constants/dynamicReportData';
@@ -189,14 +191,26 @@ export function DynamicReportView() {
         </div>
       )}
 
-      {/* Live SQL Metadata Status Bar */}
+      {/* Live SQL / Cache Metadata Status Bar */}
       {reportData && !isLoading && !error && (
         <div className="flex flex-wrap items-center justify-between gap-2 px-3.5 py-2 bg-slate-50 border border-slate-200/80 rounded-xl text-[11px] text-slate-600 font-medium">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="inline-flex items-center gap-1 font-black text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
-              <CheckCircle2 className="w-3 h-3" />
-              100% Live SQL Verified
-            </span>
+            {reportData.meta.source === 'supabase_json_cache' ? (
+              <span className="inline-flex items-center gap-1 font-black text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
+                <Zap className="w-3 h-3" />
+                Instant (Cached 03:00 AM)
+              </span>
+            ) : reportData.meta.source === 'supabase_json_cache_stale' ? (
+              <span className="inline-flex items-center gap-1 font-black text-orange-700 bg-orange-50 px-2 py-0.5 rounded-md border border-orange-200">
+                <Clock className="w-3 h-3" />
+                Cached (Refreshing...)
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 font-black text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                <CheckCircle2 className="w-3 h-3" />
+                100% Live SQL Verified
+              </span>
+            )}
             <span>
               Active Period: <strong className="text-slate-900">{reportData.meta.start_date}</strong> to{' '}
               <strong className="text-slate-900">{reportData.meta.end_date}</strong>
@@ -205,12 +219,20 @@ export function DynamicReportView() {
             <span>
               Latest Uploaded DB Date: <strong className="text-[#0c4ca3]">{latestAvailableDate}</strong>
             </span>
+            {reportData.meta.source === 'supabase_json_cache_stale' && reportData.meta.cache_latest_available_date && (
+              <>
+                <span className="text-slate-300">|</span>
+                <span className="text-orange-700">
+                  Data as of: <strong>{reportData.meta.cache_latest_available_date}</strong>
+                </span>
+              </>
+            )}
           </div>
           <div className="flex items-center gap-2 text-slate-500">
             <Database className="w-3.5 h-3.5 text-[#0c4ca3]" />
             <span>
               Source: <strong className="text-slate-800">{reportData.meta.source || 'Supabase Live SQL'}</strong>
-              {reportData.meta.elapsed_ms ? ` (${(reportData.meta.elapsed_ms / 1000).toFixed(1)}s)` : ''}
+              {reportData.meta.elapsed_ms !== undefined ? ` (${(reportData.meta.elapsed_ms / 1000).toFixed(1)}s)` : ''}
             </span>
           </div>
         </div>

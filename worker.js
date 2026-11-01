@@ -352,7 +352,19 @@ async function requireStaff(request, env) {
   return { ok: true, ctx };
 }
 
-export default {
+// Dynamic BI JSON cache: the 8 quick-preset buttons eligible for the Supabase
+// result cache (any advanced filter, or a non-preset custom range, skips the
+// cache and always computes live). "Static" presets are closed/unchanging
+// calendar ranges (full past months/quarters) that only need recomputing if
+// their resolved date range itself changes (e.g. month rollover); the rest
+// shift forward daily and always refresh at 3AM.
+const DYNAMIC_BI_CACHEABLE_PRESETS = ['today', 'yesterday', 'last7d', 'last30d', 'this_month', 'last_month', 'aug_month', 'q3'];
+const STATIC_DYNAMIC_BI_PRESETS = new Set(['last_month', 'aug_month', 'q3']);
+
+// Named (not `export default {...}` directly) so handlers can self-invoke
+// `workerHandlers.fetch(...)` in-process for internal recomputes (see
+// fetchDynamicBiReportInternal) without a real network round-trip.
+const workerHandlers = {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
 
@@ -640,12 +652,17 @@ export default {
       }
 
       const DEFAULT_SUPABASE_URL = "https://wlufvvawlbyvpyaubzph.supabase.co";
-      const DEFAULT_SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndsdWZ2dmF3bGJ5dnB5YXVienBoIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MTg1MDY0MSwiZXhwIjoyMTA3NDI2NjQxfQ.CN2Omnb-aAuxAW80EqFZubEZhilRdOlwHg8VzPn2AHk";
 
       const headerUrl = request.headers.get('x-supabase-url');
       const headerKey = request.headers.get('x-supabase-key');
       const supabaseUrl = headerUrl || (env && env.NEXT_PUBLIC_SUPABASE_URL) || DEFAULT_SUPABASE_URL;
-      const supabaseKey = headerKey || (env && env.SUPABASE_SERVICE_ROLE_KEY) || (env && env.NEXT_PUBLIC_SUPABASE_ANON_KEY) || DEFAULT_SUPABASE_KEY;
+      const supabaseKey = headerKey || (env && env.SUPABASE_SERVICE_ROLE_KEY) || (env && env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+      if (!supabaseKey) {
+        return new Response(JSON.stringify({ error: 'Server misconfigured: missing Supabase service role / anon key.' }), {
+          status: 500,
+          headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+        });
+      }
 
       const DOW_CATALOG = [
         { num: 1, code: 'mon', label: 'Mon', full: 'Monday' },
@@ -812,6 +829,69 @@ export default {
               )
             : [];
 
+        // STEP 0: Supabase JSON Cache (precomputed daily at 3AM) — instant load
+        // for the 8 default-filter quick presets; any advanced filter or custom
+        // date range skips this and always computes live, per spec.
+        const hasAdvancedFilters =
+          banks.length > 0 || branches.length > 0 || txTypes.length > 0 ||
+          minWeight !== null || maxWeight !== null || minAmount !== null || maxAmount !== null ||
+          selectedHours.length > 0 || startHourParam !== null || endHourParam !== null ||
+          selectedDaysOfWeek.length > 0 || customerSegment !== 'all' ||
+          statusParam !== 'ສໍາເລັດ' || searchKeyword !== '';
+        const isCacheablePresetConfig = !hasAdvancedFilters && DYNAMIC_BI_CACHEABLE_PRESETS.includes(quickPreset);
+        const shouldReadDynamicBiCache = isCacheablePresetConfig && !bypassCache;
+
+        if (shouldReadDynamicBiCache) {
+          try {
+            const cacheRowRes = await fetch(
+              `${supabaseUrl}/rest/v1/dynamic_bi_report_cache?preset_id=eq.${encodeURIComponent(quickPreset)}&select=*`,
+              { headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` } }
+            );
+            const cacheRows = cacheRowRes.ok ? await cacheRowRes.json() : [];
+            const cacheRow = Array.isArray(cacheRows) && cacheRows.length > 0 ? cacheRows[0] : null;
+
+            if (cacheRow && cacheRow.payload) {
+              const isFresh = STATIC_DYNAMIC_BI_PRESETS.has(quickPreset)
+                ? cacheRow.resolved_start_date === startDate && cacheRow.resolved_end_date === endDate
+                : cacheRow.latest_available_date === latestAvailableDate;
+
+              const servedPayload = {
+                ...cacheRow.payload,
+                meta: {
+                  ...cacheRow.payload.meta,
+                  source: isFresh ? 'supabase_json_cache' : 'supabase_json_cache_stale',
+                  elapsed_ms: Date.now() - startedAt,
+                  cache_computed_at: cacheRow.computed_at,
+                  cache_latest_available_date: cacheRow.latest_available_date,
+                },
+              };
+
+              if (!isFresh) {
+                // Stale: serve the last-known snapshot instantly, refresh in the
+                // background so the next visitor gets a fresh cache row.
+                ctx.waitUntil(
+                  fetchDynamicBiReportInternal(env, ctx, { quickPreset, startDate, endDate }).catch((e) =>
+                    console.error('Background Dynamic BI cache refresh failed:', e)
+                  )
+                );
+              }
+
+              const cachedResponse = new Response(JSON.stringify(servedPayload), {
+                status: 200,
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Access-Control-Allow-Origin': '*',
+                  'Cache-Control': 'public, max-age=60, s-maxage=60, stale-while-revalidate=300',
+                },
+              });
+              ctx.waitUntil(cache.put(cacheKey, cachedResponse.clone()));
+              return cachedResponse;
+            }
+          } catch (e) {
+            console.warn('Dynamic BI Supabase cache read failed, falling back to live compute:', e);
+          }
+        }
+
         // STEP 1: Try Upgraded Single-Pass 16-arg SQL RPC if installed
         try {
           const v4Data = await callRpc('get_dynamic_bi_report', {
@@ -833,6 +913,26 @@ export default {
             p_search_keyword: searchKeyword || null,
           });
           if (v4Data && v4Data.meta?.source === 'live_sql_v4' && Array.isArray(v4Data.hourly) && v4Data.hourly.length === 24) {
+            if (isCacheablePresetConfig) {
+              ctx.waitUntil(
+                fetch(`${supabaseUrl}/rest/v1/rpc/upsert_dynamic_bi_cache`, {
+                  method: 'POST',
+                  headers: {
+                    apikey: supabaseKey,
+                    Authorization: `Bearer ${supabaseKey}`,
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify({
+                    p_preset_id: quickPreset,
+                    p_is_static: STATIC_DYNAMIC_BI_PRESETS.has(quickPreset),
+                    p_resolved_start_date: startDate,
+                    p_resolved_end_date: endDate,
+                    p_latest_available_date: latestAvailableDate,
+                    p_payload: v4Data,
+                  }),
+                }).catch((e) => console.error('Dynamic BI cache write-through failed (v4 path):', e))
+              );
+            }
             return new Response(JSON.stringify(v4Data), {
               status: 200,
               headers: {
@@ -1408,6 +1508,31 @@ export default {
           timeline_trend: timelineTrend,
         };
 
+        // Write-through: persist this live computation into the Supabase JSON
+        // cache for the 8 default-filter presets, whether this run came from a
+        // cold/missing cache row, a stale-cache background refresh, or the 3AM
+        // cron's internal self-fetch (which always sets refresh=true).
+        if (isCacheablePresetConfig) {
+          ctx.waitUntil(
+            fetch(`${supabaseUrl}/rest/v1/rpc/upsert_dynamic_bi_cache`, {
+              method: 'POST',
+              headers: {
+                apikey: supabaseKey,
+                Authorization: `Bearer ${supabaseKey}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                p_preset_id: quickPreset,
+                p_is_static: STATIC_DYNAMIC_BI_PRESETS.has(quickPreset),
+                p_resolved_start_date: startDate,
+                p_resolved_end_date: endDate,
+                p_latest_available_date: latestAvailableDate,
+                p_payload: payload,
+              }),
+            }).catch((e) => console.error('Dynamic BI cache write-through failed:', e))
+          );
+        }
+
         const response = new Response(JSON.stringify(payload), {
           status: 200,
           headers: {
@@ -1449,11 +1574,16 @@ export default {
       // Handle GET: trigger daily automated batch sync or single campaign sync
       if (request.method === 'GET') {
         const DEFAULT_SUPABASE_URL = "https://wlufvvawlbyvpyaubzph.supabase.co";
-        const DEFAULT_SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndsdWZ2dmF3bGJ5dnB5YXVienBoIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MTg1MDY0MSwiZXhwIjoyMTA3NDI2NjQxfQ.CN2Omnb-aAuxAW80EqFZubEZhilRdOlwHg8VzPn2AHk";
         const headerUrl = request.headers.get('x-supabase-url');
         const headerKey = request.headers.get('x-supabase-key');
         const supabaseUrl = headerUrl || (env && env.NEXT_PUBLIC_SUPABASE_URL) || DEFAULT_SUPABASE_URL;
-        const supabaseKey = headerKey || (env && env.NEXT_PUBLIC_SUPABASE_ANON_KEY) || DEFAULT_SUPABASE_KEY;
+        const supabaseKey = headerKey || (env && env.SUPABASE_SERVICE_ROLE_KEY) || (env && env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+        if (!supabaseKey) {
+          return new Response(JSON.stringify({ error: 'Server misconfigured: missing Supabase service role / anon key.' }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+          });
+        }
 
         const campaignId = url.searchParams.get('campaign_id') || null;
         try {
@@ -1491,12 +1621,17 @@ export default {
       }
 
       const DEFAULT_SUPABASE_URL = "https://wlufvvawlbyvpyaubzph.supabase.co";
-      const DEFAULT_SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndsdWZ2dmF3bGJ5dnB5YXVienBoIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MTg1MDY0MSwiZXhwIjoyMTA3NDI2NjQxfQ.CN2Omnb-aAuxAW80EqFZubEZhilRdOlwHg8VzPn2AHk";
 
       const headerUrl = request.headers.get('x-supabase-url');
       const headerKey = request.headers.get('x-supabase-key');
       const supabaseUrl = headerUrl || (env && env.NEXT_PUBLIC_SUPABASE_URL) || DEFAULT_SUPABASE_URL;
-      const supabaseKey = headerKey || (env && env.NEXT_PUBLIC_SUPABASE_ANON_KEY) || DEFAULT_SUPABASE_KEY;
+      const supabaseKey = headerKey || (env && env.SUPABASE_SERVICE_ROLE_KEY) || (env && env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+      if (!supabaseKey) {
+        return new Response(JSON.stringify({ error: 'Server misconfigured: missing Supabase service role / anon key.' }), {
+          status: 500,
+          headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+        });
+      }
 
       // 1. Discover MAX(created_at) date from Supabase dynamically
       let maxDbDate = '2026-10-21';
@@ -2236,9 +2371,143 @@ WHERE created_at >= '${bwdStart}'
     ctx.waitUntil(Promise.all([
       handleCronTrigger(env),
       syncActiveCampaignsWorker(env),
+      syncDynamicBiCache(env, ctx),
     ]));
   },
 };
+
+export default workerHandlers;
+
+// Resolves a Dynamic BI quick-preset id to its {startDate, endDate} range,
+// anchored to the DB's latest uploaded date — mirrors the date math in
+// DynamicFilterBar.tsx's handlePresetSelect() and the dynamic-report handler's
+// own inline resolution, so the 3AM cron computes the exact same ranges a
+// browser request would.
+function resolveQuickPresetRange(presetId, latestAvailableDate) {
+  const anchor = latestAvailableDate;
+  const [ay, am] = anchor.split('-').map(Number);
+  const addDays = (dateStr, delta) => {
+    const [y, m, d] = dateStr.split('-').map(Number);
+    const dt = new Date(Date.UTC(y, m - 1, d));
+    dt.setUTCDate(dt.getUTCDate() + delta);
+    return dt.toISOString().split('T')[0];
+  };
+  const monthStart = `${anchor.slice(0, 7)}-01`;
+
+  switch (presetId) {
+    case 'today':
+      return { startDate: anchor, endDate: anchor };
+    case 'yesterday': {
+      const y = addDays(anchor, -1);
+      return { startDate: y, endDate: y };
+    }
+    case 'last7d':
+      return { startDate: addDays(anchor, -6), endDate: anchor };
+    case 'last30d':
+      return { startDate: addDays(anchor, -29), endDate: anchor };
+    case 'last_month': {
+      const prevFirst = new Date(Date.UTC(ay, am - 2, 1));
+      const prevLast = new Date(Date.UTC(ay, am - 1, 0));
+      return {
+        startDate: prevFirst.toISOString().split('T')[0],
+        endDate: prevLast.toISOString().split('T')[0],
+      };
+    }
+    case 'aug_month':
+      return { startDate: '2026-08-01', endDate: '2026-08-31' };
+    case 'q3':
+      return { startDate: '2026-07-01', endDate: '2026-09-30' };
+    case 'this_month':
+    default:
+      return { startDate: monthStart, endDate: anchor };
+  }
+}
+
+// Calls the Worker's own dynamic-report handler in-process (no network hop) —
+// used both for background stale-cache refreshes and by the 3AM cron, always
+// with refresh=true so it bypasses the Supabase-cache read and recomputes live.
+async function fetchDynamicBiReportInternal(env, ctx, { quickPreset, startDate, endDate }) {
+  const internalUrl = `https://internal.worker/api/dashboard/dynamic-report?quick_preset=${encodeURIComponent(quickPreset)}&start_date=${startDate}&end_date=${endDate}&refresh=true`;
+  const internalRequest = new Request(internalUrl);
+  const response = await workerHandlers.fetch(internalRequest, env, ctx);
+  if (!response.ok) {
+    const text = await response.text().catch(() => '');
+    throw new Error(`Internal dynamic-report refresh failed: HTTP ${response.status} ${text}`);
+  }
+  return response.json();
+}
+
+// Automated 3:00 AM Dynamic BI Cache Runner — refreshes the Supabase JSON
+// cache (dynamic_bi_report_cache) for the 8 default-filter quick presets.
+// Dynamic presets (today/yesterday/last7d/last30d/this_month) always refresh;
+// static closed-period presets (last_month/aug_month/q3) skip recomputation
+// when their resolved date range hasn't changed, since that data is final.
+async function syncDynamicBiCache(env, ctx) {
+  try {
+    const now = new Date();
+    const currentHHMM = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Vientiane',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    }).format(now);
+    const [hh, mm] = currentHHMM.split(':').map((x) => parseInt(x, 10));
+    if (hh !== 3 || mm > 5) return;
+
+    const supabaseUrl = env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseKey = env.SUPABASE_SERVICE_ROLE_KEY || env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    if (!supabaseUrl || !supabaseKey) {
+      console.error('syncDynamicBiCache: missing Supabase credentials');
+      return;
+    }
+
+    let latestAvailableDate = null;
+    try {
+      const maxDateRes = await fetch(`${supabaseUrl}/rest/v1/rpc/get_max_monthly_data_date`, {
+        method: 'POST',
+        headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}`, 'Content-Type': 'application/json' },
+        body: '{}',
+      });
+      const maxDateData = maxDateRes.ok ? await maxDateRes.json() : null;
+      if (typeof maxDateData === 'string' && /^\d{4}-\d{2}-\d{2}/.test(maxDateData)) {
+        latestAvailableDate = maxDateData.slice(0, 10);
+      }
+    } catch (e) {
+      console.error('syncDynamicBiCache: failed to read latest available date:', e);
+      return;
+    }
+    if (!latestAvailableDate) return;
+
+    for (const presetId of DYNAMIC_BI_CACHEABLE_PRESETS) {
+      const { startDate, endDate } = resolveQuickPresetRange(presetId, latestAvailableDate);
+
+      if (STATIC_DYNAMIC_BI_PRESETS.has(presetId)) {
+        try {
+          const rowRes = await fetch(
+            `${supabaseUrl}/rest/v1/dynamic_bi_report_cache?preset_id=eq.${presetId}&select=resolved_start_date,resolved_end_date`,
+            { headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` } }
+          );
+          const rows = rowRes.ok ? await rowRes.json() : [];
+          const existing = Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
+          if (existing && existing.resolved_start_date === startDate && existing.resolved_end_date === endDate) {
+            continue; // Closed month/quarter unchanged since last run — nothing to recompute.
+          }
+        } catch (e) {
+          console.warn(`syncDynamicBiCache: static preset check failed for ${presetId}:`, e);
+        }
+      }
+
+      try {
+        await fetchDynamicBiReportInternal(env, ctx, { quickPreset: presetId, startDate, endDate });
+        console.log(`syncDynamicBiCache: refreshed ${presetId} (${startDate}..${endDate})`);
+      } catch (e) {
+        console.error(`syncDynamicBiCache: failed to refresh ${presetId}:`, e);
+      }
+    }
+  } catch (err) {
+    console.error('syncDynamicBiCache execution error:', err);
+  }
+}
 
 // Automated 3:00 AM Campaign Intelligence Engine Runner
 async function syncActiveCampaignsWorker(env) {
@@ -2258,8 +2527,12 @@ async function syncActiveCampaignsWorker(env) {
     }
 
     const supabaseUrl = env.NEXT_PUBLIC_SUPABASE_URL || "https://wlufvvawlbyvpyaubzph.supabase.co";
-    const supabaseKey = env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndsdWZ2dmF3bGJ5dnB5YXVienBoIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MTg1MDY0MSwiZXhwIjoyMTA3NDI2NjQxfQ.CN2Omnb-aAuxAW80EqFZubEZhilRdOlwHg8VzPn2AHk";
-    
+    const supabaseKey = env.SUPABASE_SERVICE_ROLE_KEY || env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    if (!supabaseKey) {
+      console.error('syncActiveCampaignsWorker: missing Supabase credentials (SUPABASE_SERVICE_ROLE_KEY / NEXT_PUBLIC_SUPABASE_ANON_KEY)');
+      return;
+    }
+
     const res = await fetch(`${supabaseUrl}/rest/v1/rpc/sync_active_campaigns_daily`, {
       method: 'POST',
       headers: {

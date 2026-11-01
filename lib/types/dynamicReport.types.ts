@@ -198,8 +198,10 @@ export interface DynamicReportPayload {
     end_date: string;
     latest_available_date?: string;
     generated_at: string;
-    source?: string;
+    source?: string; // 'supabase_live_sql_cube' | 'supabase_json_cache' | 'supabase_json_cache_stale'
     elapsed_ms?: number;
+    cache_computed_at?: string;
+    cache_latest_available_date?: string;
   };
   dax_measures: DaxMeasuresPayload;
   pop_comparison?: PopComparisonMetrics;
