@@ -11,9 +11,15 @@ not_found_handling = "single-page-application"
 run_worker_first = true
 
 [vars]
-NEXT_PUBLIC_SUPABASE_URL = "https://wlufvvawlbyvpyaubzph.supabase.co"
-NEXT_PUBLIC_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndsdWZ2dmF3bGJ5dnB5YXVienBoIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MTg1MDY0MSwiZXhwIjoyMTA3NDI2NjQxfQ.CN2Omnb-aAuxAW80EqFZubEZhilRdOlwHg8VzPn2AHk"
-# Encrypted secrets (Set via Cloudflare dashboard or wrangler secret put):
+# Real values are no longer committed here - a hardcoded secret in this tracked file is how
+# it ended up on the public GitHub repo in the first place. For `wrangler dev`, values come
+# from the untracked .dev.vars file; for deploys via GitHub Actions, they come from the repo's
+# NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY Actions secrets (see deploy-worker.yml).
+# NEXT_PUBLIC_SUPABASE_ANON_KEY is baked into the public JS bundle by Next.js - it must be a
+# real, RLS-restricted anon key, never the service_role key, once one is available.
+
+# Encrypted secrets (set via `wrangler secret put <NAME>`, never written here or in .dev.vars' git history):
+# SUPABASE_SERVICE_ROLE_KEY   - used server-side only, inside worker.js, for privileged Supabase REST calls
 # GOOGLE_APPS_SCRIPT_URL (or GMAIL_PROXY_URL: https://script.google.com/macros/s/.../exec)
 # GOOGLE_SERVICE_ACCOUNT_KEY
 # RESEND_API_KEY

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { requireRole } from '@/lib/supabase/apiAuth';
 import { getGoogleServiceAccountCredentials } from '@/lib/email/googleCredentials';
 
 export const runtime = 'edge';
@@ -100,6 +101,11 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const auth = await requireRole(['admin', 'operations_manager']);
+  if (!auth.ok) {
+    return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
+  }
+
   try {
     const body = await request.json().catch(() => ({}));
     const { target_emails, send_time, frequency, is_active } = body;

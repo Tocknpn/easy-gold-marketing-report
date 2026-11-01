@@ -100,9 +100,17 @@ export async function getCurrentUser(): Promise<UserProfile | null> {
     } catch (err) {
       console.warn('Error reading supabase user:', err);
     }
+
+    // Supabase is configured: it is the sole source of truth for identity.
+    // Never fall back to a client-controlled localStorage value here -
+    // that was a backdoor allowing anyone to self-promote via dev tools.
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem(DEMO_USER_KEY);
+    }
+    return null;
   }
 
-  // Fallback to local storage session only if user previously authenticated
+  // Fallback to local storage session only when Supabase itself is not configured (local/demo mode)
   if (typeof window !== 'undefined') {
     const stored = localStorage.getItem(DEMO_USER_KEY);
     if (stored) {
@@ -145,57 +153,21 @@ export async function signIn(email: string, password: string): Promise<{ user: U
           last_sign_in_at: data.user.last_sign_in_at,
         };
 
-        // Sync plain_password into profiles table if column exists
-        try {
-          await supabase.from('profiles').update({ plain_password: password }).eq('id', data.user.id);
-        } catch {}
-
         if (typeof window !== 'undefined') {
           localStorage.setItem(DEMO_USER_KEY, JSON.stringify(userProfile));
         }
         return { user: userProfile };
       }
 
-      // Check if admin changed plain_password directly in Supabase Table Editor
-      try {
-        const { data: dbProfile } = await supabase
-          .from('profiles')
-          .select('*')
-          .ilike('email', email.trim())
-          .single();
-
-        if (dbProfile && dbProfile.plain_password && dbProfile.plain_password === password) {
-          const userProfile: UserProfile = {
-            id: dbProfile.id,
-            email: dbProfile.email,
-            full_name: dbProfile.full_name || dbProfile.email.split('@')[0],
-            role: dbProfile.role || 'viewer',
-            assigned_profiles: dbProfile.assigned_profiles || ['profile-daily-buy-summary'],
-            status: dbProfile.status || 'active',
-            last_sign_in_at: new Date().toISOString(),
-          };
-
-          if (typeof window !== 'undefined') {
-            localStorage.setItem(DEMO_USER_KEY, JSON.stringify(userProfile));
-          }
-          return { user: userProfile };
-        }
-      } catch {}
-
-      // Check known corporate fallback if password is valid
-      const cleanEmail = email.trim().toLowerCase();
-      const isKnownCorporate = (cleanEmail === 'director@easygold.la' || cleanEmail === 'manager@easygold.la') &&
-        (password === 'EasyGold2026!' || password === 'demo123456');
-
-      if (!isKnownCorporate && error) {
-        return { user: null, error: error.message };
-      }
+      return { user: null, error: error?.message || 'Invalid email or password.' };
     } catch (err: any) {
       console.warn('Supabase signIn exception:', err);
+      return { user: null, error: 'Unable to reach the authentication service. Please try again.' };
     }
   }
 
-  // Fallback demo authentication: find or create in demo users list
+  // Supabase is not configured for this environment (local/demo mode only).
+  // Never used once NEXT_PUBLIC_SUPABASE_URL is set, so it can't be used to bypass real auth.
   let allDemo = getStoredDemoUsers();
   const cleanEmail = email.trim().toLowerCase();
   let existing = allDemo.find((u) => u.email.toLowerCase() === cleanEmail);
@@ -305,6 +277,17 @@ export async function signOut(): Promise<void> {
 // ADMIN USER MANAGEMENT METHODS
 // -------------------------------------------------------------
 
+function generateTempPassword(): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%';
+  const bytes = new Uint8Array(16);
+  if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+    crypto.getRandomValues(bytes);
+  } else {
+    for (let i = 0; i < bytes.length; i += 1) bytes[i] = Math.floor(Math.random() * 256);
+  }
+  return Array.from(bytes, (b) => chars[b % chars.length]).join('');
+}
+
 function getStoredDemoUsers(): AdminUserRecord[] {
   if (typeof window === 'undefined') return INITIAL_DEMO_USERS;
   try {
@@ -365,7 +348,7 @@ export async function createAdminUser(input: CreateUserInput): Promise<{ user: A
       // First create user via auth
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: input.email,
-        password: input.password || 'EasyGold2026!',
+        password: input.password || generateTempPassword(),
         options: {
           data: {
             full_name: input.full_name,

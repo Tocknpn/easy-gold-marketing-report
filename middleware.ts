@@ -53,8 +53,7 @@ export async function middleware(request: NextRequest) {
 
   // Redirect unauthenticated users to login if hitting protected routes
   if (!user && isDashboardRoute && !isAuthRoute) {
-    // In production, enforce login:
-    // return NextResponse.redirect(new URL('/login', request.url));
+    return NextResponse.redirect(new URL('/login', request.url));
   }
 
   // Redirect authenticated users away from login page to dashboard

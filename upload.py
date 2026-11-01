@@ -45,15 +45,17 @@ RESET = "\033[0m"
 # ========================================================================================
 # 1. DIRECT SUPABASE CONFIGURATION (PORTABLE MODE)
 # ========================================================================================
-# Paste your Supabase URL and Key here to make this file completely standalone so it can
-# run on ANY computer or device without needing a .env file or project setup!
+# Intentionally left blank - do NOT hardcode real credentials here, this file is tracked
+# in git. Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY as environment variables or in a
+# local, gitignored .env file instead (see get_supabase_credentials() below), or just run
+# the script and answer the interactive prompt.
 #
 # Example:
 # SUPABASE_URL = "https://your-project-id.supabase.co"
 # SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
 #
-SUPABASE_URL = "https://wlufvvawlbyvpyaubzph.supabase.co"
-SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndsdWZ2dmF3bGJ5dnB5YXVienBoIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc5MTg1MDY0MSwiZXhwIjoyMTA3NDI2NjQxfQ.CN2Omnb-aAuxAW80EqFZubEZhilRdOlwHg8VzPn2AHk"
+SUPABASE_URL = ""
+SUPABASE_KEY = ""
 
 # Default Excel folder path and batch size
 DEFAULT_DATA_FOLDER = r"D:\Monthly Data"

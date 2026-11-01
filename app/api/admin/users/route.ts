@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { requireRole } from '@/lib/supabase/apiAuth';
 import { AdminUserRecord } from '@/lib/types/auth.types';
 
 export const runtime = 'edge';
@@ -52,6 +53,11 @@ const FALLBACK_USERS: AdminUserRecord[] = [
 ];
 
 export async function GET() {
+  const auth = await requireRole(['admin']);
+  if (!auth.ok) {
+    return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
+  }
+
   try {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     if (supabaseUrl && !supabaseUrl.includes('placeholder')) {
@@ -86,6 +92,11 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const auth = await requireRole(['admin']);
+  if (!auth.ok) {
+    return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
+  }
+
   try {
     const body = await req.json();
     const { email, full_name, role, assigned_profiles, password } = body;
@@ -97,11 +108,11 @@ export async function POST(req: NextRequest) {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     if (supabaseUrl && !supabaseUrl.includes('placeholder')) {
       const supabase = createServerSupabaseClient();
-      
+
       // Sign up or insert
       const { data: authUser, error: authError } = await supabase.auth.signUp({
         email,
-        password: password || 'EasyGold2026!',
+        password: password || crypto.randomUUID(),
         options: {
           data: { full_name, role: role || 'operations_manager' },
         },
@@ -157,6 +168,11 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PUT(req: NextRequest) {
+  const auth = await requireRole(['admin']);
+  if (!auth.ok) {
+    return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
+  }
+
   try {
     const body = await req.json();
     const { id, full_name, role, assigned_profiles, status } = body;
@@ -187,6 +203,11 @@ export async function PUT(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
+  const auth = await requireRole(['admin']);
+  if (!auth.ok) {
+    return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
+  }
+
   try {
     const { searchParams } = new URL(req.url);
     const id = searchParams.get('id');

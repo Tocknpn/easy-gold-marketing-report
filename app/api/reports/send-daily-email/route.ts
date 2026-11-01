@@ -1,13 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { requireRole } from '@/lib/supabase/apiAuth';
 import { sendExecutiveReportEmail } from '@/lib/email/emailDispatcher';
 import { getGoogleServiceAccountCredentials } from '@/lib/email/googleCredentials';
 
 export async function POST(request: NextRequest) {
+  const auth = await requireRole(['admin', 'operations_manager']);
+  if (!auth.ok) {
+    return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
+  }
+
   const startTime = Date.now();
   try {
     const body = await request.json().catch(() => ({}));
-    const recipientRaw = body.recipient || 'tockppd@gmail.com';
+    const recipientRaw = body.recipient || 'management@easygold.la';
     const recipient = Array.isArray(recipientRaw) ? recipientRaw.join(', ') : String(recipientRaw);
     const reportDate = body.report_date || new Date().toISOString().split('T')[0];
 

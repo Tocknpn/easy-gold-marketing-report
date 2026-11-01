@@ -262,6 +262,96 @@ async function sendGmailWithServiceAccount({ accessToken, fromEmail, toEmails, s
   return sendData;
 }
 
+// ============================================================================
+// Session / Role Verification (used to gate sensitive write actions below)
+// ============================================================================
+function parseCookies(header) {
+  const cookies = {};
+  if (!header) return cookies;
+  header.split(';').forEach((pair) => {
+    const idx = pair.indexOf('=');
+    if (idx === -1) return;
+    const key = pair.slice(0, idx).trim();
+    const value = pair.slice(idx + 1).trim();
+    if (key) cookies[key] = value;
+  });
+  return cookies;
+}
+
+async function getAuthContext(request, env) {
+  const supabaseUrl = env.NEXT_PUBLIC_SUPABASE_URL;
+  const anonKey = env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const serverKey = env.SUPABASE_SERVICE_ROLE_KEY || anonKey;
+  if (!supabaseUrl || !anonKey) return { user: null, role: null, status: null };
+
+  try {
+    const cookies = parseCookies(request.headers.get('Cookie'));
+    const projectRef = new URL(supabaseUrl).hostname.split('.')[0];
+    const baseName = `sb-${projectRef}-auth-token`;
+
+    let raw = cookies[baseName];
+    if (raw === undefined) {
+      const parts = [];
+      let i = 0;
+      while (cookies[`${baseName}.${i}`] !== undefined) {
+        parts.push(decodeURIComponent(cookies[`${baseName}.${i}`]));
+        i += 1;
+      }
+      if (parts.length) raw = parts.join('');
+    } else {
+      raw = decodeURIComponent(raw);
+    }
+    if (!raw) return { user: null, role: null, status: null };
+
+    if (raw.startsWith('base64-')) {
+      raw = atob(raw.slice('base64-'.length));
+    }
+
+    const session = JSON.parse(raw);
+    const accessToken = session?.access_token;
+    if (!accessToken) return { user: null, role: null, status: null };
+
+    const userRes = await fetch(`${supabaseUrl}/auth/v1/user`, {
+      headers: { apikey: anonKey, Authorization: `Bearer ${accessToken}` },
+    });
+    if (!userRes.ok) return { user: null, role: null, status: null };
+    const user = await userRes.json();
+    if (!user?.id) return { user: null, role: null, status: null };
+
+    const profileRes = await fetch(
+      `${supabaseUrl}/rest/v1/profiles?id=eq.${user.id}&select=role,status`,
+      { headers: { apikey: serverKey, Authorization: `Bearer ${serverKey}` } }
+    );
+    const profileRows = profileRes.ok ? await profileRes.json() : [];
+    const profile = Array.isArray(profileRows) ? profileRows[0] : null;
+
+    return { user, role: profile?.role || null, status: profile?.status || 'active' };
+  } catch (err) {
+    console.error('getAuthContext error:', err);
+    return { user: null, role: null, status: null };
+  }
+}
+
+function jsonError(message, status) {
+  return new Response(JSON.stringify({ success: false, error: message }), {
+    status,
+    headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+  });
+}
+
+// Gates state-changing / outbound actions (sending email, changing delivery settings).
+// Internal calls from the cron `scheduled()` handler never go through `fetch`, so they
+// are unaffected by this check - it only applies to requests coming from the browser.
+async function requireStaff(request, env) {
+  const ctx = await getAuthContext(request, env);
+  if (!ctx.user) return { ok: false, response: jsonError('Authentication required', 401) };
+  if (ctx.status !== 'active') return { ok: false, response: jsonError('Account is not active', 403) };
+  if (!['admin', 'operations_manager'].includes(ctx.role)) {
+    return { ok: false, response: jsonError('Insufficient permissions', 403) };
+  }
+  return { ok: true, ctx };
+}
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
@@ -1980,6 +2070,9 @@ WHERE created_at >= '${bwdStart}'
       const supabaseKey = env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
       if (request.method === 'POST') {
+        const authCheck = await requireStaff(request, env);
+        if (!authCheck.ok) return authCheck.response;
+
         try {
           const body = await request.json();
           const { target_emails, send_time, frequency, is_active } = body;
@@ -2082,6 +2175,9 @@ WHERE created_at >= '${bwdStart}'
 
     // 6. API Route: /api/reports/send-daily-email (POST)
     if (url.pathname === '/api/reports/send-daily-email') {
+      const authCheck = await requireStaff(request, env);
+      if (!authCheck.ok) return authCheck.response;
+
       try {
         const body = await request.json().catch(() => ({}));
         const recipient = Array.isArray(body.recipient) ? body.recipient.join(', ') : (body.recipient || 'management@easygold.la');
