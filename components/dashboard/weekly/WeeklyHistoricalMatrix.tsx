@@ -1,20 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React from 'react';
 import { WeeklyMetricRow } from '@/lib/types/dashboard.types';
-import { 
-  Table2, 
-  TrendingUp, 
-  TrendingDown, 
-  Layers, 
-  Scale, 
-  Coins, 
-  Sparkles,
-  ArrowUpRight,
-  ArrowDownRight,
-  ChevronDown,
-  ChevronUp
-} from 'lucide-react';
+import { Table2, ChevronDown, ChevronUp } from 'lucide-react';
 
 interface WeeklyHistoricalMatrixProps {
   history: WeeklyMetricRow[];
@@ -23,14 +11,99 @@ interface WeeklyHistoricalMatrixProps {
   isProrated?: boolean;
 }
 
+interface MetricRowDef {
+  key: string;
+  label: string;
+  getValue: (w: WeeklyMetricRow) => number;
+  isNA?: (w: WeeklyMetricRow) => boolean;
+  format: 'int' | 'decimal';
+  signPrefix?: boolean;
+}
+
+interface MetricSectionDef {
+  key: string;
+  title: string;
+  colorClass: string;
+  rows: MetricRowDef[];
+}
+
+const isValueNA = (v: number | undefined) => !((v ?? 0) > 0);
+
+const MATRIX_SECTIONS: MetricSectionDef[] = [
+  {
+    key: 'platform',
+    title: 'Platform Overview',
+    colorClass: 'bg-[#0b192c]',
+    rows: [
+      { key: 'all_transactions', label: 'All Transaction', getValue: (w) => w.all_transactions, format: 'int' },
+      { key: 'active_users', label: 'User Participate', getValue: (w) => w.active_users, format: 'int' },
+      { key: 'new_registers', label: 'New Register', getValue: (w) => w.new_registers, format: 'int', signPrefix: true },
+      { key: 'withdraw_gold_grams', label: 'Gold Withdraw (g)', getValue: (w) => Number(w.withdraw_gold_grams), format: 'decimal' },
+    ],
+  },
+  {
+    key: 'buy',
+    title: 'Buy Activity',
+    colorClass: 'bg-[#059669]',
+    rows: [
+      { key: 'buy_weight_15g', label: 'Gold Weight (15g)', getValue: (w) => Number(w.buy_weight_15g), format: 'decimal' },
+      { key: 'buy_transactions', label: 'Transaction', getValue: (w) => w.buy_transactions, format: 'int' },
+      {
+        key: 'buy_value_mil_lak',
+        label: 'Value (mil LAK)',
+        getValue: (w) => w.buy_value_mil_lak ?? 0,
+        isNA: (w) => isValueNA(w.buy_value_mil_lak),
+        format: 'int',
+      },
+      { key: 'buy_ticket_size_g', label: 'Ticket Size (g)', getValue: (w) => Number(w.buy_ticket_size_g), format: 'decimal' },
+    ],
+  },
+  {
+    key: 'sell',
+    title: 'Sell Activity',
+    colorClass: 'bg-[#4338ca]',
+    rows: [
+      { key: 'sell_weight_15g', label: 'Gold Weight (15g)', getValue: (w) => Number(w.sell_weight_15g), format: 'decimal' },
+      { key: 'sell_transactions', label: 'Transaction', getValue: (w) => w.sell_transactions, format: 'int' },
+      {
+        key: 'sell_value_mil_lak',
+        label: 'Value (mil LAK)',
+        getValue: (w) => w.sell_value_mil_lak ?? 0,
+        isNA: (w) => isValueNA(w.sell_value_mil_lak),
+        format: 'int',
+      },
+      { key: 'sell_ticket_size_g', label: 'Ticket Size (g)', getValue: (w) => Number(w.sell_ticket_size_g), format: 'decimal' },
+    ],
+  },
+];
+
+function formatValue(value: number, format: 'int' | 'decimal', signPrefix?: boolean): string {
+  const formatted = format === 'decimal'
+    ? value.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })
+    : Math.round(value).toLocaleString();
+  return signPrefix && value >= 0 ? `+${formatted}` : formatted;
+}
+
+function calcWoWPct(current: number, previous: number | null, currentNA: boolean, previousNA: boolean): number | null {
+  if (previous === null || previousNA || currentNA || previous === 0) return null;
+  return Math.round(((current - previous) / previous) * 100);
+}
+
+function calcVsMA4Pct(selectedValue: number, ma4Value: number | null, selectedNA: boolean): number | null {
+  if (selectedNA || ma4Value === null || !ma4Value) return null;
+  return Math.round(((selectedValue - ma4Value) / ma4Value) * 100);
+}
+
+function trendColorClass(pct: number): string {
+  return pct < 0 ? 'text-rose-600' : 'text-emerald-600';
+}
+
 export function WeeklyHistoricalMatrix({
   history,
   selectedWeek,
   onSelectWeek,
-  isProrated = false,
 }: WeeklyHistoricalMatrixProps) {
-  const [isExpanded, setIsExpanded] = useState<boolean>(true);
-  const [metricCategory, setMetricCategory] = useState<'all' | 'gold_weight' | 'transactions' | 'users'>('all');
+  const [isExpanded, setIsExpanded] = React.useState<boolean>(true);
 
   // Display recent 8 weeks in chronological order (oldest to newest)
   const recentWeeks = React.useMemo(() => {
@@ -39,28 +112,26 @@ export function WeeklyHistoricalMatrix({
     return sorted.slice(-8);
   }, [history]);
 
-  // Calculate 4-Week Rolling Moving Average (MA4) for the active week
+  // Calculate 4-Week Rolling Moving Average (MA4) for the active week, per metric key.
+  // For rows that can be N/A (value_mil_lak), average only recorded weeks.
   const ma4Metrics = React.useMemo(() => {
     if (recentWeeks.length < 4) return null;
     const last4 = recentWeeks.slice(-4);
-    const avg = (fn: (w: WeeklyMetricRow) => number) =>
-      Math.round(last4.reduce((sum, w) => sum + fn(w), 0) / 4);
-
-    return {
-      all_transactions: avg((w) => w.all_transactions),
-      active_users: avg((w) => w.active_users),
-      new_registers: avg((w) => w.new_registers),
-      buy_weight_15g: avg((w) => Number(w.buy_weight_15g)),
-      sell_weight_15g: avg((w) => Number(w.sell_weight_15g)),
-      net_gold_15g: avg((w) => Number(w.buy_weight_15g) - Number(w.sell_weight_15g)),
-      buy_transactions: avg((w) => w.buy_transactions),
-      sell_transactions: avg((w) => w.sell_transactions),
-    };
+    const result: Record<string, number | null> = {};
+    for (const section of MATRIX_SECTIONS) {
+      for (const row of section.rows) {
+        const samples = row.isNA
+          ? last4.filter((w) => !row.isNA!(w)).map(row.getValue)
+          : last4.map(row.getValue);
+        result[row.key] = samples.length
+          ? Math.round(samples.reduce((sum, v) => sum + v, 0) / samples.length)
+          : null;
+      }
+    }
+    return result;
   }, [recentWeeks]);
 
-  // Find peak transaction week
   const maxTx = Math.max(...recentWeeks.map((w) => w.all_transactions), 1);
-  const maxBuyWeight = Math.max(...recentWeeks.map((w) => Number(w.buy_weight_15g)), 1);
 
   return (
     <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden transition-all">
@@ -85,62 +156,31 @@ export function WeeklyHistoricalMatrix({
           </div>
         </div>
 
-        {/* Controls */}
-        <div className="flex items-center gap-2 self-start sm:self-auto">
-          {/* Category Tabs */}
-          <div className="bg-white p-1 rounded-xl border border-slate-200 flex items-center text-[11px] font-extrabold text-slate-600 shadow-2xs">
-            <button
-              onClick={() => setMetricCategory('all')}
-              className={`px-2 py-1 rounded-lg transition-all ${
-                metricCategory === 'all' ? 'bg-[#0c4ca3] text-white shadow-2xs' : 'hover:text-slate-900'
-              }`}
-            >
-              All Metrics
-            </button>
-            <button
-              onClick={() => setMetricCategory('gold_weight')}
-              className={`px-2 py-1 rounded-lg transition-all ${
-                metricCategory === 'gold_weight' ? 'bg-[#0c4ca3] text-white shadow-2xs' : 'hover:text-slate-900'
-              }`}
-            >
-              Gold (15g)
-            </button>
-            <button
-              onClick={() => setMetricCategory('transactions')}
-              className={`px-2 py-1 rounded-lg transition-all ${
-                metricCategory === 'transactions' ? 'bg-[#0c4ca3] text-white shadow-2xs' : 'hover:text-slate-900'
-              }`}
-            >
-              Transactions
-            </button>
-          </div>
-
-          <button
-            onClick={() => setIsExpanded(!isExpanded)}
-            className="p-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 transition-colors"
-            title={isExpanded ? 'Collapse Matrix' : 'Expand Matrix'}
-          >
-            {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-          </button>
-        </div>
+        <button
+          onClick={() => setIsExpanded(!isExpanded)}
+          className="p-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 transition-colors self-start sm:self-auto"
+          title={isExpanded ? 'Collapse Matrix' : 'Expand Matrix'}
+        >
+          {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+        </button>
       </div>
 
       {isExpanded && (
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs border-collapse min-w-[700px]">
+          <table className="w-full text-left text-xs border-collapse min-w-[960px]">
             <thead>
               <tr className="bg-slate-100/70 border-b border-slate-200 text-[11px] font-black text-slate-600 uppercase tracking-tight">
-                <th className="py-2.5 px-4 sticky left-0 bg-slate-100 z-10">Metric / Dimension</th>
+                <th className="py-2.5 px-4 sticky left-0 bg-slate-100 z-10 min-w-[150px]">Metric / Dimension</th>
                 {recentWeeks.map((w, idx) => {
                   const isCurrent = w.week_label === selectedWeek;
                   const isPartial = idx === recentWeeks.length - 1 && new Date(w.end_date) >= new Date();
                   return (
-                    <th 
-                      key={w.week_label} 
+                    <th
+                      key={w.week_label}
                       onClick={() => onSelectWeek(w.week_label)}
                       className={`py-2.5 px-3 text-center cursor-pointer transition-colors ${
-                        isCurrent 
-                          ? 'bg-[#0c4ca3] text-white font-black' 
+                        isCurrent
+                          ? 'bg-[#0c4ca3] text-white font-black'
                           : 'hover:bg-slate-200/80 text-slate-700'
                       }`}
                     >
@@ -171,185 +211,74 @@ export function WeeklyHistoricalMatrix({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {/* Row 1: All Transactions */}
-              {(metricCategory === 'all' || metricCategory === 'transactions') && (
-                <tr className="hover:bg-slate-50/80 transition-colors font-medium">
-                  <td className="py-2.5 px-4 sticky left-0 bg-white z-10 font-bold text-slate-900 flex items-center justify-between">
-                    <span>All Transactions</span>
-                    <span className="text-[10px] text-slate-400 font-normal">Count</span>
-                  </td>
-                  {recentWeeks.map((w, idx) => {
-                    const isPeak = w.all_transactions === maxTx;
-                    const prev = idx > 0 ? recentWeeks[idx - 1].all_transactions : null;
-                    const deltaPct = prev ? Math.round(((w.all_transactions - prev) / prev) * 100) : null;
-                    return (
-                      <td key={w.week_label} className={`py-2.5 px-3 text-center ${w.week_label === selectedWeek ? 'bg-blue-50/40 font-black' : ''}`}>
-                        <div className="text-slate-900 font-extrabold">{w.all_transactions.toLocaleString()}</div>
-                        {deltaPct !== null && (
-                          <div className={`text-[10px] font-black flex items-center justify-center ${deltaPct >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                            {deltaPct >= 0 ? '+' : ''}{deltaPct}%
-                          </div>
-                        )}
-                        {isPeak && (
-                          <span className="inline-block text-[8.5px] px-1 py-0.2 rounded bg-amber-100 text-amber-900 font-black uppercase mt-0.5">
-                            ATH Peak
-                          </span>
-                        )}
+              {MATRIX_SECTIONS.map((section) => (
+                <React.Fragment key={section.key}>
+                  <tr>
+                    <td
+                      colSpan={1 + recentWeeks.length + (ma4Metrics ? 1 : 0)}
+                      className={`py-1.5 px-4 sticky left-0 z-10 text-[11px] font-black uppercase tracking-wider text-white ${section.colorClass}`}
+                    >
+                      {section.title}
+                    </td>
+                  </tr>
+                  {section.rows.map((row) => (
+                    <tr key={row.key} className="hover:bg-slate-50/80 transition-colors font-medium">
+                      <td className="py-2 px-4 sticky left-0 bg-white z-10 font-bold text-slate-900 min-w-[150px]">
+                        {row.label}
                       </td>
-                    );
-                  })}
-                  {ma4Metrics && (
-                    <td className="py-2.5 px-3 text-center font-black text-[#0c4ca3] bg-blue-50/30 border-l border-blue-100">
-                      {ma4Metrics.all_transactions.toLocaleString()}
-                    </td>
-                  )}
-                </tr>
-              )}
+                      {recentWeeks.map((w, idx) => {
+                        const isSelected = w.week_label === selectedWeek;
+                        const currentVal = row.getValue(w);
+                        const currentNA = row.isNA?.(w) ?? false;
+                        const isPeak = row.key === 'all_transactions' && currentVal === maxTx;
+                        const prevW = idx > 0 ? recentWeeks[idx - 1] : null;
+                        const prevVal = prevW ? row.getValue(prevW) : null;
+                        const prevNA = prevW ? (row.isNA?.(prevW) ?? false) : true;
+                        const wowPct = prevW ? calcWoWPct(currentVal, prevVal, currentNA, prevNA) : null;
+                        const ma4Val = ma4Metrics ? ma4Metrics[row.key] : null;
+                        const vsMa4Pct = isSelected ? calcVsMA4Pct(currentVal, ma4Val, currentNA) : null;
 
-              {/* Row 2: Buy Transactions */}
-              {(metricCategory === 'all' || metricCategory === 'transactions') && (
-                <tr className="hover:bg-slate-50/80 transition-colors font-medium">
-                  <td className="py-2.5 px-4 sticky left-0 bg-white z-10 font-bold text-slate-800 flex items-center justify-between">
-                    <span className="text-emerald-800">Buy Transactions</span>
-                    <span className="text-[10px] text-emerald-600 font-normal">Count</span>
-                  </td>
-                  {recentWeeks.map((w) => (
-                    <td key={w.week_label} className={`py-2.5 px-3 text-center ${w.week_label === selectedWeek ? 'bg-blue-50/40 font-black' : ''}`}>
-                      <span className="font-extrabold text-emerald-900">{w.buy_transactions.toLocaleString()}</span>
-                    </td>
+                        return (
+                          <td
+                            key={w.week_label}
+                            className={`py-2 px-3 text-center align-top ${isSelected ? 'bg-blue-50/40' : ''}`}
+                          >
+                            <div className="text-[12px] font-extrabold text-slate-900">
+                              {currentNA ? 'N/A' : formatValue(currentVal, row.format, row.signPrefix)}
+                            </div>
+                            <div className="h-[13px] flex items-center justify-center">
+                              {wowPct !== null && (
+                                <span className={`text-[10px] font-black ${trendColorClass(wowPct)}`}>
+                                  {wowPct >= 0 ? '+' : ''}{wowPct}%
+                                </span>
+                              )}
+                            </div>
+                            {isSelected && (
+                              <div className="h-[12px] flex items-center justify-center">
+                                {vsMa4Pct !== null && (
+                                  <span className={`text-[9px] font-bold ${trendColorClass(vsMa4Pct)}`}>
+                                    {vsMa4Pct >= 0 ? '+' : ''}{vsMa4Pct}% vs MA4
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                            {isPeak && (
+                              <span className="inline-block text-[8.5px] px-1 py-0.2 rounded bg-amber-100 text-amber-900 font-black uppercase mt-0.5">
+                                ATH Peak
+                              </span>
+                            )}
+                          </td>
+                        );
+                      })}
+                      {ma4Metrics && (
+                        <td className="py-2 px-3 text-center font-black text-[#0c4ca3] bg-blue-50/30 border-l border-blue-100 align-top">
+                          {ma4Metrics[row.key] === null ? 'N/A' : formatValue(ma4Metrics[row.key] as number, row.format, row.signPrefix)}
+                        </td>
+                      )}
+                    </tr>
                   ))}
-                  {ma4Metrics && (
-                    <td className="py-2.5 px-3 text-center font-black text-emerald-800 bg-blue-50/30 border-l border-blue-100">
-                      {ma4Metrics.buy_transactions.toLocaleString()}
-                    </td>
-                  )}
-                </tr>
-              )}
-
-              {/* Row 3: Sell Transactions */}
-              {(metricCategory === 'all' || metricCategory === 'transactions') && (
-                <tr className="hover:bg-slate-50/80 transition-colors font-medium">
-                  <td className="py-2.5 px-4 sticky left-0 bg-white z-10 font-bold text-slate-800 flex items-center justify-between">
-                    <span className="text-rose-800">Sell Transactions</span>
-                    <span className="text-[10px] text-rose-600 font-normal">Count</span>
-                  </td>
-                  {recentWeeks.map((w) => (
-                    <td key={w.week_label} className={`py-2.5 px-3 text-center ${w.week_label === selectedWeek ? 'bg-blue-50/40 font-black' : ''}`}>
-                      <span className="font-extrabold text-rose-900">{w.sell_transactions.toLocaleString()}</span>
-                    </td>
-                  ))}
-                  {ma4Metrics && (
-                    <td className="py-2.5 px-3 text-center font-black text-rose-800 bg-blue-50/30 border-l border-blue-100">
-                      {ma4Metrics.sell_transactions.toLocaleString()}
-                    </td>
-                  )}
-                </tr>
-              )}
-
-              {/* Row 4: Buy Gold Weight (15g) */}
-              {(metricCategory === 'all' || metricCategory === 'gold_weight') && (
-                <tr className="hover:bg-slate-50/80 transition-colors font-medium bg-emerald-50/20">
-                  <td className="py-2.5 px-4 sticky left-0 bg-[#fbfdfb] z-10 font-bold text-emerald-900 flex items-center justify-between">
-                    <span>Buy Weight (15g Baht)</span>
-                    <span className="text-[10px] text-emerald-600 font-semibold">Inflow</span>
-                  </td>
-                  {recentWeeks.map((w) => (
-                    <td key={w.week_label} className={`py-2.5 px-3 text-center ${w.week_label === selectedWeek ? 'bg-blue-50/40 font-black' : ''}`}>
-                      <span className="font-black text-emerald-900">{Number(w.buy_weight_15g).toLocaleString()}</span>
-                    </td>
-                  ))}
-                  {ma4Metrics && (
-                    <td className="py-2.5 px-3 text-center font-black text-emerald-900 bg-blue-50/30 border-l border-blue-100">
-                      {ma4Metrics.buy_weight_15g.toLocaleString()}
-                    </td>
-                  )}
-                </tr>
-              )}
-
-              {/* Row 5: Sell Gold Weight (15g) */}
-              {(metricCategory === 'all' || metricCategory === 'gold_weight') && (
-                <tr className="hover:bg-slate-50/80 transition-colors font-medium bg-rose-50/20">
-                  <td className="py-2.5 px-4 sticky left-0 bg-[#fdfbfb] z-10 font-bold text-rose-900 flex items-center justify-between">
-                    <span>Sell Weight (15g Baht)</span>
-                    <span className="text-[10px] text-rose-600 font-semibold">Outflow</span>
-                  </td>
-                  {recentWeeks.map((w) => (
-                    <td key={w.week_label} className={`py-2.5 px-3 text-center ${w.week_label === selectedWeek ? 'bg-blue-50/40 font-black' : ''}`}>
-                      <span className="font-black text-rose-900">{Number(w.sell_weight_15g).toLocaleString()}</span>
-                    </td>
-                  ))}
-                  {ma4Metrics && (
-                    <td className="py-2.5 px-3 text-center font-black text-rose-900 bg-blue-50/30 border-l border-blue-100">
-                      {ma4Metrics.sell_weight_15g.toLocaleString()}
-                    </td>
-                  )}
-                </tr>
-              )}
-
-              {/* Row 6: Net Platform Gold Flow (15g) */}
-              {(metricCategory === 'all' || metricCategory === 'gold_weight') && (
-                <tr className="hover:bg-slate-50/80 transition-colors font-black bg-blue-50/40 border-t border-b border-blue-100">
-                  <td className="py-2.5 px-4 sticky left-0 bg-[#f5f8fd] z-10 text-[#0c4ca3] flex items-center justify-between">
-                    <span>Net Gold Flow (15g Baht)</span>
-                    <span className="text-[10px] text-blue-700 font-black">Buy - Sell</span>
-                  </td>
-                  {recentWeeks.map((w) => {
-                    const net = Number(w.buy_weight_15g) - Number(w.sell_weight_15g);
-                    return (
-                      <td key={w.week_label} className={`py-2.5 px-3 text-center ${w.week_label === selectedWeek ? 'bg-blue-100/50 font-black' : ''}`}>
-                        <span className={`font-black ${net >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
-                          {net >= 0 ? '+' : ''}{net.toLocaleString()}
-                        </span>
-                      </td>
-                    );
-                  })}
-                  {ma4Metrics && (
-                    <td className="py-2.5 px-3 text-center font-black text-[#0c4ca3] bg-blue-100/40 border-l border-blue-200">
-                      {ma4Metrics.net_gold_15g >= 0 ? '+' : ''}{ma4Metrics.net_gold_15g.toLocaleString()}
-                    </td>
-                  )}
-                </tr>
-              )}
-
-              {/* Row 7: Active Users & Engagement */}
-              {(metricCategory === 'all' || metricCategory === 'users') && (
-                <tr className="hover:bg-slate-50/80 transition-colors font-medium">
-                  <td className="py-2.5 px-4 sticky left-0 bg-white z-10 font-bold text-slate-800 flex items-center justify-between">
-                    <span>Active Users Participate</span>
-                    <span className="text-[10px] text-slate-400 font-normal">Unique</span>
-                  </td>
-                  {recentWeeks.map((w) => (
-                    <td key={w.week_label} className={`py-2.5 px-3 text-center ${w.week_label === selectedWeek ? 'bg-blue-50/40 font-black' : ''}`}>
-                      <span className="font-extrabold text-slate-800">{w.active_users.toLocaleString()}</span>
-                    </td>
-                  ))}
-                  {ma4Metrics && (
-                    <td className="py-2.5 px-3 text-center font-black text-slate-800 bg-blue-50/30 border-l border-blue-100">
-                      {ma4Metrics.active_users.toLocaleString()}
-                    </td>
-                  )}
-                </tr>
-              )}
-
-              {/* Row 8: New Registers */}
-              {(metricCategory === 'all' || metricCategory === 'users') && (
-                <tr className="hover:bg-slate-50/80 transition-colors font-medium">
-                  <td className="py-2.5 px-4 sticky left-0 bg-white z-10 font-bold text-slate-800 flex items-center justify-between">
-                    <span>New Registers</span>
-                    <span className="text-[10px] text-slate-400 font-normal">Signups</span>
-                  </td>
-                  {recentWeeks.map((w) => (
-                    <td key={w.week_label} className={`py-2.5 px-3 text-center ${w.week_label === selectedWeek ? 'bg-blue-50/40 font-black' : ''}`}>
-                      <span className="font-extrabold text-emerald-700">+{w.new_registers.toLocaleString()}</span>
-                    </td>
-                  ))}
-                  {ma4Metrics && (
-                    <td className="py-2.5 px-3 text-center font-black text-emerald-700 bg-blue-50/30 border-l border-blue-100">
-                      +{ma4Metrics.new_registers.toLocaleString()}
-                    </td>
-                  )}
-                </tr>
-              )}
+                </React.Fragment>
+              ))}
             </tbody>
           </table>
         </div>
