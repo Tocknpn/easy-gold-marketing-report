@@ -23,6 +23,8 @@ interface FilterBuilderProps {
   measures?: MeasureDef[];
   conflicts?: PivotConflict[];
   compact?: boolean;
+  /** Skip rendering the Datetime From-To + status bar inline (caller renders <DatetimeRangeBar> elsewhere). */
+  hideDatetimeBar?: boolean;
 }
 
 const inputCls =
@@ -124,41 +126,21 @@ function splitDateTime(raw?: string, defaultTime = '00:00'): { date: string; tim
   };
 }
 
-export function PowerPivotFilterBuilder({
-  filters,
-  onChange,
-  meta,
-  measures,
-  conflicts = [],
-  compact,
-}: FilterBuilderProps) {
+interface DatetimeRangeBarProps {
+  filters: PowerPivotFilter[];
+  onChange: (filters: PowerPivotFilter[]) => void;
+  meta: PowerPivotMeta | null;
+}
+
+/** Dedicated Datetime From-To (hour:min) slicer + Completed-status quick toggle, synced with the 'datetime' between filter. */
+export function DatetimeRangeBar({ filters, onChange, meta }: DatetimeRangeBarProps) {
   const update = (id: string, patch: Partial<PowerPivotFilter>) =>
     onChange(filters.map((f) => (f.id === id ? { ...f, ...patch } : f)));
   const remove = (id: string) => onChange(filters.filter((f) => f.id !== id));
 
-  const addRow = (partial?: Partial<PowerPivotFilter>) =>
-    onChange([
-      ...filters,
-      { id: newFilterId(), scope: 'row', field: 'gold_weight', op: '>=', value: '', enabled: true, ...partial },
-    ]);
-
-  const addMeasure = () =>
-    onChange([
-      ...filters,
-      {
-        id: newFilterId(),
-        scope: 'measure',
-        field: measures?.[0]?.id || 'total_buy_transac',
-        op: '>=',
-        value: '',
-        enabled: true,
-      },
-    ]);
-
   const minDate = meta?.min_date || '2026-01-01';
   const maxDate = meta?.max_date || '2026-10-28';
 
-  // Dedicated Datetime From-To slicer binding (synced with 'datetime' between filter)
   const dtFilter = filters.find((f) => f.scope === 'row' && f.field === 'datetime');
   const fromParts = splitDateTime(dtFilter?.value, '00:00');
   const toParts = splitDateTime(dtFilter?.value2, '23:59');
@@ -193,7 +175,6 @@ export function PowerPivotFilterBuilder({
     }
   };
 
-  // Completed Status ('ສໍາເລັດ') quick toggle
   const statusFilter = filters.find(
     (f) => f.scope === 'row' && f.field === 'status' && f.op === '=' && f.value === 'ສໍາເລັດ'
   );
@@ -209,6 +190,118 @@ export function PowerPivotFilterBuilder({
       ]);
     }
   };
+
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-2.5 p-2.5 rounded-xl bg-slate-50 border border-slate-200/90">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="inline-flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wide text-[#0c4ca3]">
+          <Clock className="w-3.5 h-3.5" /> Datetime From – To (Hour:Min):
+        </span>
+
+        {/* FROM DATE + TIME */}
+        <div className="flex items-center gap-1 bg-white border border-slate-300 rounded-lg px-2 py-1 shadow-2xs">
+          <span className="text-[10px] font-bold text-slate-400 uppercase">From</span>
+          <input
+            type="date"
+            value={fromParts.date}
+            onChange={(e) => upsertDatetimeRange(e.target.value, fromParts.time, toParts.date, toParts.time)}
+            className="text-xs font-mono text-slate-800 focus:outline-hidden bg-transparent"
+          />
+          <input
+            type="time"
+            value={fromParts.time}
+            onChange={(e) =>
+              upsertDatetimeRange(fromParts.date || minDate, e.target.value, toParts.date || maxDate, toParts.time)
+            }
+            className="text-xs font-mono font-bold text-[#0c4ca3] focus:outline-hidden bg-blue-50/70 px-1.5 py-0.5 rounded"
+          />
+        </div>
+
+        <span className="text-xs font-black text-slate-400">→</span>
+
+        {/* TO DATE + TIME */}
+        <div className="flex items-center gap-1 bg-white border border-slate-300 rounded-lg px-2 py-1 shadow-2xs">
+          <span className="text-[10px] font-bold text-slate-400 uppercase">To</span>
+          <input
+            type="date"
+            value={toParts.date}
+            onChange={(e) => upsertDatetimeRange(fromParts.date, fromParts.time, e.target.value, toParts.time)}
+            className="text-xs font-mono text-slate-800 focus:outline-hidden bg-transparent"
+          />
+          <input
+            type="time"
+            value={toParts.time}
+            onChange={(e) =>
+              upsertDatetimeRange(fromParts.date || minDate, fromParts.time, toParts.date || maxDate, e.target.value)
+            }
+            className="text-xs font-mono font-bold text-[#0c4ca3] focus:outline-hidden bg-blue-50/70 px-1.5 py-0.5 rounded"
+          />
+        </div>
+
+        {dtFilter && (
+          <button
+            type="button"
+            onClick={() => remove(dtFilter.id)}
+            className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-200 cursor-pointer"
+            title="Clear Datetime From-To filter"
+          >
+            <X className="w-3 h-3" /> Clear Datetime
+          </button>
+        )}
+      </div>
+
+      {/* Completed Status ('ສໍາເລັດ') Quick Toggle */}
+      <button
+        type="button"
+        onClick={toggleCompletedStatus}
+        className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-bold border transition-colors cursor-pointer ${
+          isCompletedOnly
+            ? 'bg-emerald-50 border-emerald-300 text-emerald-900'
+            : 'bg-white border-slate-300 text-slate-600 hover:bg-slate-100'
+        }`}
+        title="Filter only completed transactions (ສໍາເລັດ) to match Dynamic BI"
+      >
+        <CheckCircle2 className={`w-3.5 h-3.5 ${isCompletedOnly ? 'text-emerald-600' : 'text-slate-400'}`} />
+        <span>Status: ສໍາເລັດ (Completed) {isCompletedOnly ? 'ON' : 'OFF'}</span>
+      </button>
+    </div>
+  );
+}
+
+export function PowerPivotFilterBuilder({
+  filters,
+  onChange,
+  meta,
+  measures,
+  conflicts = [],
+  compact,
+  hideDatetimeBar,
+}: FilterBuilderProps) {
+  const update = (id: string, patch: Partial<PowerPivotFilter>) =>
+    onChange(filters.map((f) => (f.id === id ? { ...f, ...patch } : f)));
+  const remove = (id: string) => onChange(filters.filter((f) => f.id !== id));
+
+  const addRow = (partial?: Partial<PowerPivotFilter>) =>
+    onChange([
+      ...filters,
+      { id: newFilterId(), scope: 'row', field: 'gold_weight', op: '>=', value: '', enabled: true, ...partial },
+    ]);
+
+  const addMeasure = () =>
+    onChange([
+      ...filters,
+      {
+        id: newFilterId(),
+        scope: 'measure',
+        field: measures?.[0]?.id || 'total_buy_transac',
+        op: '>=',
+        value: '',
+        enabled: true,
+      },
+    ]);
+
+  const minDate = meta?.min_date || '2026-01-01';
+  const maxDate = meta?.max_date || '2026-10-28';
 
   const changeField = (f: PowerPivotFilter, field: string) => {
     const def = getFilterField(field);
@@ -243,82 +336,7 @@ export function PowerPivotFilterBuilder({
 
   return (
     <div className="space-y-2.5">
-      {/* DEDICATED DATETIME FROM-TO (HOUR & MINUTE) BAR + STATUS TOGGLE */}
-      {!compact && (
-        <div className="flex flex-wrap items-center justify-between gap-2.5 p-2.5 rounded-xl bg-slate-50 border border-slate-200/90">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wide text-[#0c4ca3]">
-              <Clock className="w-3.5 h-3.5" /> Datetime From – To (Hour:Min):
-            </span>
-
-            {/* FROM DATE + TIME */}
-            <div className="flex items-center gap-1 bg-white border border-slate-300 rounded-lg px-2 py-1 shadow-2xs">
-              <span className="text-[10px] font-bold text-slate-400 uppercase">From</span>
-              <input
-                type="date"
-                value={fromParts.date}
-                onChange={(e) => upsertDatetimeRange(e.target.value, fromParts.time, toParts.date, toParts.time)}
-                className="text-xs font-mono text-slate-800 focus:outline-hidden bg-transparent"
-              />
-              <input
-                type="time"
-                value={fromParts.time}
-                onChange={(e) =>
-                  upsertDatetimeRange(fromParts.date || minDate, e.target.value, toParts.date || maxDate, toParts.time)
-                }
-                className="text-xs font-mono font-bold text-[#0c4ca3] focus:outline-hidden bg-blue-50/70 px-1.5 py-0.5 rounded"
-              />
-            </div>
-
-            <span className="text-xs font-black text-slate-400">→</span>
-
-            {/* TO DATE + TIME */}
-            <div className="flex items-center gap-1 bg-white border border-slate-300 rounded-lg px-2 py-1 shadow-2xs">
-              <span className="text-[10px] font-bold text-slate-400 uppercase">To</span>
-              <input
-                type="date"
-                value={toParts.date}
-                onChange={(e) => upsertDatetimeRange(fromParts.date, fromParts.time, e.target.value, toParts.time)}
-                className="text-xs font-mono text-slate-800 focus:outline-hidden bg-transparent"
-              />
-              <input
-                type="time"
-                value={toParts.time}
-                onChange={(e) =>
-                  upsertDatetimeRange(fromParts.date || minDate, fromParts.time, toParts.date || maxDate, e.target.value)
-                }
-                className="text-xs font-mono font-bold text-[#0c4ca3] focus:outline-hidden bg-blue-50/70 px-1.5 py-0.5 rounded"
-              />
-            </div>
-
-            {dtFilter && (
-              <button
-                type="button"
-                onClick={() => remove(dtFilter.id)}
-                className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-200 cursor-pointer"
-                title="Clear Datetime From-To filter"
-              >
-                <X className="w-3 h-3" /> Clear Datetime
-              </button>
-            )}
-          </div>
-
-          {/* Completed Status ('ສໍາເລັດ') Quick Toggle */}
-          <button
-            type="button"
-            onClick={toggleCompletedStatus}
-            className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-bold border transition-colors cursor-pointer ${
-              isCompletedOnly
-                ? 'bg-emerald-50 border-emerald-300 text-emerald-900'
-                : 'bg-white border-slate-300 text-slate-600 hover:bg-slate-100'
-            }`}
-            title="Filter only completed transactions (ສໍາເລັດ) to match Dynamic BI"
-          >
-            <CheckCircle2 className={`w-3.5 h-3.5 ${isCompletedOnly ? 'text-emerald-600' : 'text-slate-400'}`} />
-            <span>Status: ສໍາເລັດ (Completed) {isCompletedOnly ? 'ON' : 'OFF'}</span>
-          </button>
-        </div>
-      )}
+      {!compact && !hideDatetimeBar && <DatetimeRangeBar filters={filters} onChange={onChange} meta={meta} />}
 
       {filters.length === 0 && (
         <div className="text-[11px] text-slate-400 italic px-1">

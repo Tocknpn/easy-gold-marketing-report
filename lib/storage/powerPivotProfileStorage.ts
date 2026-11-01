@@ -77,6 +77,13 @@ function preset(
 }
 
 export const PRESET_PROFILES: PowerPivotProfile[] = [
+  preset('preset-pivot-default', 'Pivot', 'Month x Total transaction', {
+    rows: ['month'],
+    values: ['total_transaction'],
+    filters: [statusOk()],
+    sortBy: 'total_transaction',
+    sortDir: 'desc',
+  }),
   preset('preset-monthly-audit', 'Monthly Audit & Date Verification', 'Monthly breakdown with Min Datetime, Max Datetime, and Transaction Counts', {
     rows: ['month'],
     values: ['total_transaction', 'total_buy_transac', 'revenue_buy_mil', 'gold_weight_buy_g', 'min_datetime', 'max_datetime'],

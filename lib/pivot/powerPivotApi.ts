@@ -379,6 +379,16 @@ async function runDirectPostgrestPivot(
     }
   };
 
+  // phone+created_at pairs with a completed OPEN_ACCOUNT row, scoped to what this query already fetched
+  // (unlike the SQL RPC path's EXISTS against the full table, so a transaction_type filter that excludes
+  // OPEN_ACCOUNT rows will under-count nc_first_purchase_* here)
+  const isCompletedStatus = (s: any) => ['ສໍາເລັດ', 'ສຳເລັດ', 'ສຳເລັດ (AUTO)'].includes(String(s || '').trim());
+  const ncOpenKeys = new Set(
+    filtered
+      .filter((r) => r.transaction_type === 'OPEN_ACCOUNT' && isCompletedStatus(r.status))
+      .map((r) => `${r.phone}|${r.created_at}`)
+  );
+
   const evalMeasure = (list: any[], mId: string): any => {
     const buy = list.filter((x) => x.transaction_type === 'BUY_GOLD');
     const sell = list.filter((x) => x.transaction_type === 'SALE_GOLD');
@@ -421,6 +431,10 @@ async function runDirectPostgrestPivot(
       case 'withdraw_value_mil': return Number((sumA(wd) / 1e6).toFixed(2));
       case 'withdraw_value_lak': return Math.round(sumA(wd));
       case 'abs_value_mil': return Number(((sumA(buy) - sumA(sell)) / 1e6).toFixed(2));
+      case 'nc_first_purchase_g':
+        return Number(sumW(buy.filter((x) => ncOpenKeys.has(`${x.phone}|${x.created_at}`))).toFixed(2));
+      case 'nc_first_purchase_lak':
+        return Math.round(sumA(buy.filter((x) => ncOpenKeys.has(`${x.phone}|${x.created_at}`))));
       case 'gold_weight_buy_g': return Number(sumW(buy).toFixed(2));
       case 'gold_weight_sell_g': return Number(sumW(sell).toFixed(2));
       case 'withdraw_gold_g': return Number(sumW(wd).toFixed(2));

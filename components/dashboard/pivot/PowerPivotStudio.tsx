@@ -69,7 +69,7 @@ import {
   downloadExcel,
 } from '@/lib/pivot/powerPivotApi';
 import { PowerPivotGrid } from './PowerPivotGrid';
-import { PowerPivotFilterBuilder } from './PowerPivotFilterBuilder';
+import { PowerPivotFilterBuilder, DatetimeRangeBar } from './PowerPivotFilterBuilder';
 import { MeasureManagerModal } from './MeasureManagerModal';
 
 interface Props {
@@ -155,6 +155,36 @@ function Zone({
           </span>
         ))}
       </div>
+    </div>
+  );
+}
+
+// ----------------------------------------------------------------------------
+// Collapsible section (used for Advanced Filters: Top N Leaderboard + Datetime Range)
+// ----------------------------------------------------------------------------
+function CollapsibleSection({
+  title,
+  defaultOpen = false,
+  children,
+}: {
+  title: string;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className="rounded-xl border border-amber-200/80 bg-gradient-to-r from-amber-50/80 via-blue-50/40 to-slate-50 overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center justify-between gap-2 px-3 py-2 cursor-pointer"
+      >
+        <span className="inline-flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-amber-900">
+          <Trophy className="w-4 h-4 text-[#e5a812]" /> {title}
+        </span>
+        <ChevronDown className={`w-4 h-4 text-amber-700 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && <div className="px-3 pb-3 space-y-2.5">{children}</div>}
     </div>
   );
 }
@@ -308,7 +338,7 @@ function MonthMultiPicker({
 // ----------------------------------------------------------------------------
 export function PowerPivotStudio({ currentUser }: Props) {
   const [profiles, setProfiles] = useState<PowerPivotProfile[]>([]);
-  const [activeId, setActiveId] = useState<string>('preset-daily-buy');
+  const [activeId, setActiveId] = useState<string>('preset-pivot-default');
   const [config, setConfig] = useState<PowerPivotConfig>(createEmptyConfig());
 
   const [result, setResult] = useState<PowerPivotResult | null>(null);
@@ -473,7 +503,7 @@ export function PowerPivotStudio({ currentUser }: Props) {
       ...createEmptyConfig(),
       filters: [{ id: newFilterId(), scope: 'row', field: 'status', op: '=', value: 'ສໍາເລັດ', enabled: true }],
       values: ['total_transaction'],
-      rows: [],
+      rows: ['month'],
       sortBy: 'total_transaction',
       topN: null,
     });
@@ -737,7 +767,7 @@ export function PowerPivotStudio({ currentUser }: Props) {
           <div className="flex items-center gap-2">
             <span className="text-xs font-bold text-blue-200">Active Profile:</span>
             <span className="text-xs font-black text-white truncate max-w-[200px] sm:max-w-none">
-              {activeProfile?.name || 'Custom Pivot'}
+              {activeProfile?.name || 'Pivot'}
             </span>
             {isDirty && (
               <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-400/20 text-amber-300 border border-amber-400/30">
@@ -959,155 +989,6 @@ export function PowerPivotStudio({ currentUser }: Props) {
               />
             </div>
 
-            {/* TOP N LEADERBOARD & SORTING CONTROLS */}
-            <div className="p-3 rounded-xl bg-gradient-to-r from-amber-50/80 via-blue-50/40 to-slate-50 border border-amber-200/80 space-y-2.5">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="inline-flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-amber-900">
-                    <Trophy className="w-4 h-4 text-[#e5a812]" /> Top N Leaderboard:
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => patch({ topN: null })}
-                    className={`px-2.5 py-1 rounded-lg text-xs font-black border transition-colors cursor-pointer ${
-                      !config.topN
-                        ? 'bg-[#0c4ca3] text-white border-[#0c4ca3]'
-                        : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
-                    }`}
-                  >
-                    All Rows
-                  </button>
-                  {TOP_N_CHOICES.map((n) => (
-                    <button
-                      key={n}
-                      type="button"
-                      onClick={() => patch({ topN: n })}
-                      className={`px-2.5 py-1 rounded-lg text-xs font-black border transition-colors cursor-pointer ${
-                        config.topN === n
-                          ? 'bg-[#e5a812] text-slate-950 border-amber-500 shadow-2xs'
-                          : 'bg-white text-slate-700 border-slate-300 hover:bg-amber-50'
-                      }`}
-                    >
-                      Top {n}
-                    </button>
-                  ))}
-                  <div className="flex items-center gap-1">
-                    <input
-                      type="number"
-                      min={1}
-                      max={10000}
-                      placeholder="Custom N"
-                      value={customTopNInput}
-                      onChange={(e) => setCustomTopNInput(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && Number(customTopNInput) > 0) {
-                          patch({ topN: Number(customTopNInput) });
-                        }
-                      }}
-                      className="w-24 px-2 py-1 text-xs font-mono border border-slate-300 rounded-lg bg-white"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => Number(customTopNInput) > 0 && patch({ topN: Number(customTopNInput) })}
-                      className="px-2 py-1 rounded-lg text-xs font-bold bg-slate-200 hover:bg-slate-300 text-slate-800 cursor-pointer"
-                    >
-                      Set N
-                    </button>
-                  </div>
-                </div>
-
-                {/* Explicit Sort By Selector (Date, Datetime, Hour, Phone, or any Measure) */}
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <span className="inline-flex items-center gap-1 text-[11px] font-black uppercase text-slate-600">
-                    <ArrowUpDown className="w-3.5 h-3.5 text-[#0c4ca3]" /> Sort By:
-                  </span>
-                  <select
-                    value={config.sortBy}
-                    onChange={(e) => patch({ sortBy: e.target.value })}
-                    className="px-2.5 py-1 text-xs font-bold border border-slate-300 rounded-lg bg-white text-slate-800"
-                  >
-                    <optgroup label="Row Dimensions">
-                      <option value="label">First Row Dimension (Default)</option>
-                      {config.rows.map((rId, idx) => (
-                        <option key={rId} value={rId}>
-                          Row {idx + 1}: {dimLabel(rId)}
-                        </option>
-                      ))}
-                    </optgroup>
-                    <optgroup label="Selected Measures">
-                      {config.values.map((vId) => (
-                        <option key={vId} value={vId}>
-                          Measure: {measureLabel(vId)}
-                        </option>
-                      ))}
-                    </optgroup>
-                  </select>
-                  <button
-                    type="button"
-                    onClick={() => patch({ sortDir: config.sortDir === 'desc' ? 'asc' : 'desc' })}
-                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-black bg-white border border-slate-300 hover:bg-slate-100 text-slate-800 cursor-pointer"
-                    title="Toggle Ascending / Descending sort order"
-                  >
-                    {config.sortDir === 'desc' ? (
-                      <>
-                        <ArrowDown className="w-3.5 h-3.5 text-[#0c4ca3]" /> DESC (High → Low)
-                      </>
-                    ) : (
-                      <>
-                        <ArrowUp className="w-3.5 h-3.5 text-[#0c4ca3]" /> ASC (Low → High)
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-
-              {/* 7 Requested Top N Ranking Metric Pills + Quick Dimension Sort Pills */}
-              <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-amber-200/60">
-                <span className="text-[10px] font-black uppercase text-amber-900 mr-1">Rank Top N By:</span>
-                {TOP_N_METRICS.map((tm) => {
-                  const isCurrentSort = config.sortBy === tm.id && config.values.includes(tm.id);
-                  return (
-                    <button
-                      key={tm.id}
-                      type="button"
-                      onClick={() => applyTopNMetricPreset(tm.id)}
-                      className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-all cursor-pointer ${
-                        isCurrentSort
-                          ? 'bg-emerald-600 text-white border-emerald-700 shadow-2xs'
-                          : 'bg-white hover:bg-emerald-50 text-slate-700 border-slate-300'
-                      }`}
-                      title={`Add ${tm.label} & sort descending`}
-                    >
-                      {tm.shortLabel}
-                    </button>
-                  );
-                })}
-
-                <span className="text-[10px] font-black uppercase text-slate-500 ml-2 mr-1">Quick Sort Dim:</span>
-                {[
-                  { id: 'datetime', label: 'Date & Time' },
-                  { id: 'date', label: 'Date' },
-                  { id: 'hour', label: 'Hour' },
-                  { id: 'phone', label: 'Phone' },
-                  { id: 'phone_customer', label: 'Phone & Customer' },
-                ].map((qd) => (
-                  <button
-                    key={qd.id}
-                    type="button"
-                    onClick={() => applyQuickSortDimension(qd.id)}
-                    className={`px-2 py-1 rounded-lg text-[10px] font-bold border transition-all cursor-pointer ${
-                      config.sortBy === qd.id
-                        ? 'bg-[#0c4ca3] text-white border-[#0c4ca3]'
-                        : 'bg-white hover:bg-blue-50 text-slate-600 border-slate-300'
-                    }`}
-                    title={`Add ${qd.label} to Rows and sort by it`}
-                  >
-                    Sort {qd.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
             {/* FILTERS SECTION */}
             <div className="pt-2 border-t border-slate-200">
               <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
@@ -1146,12 +1027,168 @@ export function PowerPivotStudio({ currentUser }: Props) {
                   </button>
                 </div>
               </div>
+
+              <CollapsibleSection title="Advanced Filters (Top N Leaderboard & Datetime Range)" defaultOpen={false}>
+                <div className="space-y-2.5">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="inline-flex items-center gap-1 text-[11px] font-black uppercase text-amber-900">
+                        Top N Leaderboard:
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => patch({ topN: null })}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-black border transition-colors cursor-pointer ${
+                          !config.topN
+                            ? 'bg-[#0c4ca3] text-white border-[#0c4ca3]'
+                            : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
+                        }`}
+                      >
+                        All Rows
+                      </button>
+                      {TOP_N_CHOICES.map((n) => (
+                        <button
+                          key={n}
+                          type="button"
+                          onClick={() => patch({ topN: n })}
+                          className={`px-2.5 py-1 rounded-lg text-xs font-black border transition-colors cursor-pointer ${
+                            config.topN === n
+                              ? 'bg-[#e5a812] text-slate-950 border-amber-500 shadow-2xs'
+                              : 'bg-white text-slate-700 border-slate-300 hover:bg-amber-50'
+                          }`}
+                        >
+                          Top {n}
+                        </button>
+                      ))}
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="number"
+                          min={1}
+                          max={10000}
+                          placeholder="Custom N"
+                          value={customTopNInput}
+                          onChange={(e) => setCustomTopNInput(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && Number(customTopNInput) > 0) {
+                              patch({ topN: Number(customTopNInput) });
+                            }
+                          }}
+                          className="w-24 px-2 py-1 text-xs font-mono border border-slate-300 rounded-lg bg-white"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => Number(customTopNInput) > 0 && patch({ topN: Number(customTopNInput) })}
+                          className="px-2 py-1 rounded-lg text-xs font-bold bg-slate-200 hover:bg-slate-300 text-slate-800 cursor-pointer"
+                        >
+                          Set N
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Explicit Sort By Selector (Date, Datetime, Hour, Phone, or any Measure) */}
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="inline-flex items-center gap-1 text-[11px] font-black uppercase text-slate-600">
+                        <ArrowUpDown className="w-3.5 h-3.5 text-[#0c4ca3]" /> Sort By:
+                      </span>
+                      <select
+                        value={config.sortBy}
+                        onChange={(e) => patch({ sortBy: e.target.value })}
+                        className="px-2.5 py-1 text-xs font-bold border border-slate-300 rounded-lg bg-white text-slate-800"
+                      >
+                        <optgroup label="Row Dimensions">
+                          <option value="label">First Row Dimension (Default)</option>
+                          {config.rows.map((rId, idx) => (
+                            <option key={rId} value={rId}>
+                              Row {idx + 1}: {dimLabel(rId)}
+                            </option>
+                          ))}
+                        </optgroup>
+                        <optgroup label="Selected Measures">
+                          {config.values.map((vId) => (
+                            <option key={vId} value={vId}>
+                              Measure: {measureLabel(vId)}
+                            </option>
+                          ))}
+                        </optgroup>
+                      </select>
+                      <button
+                        type="button"
+                        onClick={() => patch({ sortDir: config.sortDir === 'desc' ? 'asc' : 'desc' })}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-black bg-white border border-slate-300 hover:bg-slate-100 text-slate-800 cursor-pointer"
+                        title="Toggle Ascending / Descending sort order"
+                      >
+                        {config.sortDir === 'desc' ? (
+                          <>
+                            <ArrowDown className="w-3.5 h-3.5 text-[#0c4ca3]" /> DESC (High → Low)
+                          </>
+                        ) : (
+                          <>
+                            <ArrowUp className="w-3.5 h-3.5 text-[#0c4ca3]" /> ASC (Low → High)
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 7 Requested Top N Ranking Metric Pills + Quick Dimension Sort Pills */}
+                  <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-amber-200/60">
+                    <span className="text-[10px] font-black uppercase text-amber-900 mr-1">Rank Top N By:</span>
+                    {TOP_N_METRICS.map((tm) => {
+                      const isCurrentSort = config.sortBy === tm.id && config.values.includes(tm.id);
+                      return (
+                        <button
+                          key={tm.id}
+                          type="button"
+                          onClick={() => applyTopNMetricPreset(tm.id)}
+                          className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-all cursor-pointer ${
+                            isCurrentSort
+                              ? 'bg-emerald-600 text-white border-emerald-700 shadow-2xs'
+                              : 'bg-white hover:bg-emerald-50 text-slate-700 border-slate-300'
+                          }`}
+                          title={`Add ${tm.label} & sort descending`}
+                        >
+                          {tm.shortLabel}
+                        </button>
+                      );
+                    })}
+
+                    <span className="text-[10px] font-black uppercase text-slate-500 ml-2 mr-1">Quick Sort Dim:</span>
+                    {[
+                      { id: 'datetime', label: 'Date & Time' },
+                      { id: 'date', label: 'Date' },
+                      { id: 'hour', label: 'Hour' },
+                      { id: 'phone', label: 'Phone' },
+                      { id: 'phone_customer', label: 'Phone & Customer' },
+                    ].map((qd) => (
+                      <button
+                        key={qd.id}
+                        type="button"
+                        onClick={() => applyQuickSortDimension(qd.id)}
+                        className={`px-2 py-1 rounded-lg text-[10px] font-bold border transition-all cursor-pointer ${
+                          config.sortBy === qd.id
+                            ? 'bg-[#0c4ca3] text-white border-[#0c4ca3]'
+                            : 'bg-white hover:bg-blue-50 text-slate-600 border-slate-300'
+                        }`}
+                        title={`Add ${qd.label} to Rows and sort by it`}
+                      >
+                        Sort {qd.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="pt-1 border-t border-amber-200/60">
+                    <DatetimeRangeBar filters={config.filters} onChange={(filters) => patch({ filters })} meta={meta} />
+                  </div>
+                </div>
+              </CollapsibleSection>
+
               <PowerPivotFilterBuilder
                 filters={config.filters}
                 onChange={(filters) => patch({ filters })}
                 meta={meta}
                 measures={allMeasures}
                 conflicts={conflicts}
+                hideDatetimeBar
               />
             </div>
 

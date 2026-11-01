@@ -705,7 +705,7 @@ export default function DashboardPage() {
                   }`}
                 >
                   <Table2 className="w-4 h-4" />
-                  <span>Custom Pivot Profile</span>
+                  <span>Pivot</span>
                 </button>
               </div>
             </nav>

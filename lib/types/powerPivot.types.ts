@@ -73,6 +73,7 @@ export const BUILTIN_MEASURES: MeasureDef[] = [
   // Revenue
   { id: 'revenue_buy_mil', label: 'Revenue Buy (mil lak)', group: 'Revenue (mil LAK)', format: 'dec2', txScope: 'BUY', dax: 'CALCULATE(SUM(\'Raw Data\'[amount]), \'Raw Data\'[type]="BUY_GOLD") / 1000000' },
   { id: 'revenue_buy_lak', label: 'Total Buy Value (LAK)', group: 'Revenue (mil LAK)', format: 'int', txScope: 'BUY', dax: 'CALCULATE(SUM(\'Raw Data\'[amount]), \'Raw Data\'[type]="BUY_GOLD")' },
+  { id: 'nc_first_purchase_lak', label: 'NC First Purchase (LAK)', group: 'Revenue (mil LAK)', format: 'int', txScope: 'BUY', dax: 'CALCULATE(SUM(\'Raw Data\'[amount]), \'Raw Data\'[type]="BUY_GOLD", EXISTS(OPEN_ACCOUNT @ same phone + same created_at))' },
   { id: 'revenue_sell_mil', label: 'Revenue Sell (mil LAK)', group: 'Revenue (mil LAK)', format: 'dec2', txScope: 'SELL', dax: 'CALCULATE(SUM(\'Raw Data\'[amount]), \'Raw Data\'[type]="SALE_GOLD") / 1000000' },
   { id: 'revenue_sell_lak', label: 'Total Sell Value (LAK)', group: 'Revenue (mil LAK)', format: 'int', txScope: 'SELL', dax: 'CALCULATE(SUM(\'Raw Data\'[amount]), \'Raw Data\'[type]="SALE_GOLD")' },
   { id: 'withdraw_value_mil', label: 'Withdraw Value (mil LAK)', group: 'Revenue (mil LAK)', format: 'dec2', txScope: 'WITHDRAW', dax: 'CALCULATE(SUM(\'Raw Data\'[amount]), \'Raw Data\'[type] IN {"WITHDRAW_GOLD","MARKETHUB_WITHDRAW"}) / 1000000' },
@@ -80,6 +81,7 @@ export const BUILTIN_MEASURES: MeasureDef[] = [
   { id: 'abs_value_mil', label: 'ABS (Buy - Sell, mil)', group: 'Revenue (mil LAK)', format: 'dec2', txScope: 'BUY_SELL', dax: '([Revenue Buy (mil lak)] - [Revenue Sell (mil LAK)])' },
   // Gold weight
   { id: 'gold_weight_buy_g', label: 'Gold Weigh Buy (g)', group: 'Gold Weight', format: 'dec2', txScope: 'BUY', dax: 'CALCULATE(SUM(\'Raw Data\'[weight]), \'Raw Data\'[type]="BUY_GOLD")' },
+  { id: 'nc_first_purchase_g', label: 'NC First Purchase (g)', group: 'Gold Weight', format: 'dec2', txScope: 'BUY', dax: 'CALCULATE(SUM(\'Raw Data\'[weight]), \'Raw Data\'[type]="BUY_GOLD", EXISTS(OPEN_ACCOUNT @ same phone + same created_at))' },
   { id: 'gold_weight_sell_g', label: 'Gold Weigh Sell (g)', group: 'Gold Weight', format: 'dec2', txScope: 'SELL', dax: 'CALCULATE(SUM(\'Raw Data\'[weight]), \'Raw Data\'[type]="SALE_GOLD")' },
   { id: 'withdraw_gold_g', label: 'Total Withdraw Weight (g)', group: 'Gold Weight', format: 'dec2', txScope: 'WITHDRAW', dax: 'CALCULATE(SUM(\'Raw Data\'[weight]), \'Raw Data\'[type] IN {"WITHDRAW_GOLD","MARKETHUB_WITHDRAW"})' },
   { id: 'gold_weight_buy_15g', label: 'Gold Weigh Buy (15g)', group: 'Gold Weight', format: 'dec2', txScope: 'BUY', dax: 'CALCULATE(SUM(\'Raw Data\'[weight]), \'Raw Data\'[type]="BUY_GOLD") / 15' },
@@ -634,14 +636,14 @@ export function formatMeasureValue(v: unknown, fmt: MeasureFormat): string {
 
 export function createEmptyConfig(): PowerPivotConfig {
   return {
-    rows: ['bank'],
+    rows: ['month'],
     columns: [],
-    values: ['total_buy_transac', 'total_unique_user', 'revenue_buy_mil', 'gold_weight_buy_g', 'gold_buy_size_g'],
+    values: ['total_transaction'],
     filters: [
       { id: newFilterId(), scope: 'row', field: 'status', op: '=', value: 'ສໍາເລັດ', enabled: true },
     ],
     customMeasures: [],
-    sortBy: 'total_buy_transac',
+    sortBy: 'total_transaction',
     sortDir: 'desc',
     pageSize: DEFAULT_PAGE_SIZE,
     topN: null,
