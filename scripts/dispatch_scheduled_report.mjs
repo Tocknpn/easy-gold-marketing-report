@@ -60,10 +60,10 @@ function buildEmailHtml(reportDate, recipientStr, { quickBriefBase64, dailyVeloc
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Daily Easy Gold Marketing BI report - ${reportDate}</title>
 </head>
-<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 24px; color: #0f172a;">
-  <div style="max-width: 680px; margin: 0 auto; background: #ffffff; border-radius: 16px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 24px; color: #0f172a; text-align: left;">
+  <div style="max-width: 960px; margin: 0; background: #ffffff; border-radius: 16px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
     <div style="padding: 28px 32px;">
-      <p style="font-size: 15px; line-height: 1.6; margin: 0 0 20px 0; color: #0f172a;">
+      <p style="font-size: 15px; line-height: 1.6; margin: 0 0 20px 0; color: #0f172a; text-align: left;">
         Dear Team,<br><br>
         Please see the email attached for the more information about the Easy Gold Marketing Report up to <strong>${reportDate}</strong>
       </p>
@@ -85,12 +85,18 @@ function buildEmailHtml(reportDate, recipientStr, { quickBriefBase64, dailyVeloc
 </html>`;
 }
 
-async function sendViaTransports({ recipientList, reportDate, pdfBase64, quickBriefBase64, dailyVelocityBase64 }) {
+async function sendViaTransports({ recipientList, reportDate, displayDate, pdfBase64, quickBriefBase64, dailyVelocityBase64 }) {
+  // `reportDate` is the calendar date the job ran on: it's what Supabase audit-log rows and the
+  // Worker's duplicate-send detection key off of, so it must stay consistent across runs.
+  // `displayDate` is the latest date actually present in the data, shown to the reader in the
+  // subject/body/filename (these can differ, e.g. a report sent the morning after data was last
+  // recorded).
+  displayDate = displayDate || reportDate;
   const recipientStr = recipientList.join(', ');
-  const subject = `Daily Easy Gold Marketing BI report - ${reportDate}`;
-  const safeDate = String(reportDate || 'Daily').replace(/\//g, '-');
+  const subject = `Daily Easy Gold Marketing BI report - ${displayDate}`;
+  const safeDate = String(displayDate || 'Daily').replace(/\//g, '-');
   const pdfFilename = `Easy_Gold_Executive_Report_${safeDate}.pdf`;
-  const emailHtml = buildEmailHtml(reportDate, recipientStr, { quickBriefBase64, dailyVelocityBase64, useCid: true });
+  const emailHtml = buildEmailHtml(displayDate, recipientStr, { quickBriefBase64, dailyVelocityBase64, useCid: true });
   const errors = [];
 
   // Transport 1: Direct Google Apps Script Web App Gateway
@@ -108,8 +114,8 @@ async function sendViaTransports({ recipientList, reportDate, pdfBase64, quickBr
           pdfFilename,
           quickBriefBase64: quickBriefBase64 || null,
           dailyVelocityBase64: dailyVelocityBase64 || null,
-          reportDate,
-          body: `Daily Easy Gold Marketing BI report for ${reportDate} (PDF attached)`
+          reportDate: displayDate,
+          body: `Daily Easy Gold Marketing BI report for ${displayDate} (PDF attached)`
         })
       });
       const mailData = await mailRes.json().catch(() => ({ success: mailRes.ok }));
@@ -131,7 +137,10 @@ async function sendViaTransports({ recipientList, reportDate, pdfBase64, quickBr
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           recipient: recipientList,
+          // Calendar date, not displayDate: this is what the Worker stamps on its own audit-log
+          // row, and must match the pending-row/dedup keys used by handleCronTrigger in worker.js.
           report_date: reportDate,
+          display_date: displayDate,
           trigger_type: 'scheduled',
           pdfBase64,
           quickBriefBase64,
@@ -291,6 +300,27 @@ async function main() {
   }).format(now); // YYYY-MM-DD
 
   console.log(`[*] Target Report Date: ${reportDate} (${timeZone})`);
+
+  // The report's subject/body/filename should reflect the latest date actually present in the
+  // data, not the calendar date the job happens to run on (they can differ, e.g. a report sent
+  // the morning after data was last recorded). `reportDate` above stays the calendar date for
+  // audit-log bookkeeping / duplicate-send detection, which must stay in sync with the Worker's
+  // cron trigger (see handleCronTrigger in worker.js).
+  let dataAsOfDate = reportDate;
+  try {
+    const latestDataRes = await fetch(
+      `${SUPABASE_URL}/rest/v1/summary_daily_metrics?select=date_id&order=date_id.desc&limit=1`,
+      { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } }
+    );
+    if (latestDataRes.ok) {
+      const latestRows = await latestDataRes.json();
+      const latestDate = latestRows?.[0]?.date_id;
+      if (latestDate) dataAsOfDate = String(latestDate).slice(0, 10);
+    }
+  } catch (e) {
+    console.warn('[!] Could not resolve latest data date, falling back to calendar date:', e.message);
+  }
+  console.log(`[*] Data As-Of Date (used in email subject/body/filename): ${dataAsOfDate}`);
 
   // 2. Prevent duplicate scheduled sends for today unless forced
   // Only skip if a scheduled email WITH PDF (execution_duration_ms > 1000) was already sent today
@@ -466,14 +496,14 @@ async function main() {
   }
 
   // Always save a local copy of the generated PDF artifact for verification
-  const artifactName = `Easy_Gold_Executive_Report_${reportDate}.pdf`;
+  const artifactName = `Easy_Gold_Executive_Report_${dataAsOfDate}.pdf`;
   fs.writeFileSync(artifactName, Buffer.from(pdfBase64, 'base64'));
   console.log(`[+] Saved local PDF artifact: ${artifactName}`);
 
   // 4. Send email with attached PDF and inline snapshots
   const sendResult = await sendViaTransports({
     recipientList,
-    reportDate,
+    reportDate: dataAsOfDate,
     pdfBase64,
     quickBriefBase64: snapshots?.quickBriefBase64,
     dailyVelocityBase64: snapshots?.dailyVelocityBase64,
@@ -513,7 +543,7 @@ async function main() {
         recipient: recipientList.join(', '),
         status: sendResult.sent ? 'success' : 'failed',
         trigger_type: 'scheduled',
-        subject: `Daily Easy Gold Marketing BI report - ${reportDate}`,
+        subject: `Daily Easy Gold Marketing BI report - ${dataAsOfDate}`,
         error_message: sendResult.sent ? null : sendResult.error,
         execution_duration_ms: durationMs
       })

@@ -201,6 +201,24 @@ export function ReportingPdfModal({
         try {
           const { data: rpcWk } = await supabase.rpc('get_executive_weekly_dashboard', { p_limit: 52 });
           if (rpcWk?.current_week) {
+            // The RPC skips the API route's buy/sell Value (mil LAK) enrichment step, so
+            // recompute it here from the daily rows already fetched above (same logic as
+            // app/api/dashboard/summary/route.ts), otherwise those cards fall back to N/A.
+            if (rows && rows.length > 0) {
+              const enrichWeek = (w: any) => {
+                if (!w || !w.start_date || !w.end_date) return;
+                const days = rows.filter((d: any) => d.date_id >= w.start_date && d.date_id <= w.end_date);
+                if (days.length > 0) {
+                  const sumBuy = days.reduce((acc: number, d: any) => acc + (Number(d.buy_value_mil_lak) || 0), 0);
+                  const sumSell = days.reduce((acc: number, d: any) => acc + (Number(d.sell_value_mil_lak) || 0), 0);
+                  w.buy_value_mil_lak = Math.round(sumBuy * 10) / 10;
+                  w.sell_value_mil_lak = Math.round(sumSell * 10) / 10;
+                }
+              };
+              enrichWeek(rpcWk.current_week);
+              if (rpcWk.previous_week) enrichWeek(rpcWk.previous_week);
+              if (Array.isArray(rpcWk.history)) rpcWk.history.forEach(enrichWeek);
+            }
             setWeekly(rpcWk as ExecutiveDashboardData);
           }
         } catch (rpcWkErr) {

@@ -2086,6 +2086,7 @@ WHERE created_at >= '${bwdStart}'
         const body = await request.json().catch(() => ({}));
         const recipient = Array.isArray(body.recipient) ? body.recipient.join(', ') : (body.recipient || 'management@easygold.la');
         const reportDate = body.report_date || new Date().toISOString().split('T')[0];
+        const displayDate = body.display_date || reportDate;
         const supabaseUrl = env.NEXT_PUBLIC_SUPABASE_URL;
         const supabaseKey = env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
         const recipientList = Array.isArray(body.recipient)
@@ -2096,6 +2097,7 @@ WHERE created_at >= '${bwdStart}'
           env,
           recipientList,
           reportDate,
+          displayDate,
           triggerType: body.trigger_type || 'manual_test',
           pdfBase64: body.pdfBase64 || null,
           pdfHtml: body.pdfHtml || null,
@@ -2183,7 +2185,11 @@ async function syncActiveCampaignsWorker(env) {
 // ============================================================================
 // Shared Email Dispatch Helper (used by both UI manual test and cron trigger)
 // ============================================================================
-async function executeEmailDispatch({ env, recipientList, reportDate, triggerType = 'manual_test', pdfBase64 = null, pdfHtml = null, quickBriefBase64 = null, dailyVelocityBase64 = null }) {
+async function executeEmailDispatch({ env, recipientList, reportDate, displayDate, triggerType = 'manual_test', pdfBase64 = null, pdfHtml = null, quickBriefBase64 = null, dailyVelocityBase64 = null }) {
+  // `reportDate` is the calendar date keyed on by Supabase audit-log rows and the cron's
+  // duplicate-send detection (must stay consistent run to run). `displayDate` is the latest date
+  // actually present in the data, shown to the reader in the subject/body/filename.
+  displayDate = displayDate || reportDate;
   const recipient = recipientList.join(', ');
   const supabaseUrl = env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -2201,14 +2207,14 @@ async function executeEmailDispatch({ env, recipientList, reportDate, triggerTyp
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Daily Easy Gold Marketing BI report - ${reportDate}</title>
+  <title>Daily Easy Gold Marketing BI report - ${displayDate}</title>
 </head>
-<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f8fafc; margin: 0; padding: 24px; color: #0f172a;">
-  <div style="max-width: 680px; margin: 0 auto; background: #ffffff; border-radius: 16px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f8fafc; margin: 0; padding: 24px; color: #0f172a; text-align: left;">
+  <div style="max-width: 960px; margin: 0; background: #ffffff; border-radius: 16px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
     <div style="padding: 28px 32px;">
-      <p style="font-size: 15px; line-height: 1.6; margin: 0 0 20px 0; color: #0f172a;">
+      <p style="font-size: 15px; line-height: 1.6; margin: 0 0 20px 0; color: #0f172a; text-align: left;">
         Dear Team,<br><br>
-        Please see the email attached for the more information about the Easy Gold Marketing Report up to <strong>${reportDate}</strong>
+        Please see the email attached for the more information about the Easy Gold Marketing Report up to <strong>${displayDate}</strong>
       </p>
 
       <div style="margin: 20px 0 0 0;">
@@ -2236,14 +2242,14 @@ async function executeEmailDispatch({ env, recipientList, reportDate, triggerTyp
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           to: recipientList.join(', '),
-          subject: `Daily Easy Gold Marketing BI report - ${reportDate}`,
+          subject: `Daily Easy Gold Marketing BI report - ${displayDate}`,
           html: emailHtml,
           pdfBase64: pdfBase64,
           pdfHtml: pdfHtml,
           quickBriefBase64: quickBriefBase64,
           dailyVelocityBase64: dailyVelocityBase64,
-          body: `Daily Easy Gold Marketing BI report for ${reportDate}`,
-          reportDate: reportDate,
+          body: `Daily Easy Gold Marketing BI report for ${displayDate}`,
+          reportDate: displayDate,
         }),
       });
 
@@ -2277,12 +2283,12 @@ async function executeEmailDispatch({ env, recipientList, reportDate, triggerTyp
         const accessToken = await getGoogleServiceAccountToken(serviceAccountObj, impersonateUser);
 
         const sender = impersonateUser || serviceAccountObj.client_email;
-        const safeDate = (reportDate || 'Daily').replace(/\//g, '-');
+        const safeDate = (displayDate || 'Daily').replace(/\//g, '-');
         await sendGmailWithServiceAccount({
           accessToken,
           fromEmail: sender,
           toEmails: recipientList,
-          subject: `Daily Easy Gold Marketing BI report - ${reportDate}`,
+          subject: `Daily Easy Gold Marketing BI report - ${displayDate}`,
           htmlBody: emailHtml,
           pdfBase64: pdfBase64,
           pdfFilename: `Easy_Gold_Executive_Report_${safeDate}.pdf`,
@@ -2302,7 +2308,7 @@ async function executeEmailDispatch({ env, recipientList, reportDate, triggerTyp
   // 2. Fallback to Resend API if Google Service Account failed or not provided
   if (!emailSent && env.RESEND_API_KEY) {
     try {
-      const safeDate = (reportDate || 'Daily').replace(/\//g, '-');
+      const safeDate = (displayDate || 'Daily').replace(/\//g, '-');
       const resendAttachments = [];
       if (pdfBase64) {
         resendAttachments.push({
@@ -2330,7 +2336,7 @@ async function executeEmailDispatch({ env, recipientList, reportDate, triggerTyp
       const resendBody = {
         from: env.RESEND_FROM || 'Easy Gold Report <onboarding@resend.dev>',
         to: recipientList,
-        subject: `Daily Easy Gold Marketing BI report - ${reportDate}`,
+        subject: `Daily Easy Gold Marketing BI report - ${displayDate}`,
         html: emailHtml,
         attachments: resendAttachments.length > 0 ? resendAttachments : undefined,
       };
@@ -2373,7 +2379,7 @@ async function executeEmailDispatch({ env, recipientList, reportDate, triggerTyp
           recipient: recipient,
           status: emailSent || (!env.GOOGLE_APPS_SCRIPT_URL && !env.GOOGLE_SERVICE_ACCOUNT_KEY && !env.RESEND_API_KEY) ? 'success' : 'failed',
           trigger_type: triggerType,
-          subject: `Daily Easy Gold Marketing BI report - ${reportDate}`,
+          subject: `Daily Easy Gold Marketing BI report - ${displayDate}`,
           error_message: emailError || (!emailSent ? 'Simulated dispatch (No live credentials configured in Cloudflare)' : null),
           execution_duration_ms: 150,
         }),
