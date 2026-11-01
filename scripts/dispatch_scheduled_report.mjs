@@ -382,6 +382,7 @@ async function main() {
   });
 
   let pdfBase64 = null;
+  let snapshots = { quickBriefBase64: null, dailyVelocityBase64: null };
   try {
     const page = await browser.newPage();
     await page.setViewport({ width: 1920, height: 1080, deviceScaleFactor: 2 });
@@ -421,7 +422,6 @@ async function main() {
       pdfBase64 = Buffer.from(pdfBuffer).toString('base64');
     }
 
-    let snapshots = { quickBriefBase64: null, dailyVelocityBase64: null };
     try {
       console.log('[*] Capturing Quick Brief & Daily Velocity inline email snapshots...');
       snapshots = await page.evaluate(async () => {
