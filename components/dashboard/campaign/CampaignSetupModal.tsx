@@ -353,6 +353,16 @@ export function CampaignSetupModal({
     setIsCustomLabelUserEdited(false);
   };
 
+  // NC Custom First-Purchase Condition Handler (single row only)
+  const DEFAULT_NC_CONDITION: CampaignConditionRule = { id: 'nc-cond-1', metric: 'amount', operator: '>=', value: 500000 };
+
+  const handleUpdateNcCondition = (updates: Partial<CampaignConditionRule>) => {
+    setNcConditions((prev) => {
+      const base = prev[0] || DEFAULT_NC_CONDITION;
+      return [{ ...base, ...updates }];
+    });
+  };
+
   const toggleTargetType = (type: 'ec' | 'unique_users' | 'nc' | 'revenue' | 'weight') => {
     if (selectedTargets.includes(type)) {
       if (selectedTargets.length > 1) {
@@ -1061,7 +1071,7 @@ export function CampaignSetupModal({
 
                   {/* Optional First Purchase Condition Inheritance / Custom Threshold */}
                   {ncQualificationMode === 'first_purchase_tier' && (
-                    <div className="pt-1 bg-white/70 border border-purple-200 rounded-xl p-2 text-[10px]">
+                    <div className="pt-1 bg-white/70 border border-purple-200 rounded-xl p-2 text-[10px] space-y-2">
                       <label className="flex items-center gap-1.5 font-bold text-purple-950 cursor-pointer select-none">
                         <input
                           type="checkbox"
@@ -1071,11 +1081,100 @@ export function CampaignSetupModal({
                         />
                         <span>Inherit Section 3 Condition Rules for 1st Buy</span>
                       </label>
-                      <p className="text-[9px] text-purple-700 mt-0.5 ml-4">
-                        {ncFirstPurchaseUseMainCondition 
-                          ? `Uses: ${conditionLabel || 'Buy trans >= 500k'}`
-                          : 'Custom First Purchase threshold will be configured'}
-                      </p>
+                      {ncFirstPurchaseUseMainCondition ? (
+                        <p className="text-[9px] text-purple-700 ml-4">
+                          Uses: {conditionLabel || 'Buy trans >= 500k'}
+                        </p>
+                      ) : (
+                        (() => {
+                          const ncCond = ncConditions[0] || DEFAULT_NC_CONDITION;
+                          return (
+                            <div className="bg-purple-50/60 border border-purple-200 rounded-lg p-2 space-y-1.5">
+                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5">
+                                <div>
+                                  <label className="block text-[9px] font-bold text-purple-800 mb-0.5">
+                                    Metric
+                                  </label>
+                                  <select
+                                    value={ncCond.metric}
+                                    onChange={(e) => {
+                                      const m = e.target.value as 'amount' | 'weight';
+                                      handleUpdateNcCondition({
+                                        metric: m,
+                                        value: m === 'weight' ? 2.0 : 500000,
+                                        max_value: m === 'weight' ? 5.0 : 2000000,
+                                      });
+                                    }}
+                                    className="w-full px-2 py-1 text-[10px] border border-purple-300 rounded-lg bg-white focus:ring-2 focus:ring-purple-500 focus:outline-hidden"
+                                  >
+                                    <option value="amount">Buy Value (LAK)</option>
+                                    <option value="weight">Gold Weight (g)</option>
+                                  </select>
+                                </div>
+                                <div>
+                                  <label className="block text-[9px] font-bold text-purple-800 mb-0.5">
+                                    Operator
+                                  </label>
+                                  <select
+                                    value={ncCond.operator}
+                                    onChange={(e) => handleUpdateNcCondition({ operator: e.target.value as any })}
+                                    className="w-full px-2 py-1 text-[10px] border border-purple-300 rounded-lg bg-white focus:ring-2 focus:ring-purple-500 focus:outline-hidden font-mono"
+                                  >
+                                    <option value=">=">&gt;= (Min)</option>
+                                    <option value="<=">&lt;= (Max)</option>
+                                    <option value="between">BETWEEN</option>
+                                    <option value="==">== (Exact)</option>
+                                  </select>
+                                </div>
+                                {ncCond.operator === 'between' ? (
+                                  <div className="grid grid-cols-2 gap-1">
+                                    <div>
+                                      <label className="block text-[9px] font-bold text-purple-800 mb-0.5">
+                                        Min
+                                      </label>
+                                      <input
+                                        type="number"
+                                        step={ncCond.metric === 'weight' ? '0.1' : '1000'}
+                                        value={ncCond.value}
+                                        onChange={(e) => handleUpdateNcCondition({ value: Number(e.target.value) })}
+                                        className="w-full px-1.5 py-1 text-[10px] border border-purple-300 rounded-lg font-mono focus:ring-2 focus:ring-purple-500 focus:outline-hidden"
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="block text-[9px] font-bold text-purple-800 mb-0.5">
+                                        Max
+                                      </label>
+                                      <input
+                                        type="number"
+                                        step={ncCond.metric === 'weight' ? '0.1' : '1000'}
+                                        value={ncCond.max_value ?? ncCond.value}
+                                        onChange={(e) => handleUpdateNcCondition({ max_value: Number(e.target.value) })}
+                                        className="w-full px-1.5 py-1 text-[10px] border border-purple-300 rounded-lg font-mono focus:ring-2 focus:ring-purple-500 focus:outline-hidden"
+                                      />
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div>
+                                    <label className="block text-[9px] font-bold text-purple-800 mb-0.5">
+                                      Threshold {ncCond.metric === 'weight' ? '(g)' : '(LAK)'}
+                                    </label>
+                                    <input
+                                      type="number"
+                                      step={ncCond.metric === 'weight' ? '0.1' : '1000'}
+                                      value={ncCond.value}
+                                      onChange={(e) => handleUpdateNcCondition({ value: Number(e.target.value) })}
+                                      className="w-full px-1.5 py-1 text-[10px] border border-purple-300 rounded-lg font-mono focus:ring-2 focus:ring-purple-500 focus:outline-hidden"
+                                    />
+                                  </div>
+                                )}
+                              </div>
+                              <p className="text-[9px] text-purple-700">
+                                Counts only NC whose first-ever purchase meets this threshold.
+                              </p>
+                            </div>
+                          );
+                        })()
+                      )}
                     </div>
                   )}
                 </div>

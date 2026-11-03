@@ -164,6 +164,11 @@ export function CampaignCardItem({
   const hasNcTarget = tgtNc > 0 && (campaign.target_types ? campaign.target_types.includes('nc') : true);
   const ncHitPct = targetAchievement.nc_pct_hit_mtd;
 
+  // NC-only campaign: no Buy Trans target configured, so headline NC instead of trans
+  const isNcOnlyCard = Boolean(campaign.target_types?.includes('nc')) && !Boolean(campaign.target_types?.includes('ec'));
+  const actNcBuyValue = targetAchievement.nc_mtd_buy_value_mil_lak;
+  const actNcBuyWeight = targetAchievement.nc_mtd_buy_weight_g;
+
   const tgtWeight = targetAchievement.gold_weight_target_g ?? 0;
   const actWeight = targetAchievement.mtd_buy_weight_g;
   const hasWeightTarget = tgtWeight > 0 && (campaign.target_types ? campaign.target_types.includes('weight') : true);
@@ -248,7 +253,7 @@ export function CampaignCardItem({
         <div className="pt-1 border-t border-slate-100">
           <div className="flex items-center justify-between text-[10px]">
             <span className="text-slate-500 font-medium">
-              Target: <strong className="font-mono text-slate-800">{tgtEc.toLocaleString()}</strong> trans
+              Target: <strong className="font-mono text-slate-800">{(isNcOnlyCard ? tgtNc : tgtEc).toLocaleString()}</strong> {isNcOnlyCard ? 'NC' : 'trans'}
             </span>
             <span className="font-mono font-bold text-blue-700 flex items-center gap-1">
               {isRecording ? (
@@ -257,39 +262,51 @@ export function CampaignCardItem({
                   <span>Syncing...</span>
                 </span>
               ) : (
-                `MTD: ${actEc.toLocaleString()} (${ecHitPct}%)`
+                `MTD: ${(isNcOnlyCard ? actNc : actEc).toLocaleString()} (${isNcOnlyCard ? ncHitPct : ecHitPct}%)`
               )}
             </span>
           </div>
           {/* Visual Mini Progress Bar */}
           <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden mt-1">
-            <div 
+            <div
               className={`h-full rounded-full transition-all ${
-                ecHitPct >= 100 ? 'bg-emerald-500' : 'bg-blue-600'
+                (isNcOnlyCard ? ncHitPct : ecHitPct) >= 100 ? 'bg-emerald-500' : 'bg-blue-600'
               } ${isRecording ? 'animate-pulse' : ''}`}
-              style={{ width: `${Math.min(ecHitPct, 100)}%` }}
+              style={{ width: `${Math.min(isNcOnlyCard ? ncHitPct : ecHitPct, 100)}%` }}
             />
           </div>
         </div>
 
         {/* 4. 2x2 Micro Metrics Grid - Lightweight & Compact */}
         <div className="grid grid-cols-2 gap-1.5">
-          {/* Box 1: Buy Trans */}
+          {/* Box 1: Buy Trans, or NC Actual/Target when the campaign is NC-only */}
           <div className={`bg-[#f8fafc] rounded-lg p-1.5 border border-slate-100 transition-all ${isRecording ? 'opacity-80' : ''}`}>
             <span className="text-[8px] font-black uppercase text-slate-400 tracking-wider truncate block">
-              BUY TRANS (ACT/TGT)
+              {isNcOnlyCard ? 'NEW CUST (ACT/TGT)' : 'BUY TRANS (ACT/TGT)'}
             </span>
             <div className={`text-[11px] font-black font-mono text-slate-900 truncate ${isRecording ? 'animate-pulse text-blue-700' : ''}`}>
-              {`${actEc.toLocaleString()} / ${tgtEc.toLocaleString()}`}
+              {isNcOnlyCard ? `${actNc.toLocaleString()} / ${tgtNc.toLocaleString()}` : `${actEc.toLocaleString()} / ${tgtEc.toLocaleString()}`}
             </div>
-            <span className={`block text-[9px] font-bold ${ecHitPct >= 100 ? 'text-emerald-600' : 'text-slate-500'}`}>
-              {`${ecHitPct}% hit`}
+            <span className={`block text-[9px] font-bold ${(isNcOnlyCard ? ncHitPct : ecHitPct) >= 100 ? 'text-emerald-600' : 'text-slate-500'}`}>
+              {`${isNcOnlyCard ? ncHitPct : ecHitPct}% hit`}
             </span>
           </div>
 
-          {/* Box 2: New Customers if targeted, otherwise Gross Buy Value */}
+          {/* Box 2: NC first-purchase buy value (NC-only cards), else New Customers, else Gross Buy Value */}
           <div className={`bg-[#f8fafc] rounded-lg p-1.5 border border-slate-100 transition-all ${isRecording ? 'opacity-80' : ''}`}>
-            {hasNcTarget ? (
+            {isNcOnlyCard ? (
+              <>
+                <span className="text-[8px] font-black uppercase text-slate-400 tracking-wider truncate block">
+                  BUY VALUE (MIL LAK)
+                </span>
+                <div className={`text-[11px] font-black font-mono text-slate-900 truncate ${isRecording ? 'animate-pulse text-blue-700' : ''}`}>
+                  {`${actNcBuyValue.toLocaleString()} mil`}
+                </div>
+                <span className="block text-[9px] font-bold text-slate-500 truncate">
+                  1st Buy MTD
+                </span>
+              </>
+            ) : hasNcTarget ? (
               <>
                 <span className="text-[8px] font-black uppercase text-slate-400 tracking-wider truncate block">
                   NEW CUST (ACT/TGT)
@@ -322,10 +339,10 @@ export function CampaignCardItem({
               BUY WEIGHT
             </span>
             <div className={`text-[11px] font-black font-mono text-slate-900 truncate ${isRecording ? 'opacity-80' : ''}`}>
-              {formatWeightShort(actWeight)}
+              {formatWeightShort(isNcOnlyCard ? actNcBuyWeight : actWeight)}
             </div>
             <span className="block text-[9px] font-bold text-slate-500 truncate">
-              {hasWeightTarget ? `${formatWeightShort(tgtWeight)} tgt (${weightHitPct}%)` : hasRevenueTarget ? formatTargetRevenue(actRevenue) : 'Volume basis'}
+              {isNcOnlyCard ? '1st Buy MTD' : hasWeightTarget ? `${formatWeightShort(tgtWeight)} tgt (${weightHitPct}%)` : hasRevenueTarget ? formatTargetRevenue(actRevenue) : 'Volume basis'}
             </span>
           </div>
 

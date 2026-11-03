@@ -155,13 +155,15 @@ export async function POST(req: NextRequest) {
     const uniqueUsersMode = config.unique_users_filter_mode || (rules.length === 0 ? 'time_only' : 'condition_tier');
     const ncMode = config.nc_qualification_mode || 'all_registers';
     const ncUseMainCond = config.nc_first_purchase_use_main_condition ?? true;
+    // Raw override only — the RPC now owns the fallback to the main condition when this is empty.
     const effectiveNcRules = (ncMode === 'first_purchase_tier' && !ncUseMainCond && Array.isArray(config.nc_conditions) && config.nc_conditions.length > 0)
       ? config.nc_conditions
-      : rules;
+      : [];
+    const ncDisplayRules = effectiveNcRules.length > 0 ? effectiveNcRules : rules;
 
     let ncCondSql = '';
-    for (const r of effectiveNcRules) {
-      const col = r.metric === 'weight' ? 'b.gold_weight' : 'b.total_amount';
+    for (const r of ncDisplayRules) {
+      const col = r.metric === 'weight' ? 'fb.gold_weight' : 'fb.total_amount';
       const val = Number(r.value) || 0;
       if (r.operator === 'between') {
         const maxV = r.max_value !== undefined ? Number(r.max_value) : val;
@@ -176,18 +178,26 @@ export async function POST(req: NextRequest) {
     }
 
     const ncQuerySnippet = ncMode === 'first_purchase_tier'
-      ? `-- NC First Purchase Mode (OPEN_ACCOUNT paired with BUY_GOLD at exact same timestamp meeting tier)
+      ? `-- NC First Purchase Mode (customer's chronologically first-ever BUY_GOLD,
+-- bounded to the campaign window, meeting tier)
+WITH first_buy AS (
+  SELECT DISTINCT ON (phone) phone, created_at AS first_buy_at, gold_weight, total_amount
+  FROM public.monthly_data
+  WHERE transaction_type = 'BUY_GOLD'
+    AND status IN ('ສໍາເລັດ', 'ສຳເລັດ')
+    AND created_at <= '${effectiveCutoffDate} 23:59:59'${bankSql}
+  ORDER BY phone, created_at ASC
+)
 SELECT COUNT(DISTINCT o.phone) AS nc_actual_mtd
 FROM public.monthly_data o
-INNER JOIN public.monthly_data b
-   ON b.phone = o.phone
-  AND b.created_at = o.created_at
+INNER JOIN first_buy fb
+   ON fb.phone = o.phone
+  AND fb.first_buy_at >= '${config.campaign_date_start}'
+  AND fb.first_buy_at <= '${effectiveCutoffDate} 23:59:59'
 WHERE o.created_at >= '${config.campaign_date_start}'
   AND o.created_at <= '${effectiveCutoffDate} 23:59:59'
   AND o.status IN ('ສໍາເລັດ', 'ສຳເລັດ')
-  AND o.transaction_type = 'OPEN_ACCOUNT'
-  AND b.status IN ('ສໍາເລັດ', 'ສຳເລັດ')
-  AND b.transaction_type = 'BUY_GOLD'${bankSql.replace(/\bbank\b/g, 'o.bank')}${ncCondSql};`
+  AND o.transaction_type = 'OPEN_ACCOUNT'${ncCondSql};`
       : `-- Standard NC Mode (All OPEN_ACCOUNT in period)
 SELECT COUNT(*) AS nc_actual_mtd
 FROM public.monthly_data
@@ -422,6 +432,10 @@ WHERE created_at >= '${backwardWindow.start}'
           nc_actual_mtd: exactNc,
           mtd_buy_weight_g: Number(liveAgg.mtd_gold_weight_g) || 0,
           mtd_buy_value_mil_lak: Number(liveAgg.mtd_revenue_mil_lak) || 0,
+          nc_mtd_buy_value_mil_lak: Number(liveAgg.mtd_nc_buy_value_mil_lak) || 0,
+          nc_mtd_buy_weight_g: Number(liveAgg.mtd_nc_buy_weight_g) || 0,
+          nc_backward_buy_value_mil_lak: Number(liveAgg.backward_nc_buy_value_mil_lak) || 0,
+          nc_backward_buy_weight_g: Number(liveAgg.backward_nc_buy_weight_g) || 0,
           backward_trans: Number(liveAgg.backward_transac) || 0,
           backward_unique_users: Number(liveAgg.backward_unique_users) || 0,
           backward_val_mil: Number(liveAgg.backward_revenue_mil_lak) || 0,
