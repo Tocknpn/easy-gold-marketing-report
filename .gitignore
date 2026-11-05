@@ -35,3 +35,6 @@ next-env.d.ts
 
 # Large raw excel datasets (optional to ignore or track - usually keep data Sample if small, but ignore temp files)
 ~$*.xlsx
+
+# Raw transaction backups: customer names and phone numbers, never commit
+/archive/
