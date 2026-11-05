@@ -24,6 +24,7 @@ import {
   FileSpreadsheet
 } from 'lucide-react';
 import { DynamicFilterState } from '@/lib/types/dynamicReport.types';
+import { formatMonthLabel } from '@/lib/utils/monthLabel';
 import { 
   ALL_AVAILABLE_BANKS, 
   ALL_AVAILABLE_BRANCHES, 
@@ -73,7 +74,7 @@ export function DynamicFilterBar({
   hasExecuted,
   isComparingPoP,
   onToggleComparingPoP,
-  latestAvailableDate = '2026-10-27',
+  latestAvailableDate,
   hasUnappliedChanges = false,
 }: DynamicFilterBarProps) {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -306,6 +307,10 @@ export function DynamicFilterBar({
     onFilterChange({ ...filters, selectedTxTypes: updated });
   };
 
+  // Month names follow the latest uploaded date, the same anchor the presets query
+  const thisMonthLabel = formatMonthLabel(latestAvailableDate);
+  const lastMonthLabel = formatMonthLabel(latestAvailableDate, 1);
+
   return (
     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm transition-all mb-4">
       {/* Top Main Filter Bar */}
@@ -317,14 +322,14 @@ export function DynamicFilterBar({
             Preset:
           </span>
           {[
-            { id: 'this_month', label: "Oct'26 (This Month)" },
-            { id: 'last_month', label: "Sep'26 (Last Month)" },
+            { id: 'this_month', label: thisMonthLabel ? `${thisMonthLabel} (This Month)` : 'This Month' },
+            { id: 'last_month', label: lastMonthLabel ? `${lastMonthLabel} (Last Month)` : 'Last Month' },
             { id: 'aug_month', label: "Aug'26" },
             { id: 'last7d', label: 'Last 7 Days' },
             { id: 'last30d', label: 'Last 30 Days' },
             { id: 'q3', label: 'Q3 (Jul-Sep)' },
             { id: 'yesterday', label: 'Yesterday' },
-            { id: 'today', label: `Today (${latestAvailableDate.slice(5)})` },
+            { id: 'today', label: latestAvailableDate ? `Today (${latestAvailableDate.slice(5)})` : 'Today' },
           ].map((preset) => (
             <button
               key={preset.id}

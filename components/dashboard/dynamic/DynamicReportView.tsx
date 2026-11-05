@@ -168,7 +168,7 @@ export function DynamicReportView() {
         hasExecuted={hasExecuted && !!reportData}
         isComparingPoP={isComparingPoP}
         onToggleComparingPoP={() => setIsComparingPoP(!isComparingPoP)}
-        latestAvailableDate={latestAvailableDate}
+        latestAvailableDate={hasExecuted ? latestAvailableDate : undefined}
         hasUnappliedChanges={hasUnappliedChanges}
       />
 
