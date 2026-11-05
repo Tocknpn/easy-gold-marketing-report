@@ -68,6 +68,7 @@ import {
   downloadCsv,
   downloadExcel,
 } from '@/lib/pivot/powerPivotApi';
+import { listRecentMonths } from '@/lib/utils/monthLabel';
 import { PowerPivotGrid } from './PowerPivotGrid';
 import { PowerPivotFilterBuilder } from './PowerPivotFilterBuilder';
 import { MeasureManagerModal } from './MeasureManagerModal';
@@ -697,9 +698,7 @@ export function PowerPivotStudio({ currentUser }: Props) {
 
   // Month slicer helper with multi-select support
   const availableMonths = useMemo(() => {
-    return meta?.months && meta.months.length
-      ? meta.months
-      : ['2026-10', '2026-09', '2026-08', '2026-07', '2026-06', '2026-05', '2026-04', '2026-03', '2026-02', '2026-01'];
+    return meta?.months && meta.months.length ? meta.months : listRecentMonths(12);
   }, [meta?.months]);
 
   const selectedMonths = useMemo(() => {
