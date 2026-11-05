@@ -264,9 +264,11 @@ export function DynamicFilterBar({
       const prevLastD = String(prevMonthLast.getUTCDate()).padStart(2, '0');
       start = `${prevY}-${prevM}-01`;
       end = `${prevY}-${prevM}-${prevLastD}`;
-    } else if (preset === 'aug_month') {
-      start = '2026-08-01';
-      end = '2026-08-31';
+    } else if (preset === 'two_months_ago') {
+      const monthFirst = new Date(Date.UTC(aY, aM - 3, 1));
+      const monthLast = new Date(Date.UTC(aY, aM - 2, 0));
+      start = fmt(monthFirst);
+      end = fmt(monthLast);
     } else if (preset === 'q3') {
       start = '2026-07-01';
       end = '2026-09-30';
@@ -324,7 +326,7 @@ export function DynamicFilterBar({
           {[
             { id: 'this_month', label: thisMonthLabel ? `${thisMonthLabel} (This Month)` : 'This Month' },
             { id: 'last_month', label: lastMonthLabel ? `${lastMonthLabel} (Last Month)` : 'Last Month' },
-            { id: 'aug_month', label: "Aug'26" },
+            { id: 'two_months_ago', label: formatMonthLabel(latestAvailableDate, 2) ?? '2 Months Ago' },
             { id: 'last7d', label: 'Last 7 Days' },
             { id: 'last30d', label: 'Last 30 Days' },
             { id: 'q3', label: 'Q3 (Jul-Sep)' },

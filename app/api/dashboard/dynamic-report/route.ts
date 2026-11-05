@@ -66,8 +66,8 @@ function calcPctDelta(curr: number, prev: number): number {
 // Dynamic BI JSON cache (mirrors worker.js — see sql/54_dynamic_bi_report_cache.sql).
 // Dev reads the same Supabase cache prod's 3AM cron writes, so local testing sees
 // the same fast path; dev just never triggers the cron itself.
-const DYNAMIC_BI_CACHEABLE_PRESETS = ['today', 'yesterday', 'last7d', 'last30d', 'this_month', 'last_month', 'aug_month', 'q3'];
-const STATIC_DYNAMIC_BI_PRESETS = new Set(['last_month', 'aug_month', 'q3']);
+const DYNAMIC_BI_CACHEABLE_PRESETS = ['today', 'yesterday', 'last7d', 'last30d', 'this_month', 'last_month', 'two_months_ago', 'q3'];
+const STATIC_DYNAMIC_BI_PRESETS = new Set(['last_month', 'two_months_ago', 'q3']);
 
 export async function GET(request: NextRequest) {
   const startedAt = Date.now();
@@ -130,6 +130,13 @@ export async function GET(request: NextRequest) {
       const prevLast = new Date(Date.UTC(ly, lm - 1, 0));
       startDate = prevFirst.toISOString().split('T')[0];
       endDate = prevLast.toISOString().split('T')[0];
+    } else if (quickPreset === 'two_months_ago') {
+      const [ly, lm] = latestAvailableDate.split('-').map(Number);
+      startDate = new Date(Date.UTC(ly, lm - 3, 1)).toISOString().split('T')[0];
+      endDate = new Date(Date.UTC(ly, lm - 2, 0)).toISOString().split('T')[0];
+    } else if (quickPreset === 'q3') {
+      startDate = '2026-07-01';
+      endDate = '2026-09-30';
     }
 
     if (endDate < startDate) {
@@ -240,7 +247,11 @@ export async function GET(request: NextRequest) {
             ? cacheRow.resolved_start_date === startDate && cacheRow.resolved_end_date === endDate
             : cacheRow.latest_available_date === latestAvailableDate;
 
-          if (isFresh) {
+          const hasNcActivity =
+            Array.isArray(cacheRow.payload.hourly) &&
+            cacheRow.payload.hourly.every((h: { nc_tx?: number }) => h.nc_tx !== undefined);
+
+          if (isFresh && hasNcActivity) {
             const servedPayload = {
               ...cacheRow.payload,
               meta: {

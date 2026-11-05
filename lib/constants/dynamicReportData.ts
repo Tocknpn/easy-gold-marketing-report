@@ -1697,7 +1697,6 @@ export function resolveBaseReportByDates(
   const end = endDate || DEFAULT_FILTER_STATE.endDate;
 
   // 1. Explicit Preset matches
-  if (quickPreset === 'aug_month') return AUGUST_2026_DYNAMIC_REPORT_PAYLOAD;
   if (quickPreset === 'last_month') return SEPTEMBER_2026_DYNAMIC_REPORT_PAYLOAD;
   if (quickPreset === 'this_month') return DEFAULT_DYNAMIC_REPORT_PAYLOAD;
   if (quickPreset === 'q3') return Q3_2026_DYNAMIC_REPORT_PAYLOAD;

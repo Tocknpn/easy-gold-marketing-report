@@ -212,6 +212,9 @@ export function DynamicChartsSection({
   // Chart Global Metric Mode for Lower Sections: 'tx' (Transactions) | 'weight' (Gold Grams) | 'amount' (Revenue M LAK)
   const [metricMode, setMetricMode] = useState<'tx' | 'weight' | 'amount'>('tx');
 
+  // What the Hourly and Day bars print above each bar: % contribution share or the actual value
+  const [activityLabelMode, setActivityLabelMode] = useState<'share' | 'actual'>('share');
+
   // Trend Chart Granularity State: 'day' | 'week' | 'year' (DEFAULT is Day)
   const [trendGranularity, setTrendGranularity] = useState<'day' | 'week' | 'year'>('day');
   
@@ -1076,8 +1079,36 @@ export function DynamicChartsSection({
           </h3>
         </div>
 
+        <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+        {/* Label Switcher for the Hourly and Day Activity Curves */}
+        <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-slate-200 shadow-2xs text-[11px] font-extrabold text-slate-600">
+          <span className="text-[10px] text-slate-400 font-bold px-1.5 uppercase">Hourly &amp; Day:</span>
+          <button
+            type="button"
+            onClick={() => setActivityLabelMode('share')}
+            className={`px-2.5 py-1 rounded-lg transition-all ${
+              activityLabelMode === 'share'
+                ? 'bg-[#0c4ca3] text-white shadow-2xs'
+                : 'hover:text-slate-900 hover:bg-slate-50'
+            }`}
+          >
+            % Share
+          </button>
+          <button
+            type="button"
+            onClick={() => setActivityLabelMode('actual')}
+            className={`px-2.5 py-1 rounded-lg transition-all ${
+              activityLabelMode === 'actual'
+                ? 'bg-[#0c4ca3] text-white shadow-2xs'
+                : 'hover:text-slate-900 hover:bg-slate-50'
+            }`}
+          >
+            Actual
+          </button>
+        </div>
+
         {/* Metric Switcher Pills for Activity and Channel Sections */}
-        <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-slate-200 shadow-2xs self-start sm:self-auto text-[11px] font-extrabold text-slate-600">
+        <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-slate-200 shadow-2xs text-[11px] font-extrabold text-slate-600">
           <span className="text-[10px] text-slate-400 font-bold px-1.5 uppercase">View By:</span>
           <button
             type="button"
@@ -1112,6 +1143,7 @@ export function DynamicChartsSection({
           >
             Revenue (M LAK)
           </button>
+        </div>
         </div>
       </div>
 
@@ -1163,6 +1195,7 @@ export function DynamicChartsSection({
           : totalDayWeekSum === 0
           ? 'No NC in this filter'
           : null;
+        const totalDayNc = activeDayOfWeek.reduce((acc, d) => acc + (d.nc_tx || 0), 0);
         const topDay = sortedDaysByVal[0] || null;
         const secondDay = sortedDaysByVal[1] || null;
 
@@ -1278,7 +1311,7 @@ export function DynamicChartsSection({
                                 : 'text-[#0c4ca3]'
                               : 'text-slate-400'
                           }`}>
-                            {sharePct}%
+                            {activityLabelMode === 'share' ? `${sharePct}%` : formatAxisTick(val)}
                           </span>
                         )}
 
@@ -1335,7 +1368,7 @@ export function DynamicChartsSection({
                     Peak Hour: <strong>{topHour ? `${topHour.hour_label} (${getHourlyVal(topHour).toLocaleString()} ${unitLabel})` : 'None'}</strong>
                   </span>
                 )}
-                <span className="shrink-0 ml-3">Active Filter: <strong className="uppercase text-[#0c4ca3]">{isHourlyNc ? 'NC' : `${hourlyTrxType} Trx`}</strong></span>
+                <span className="shrink-0 ml-3">Active Filter: <strong className="uppercase text-[#0c4ca3]">{isHourlyNc ? (metricMode === 'tx' ? 'NC' : 'NC (count only)') : `${hourlyTrxType} Trx`}</strong></span>
               </div>
             </div>
 
@@ -1415,7 +1448,9 @@ export function DynamicChartsSection({
                     const dayName = d.day_full.split(' ')[0];
                     const heightPct = isOutOfScope ? 2 : totalDayWeekSum > 0 ? Math.max(6, Math.round((val / maxDayVal) * 100)) : 2;
                     const isPeak = peakDaySet.has(d.day_code);
-                    const sharePct = totalDayWeekSum > 0 ? Number(((val / totalDayWeekVal) * 100).toFixed(1)) : 0;
+                    const sharePct = isDayNc
+                      ? totalDayNc > 0 ? Number((((d.nc_tx || 0) / totalDayNc) * 100).toFixed(1)) : 0
+                      : totalDayWeekSum > 0 ? Number(((val / totalDayWeekVal) * 100).toFixed(1)) : 0;
 
                     return (
                       <div key={d.day_code} className="flex-1 flex flex-col items-center h-full justify-end group relative">
@@ -1427,7 +1462,7 @@ export function DynamicChartsSection({
                             ) : (
                               <>
                                 <div className="font-bold text-amber-300">{dayName} · {ncAverage.toFixed(1)} NC/day</div>
-                                <div>{(d.nc_tx || 0).toLocaleString()} total across {occurrences} {dayName}{occurrences === 1 ? '' : 's'}</div>
+                                <div>{(d.nc_tx || 0).toLocaleString()} total across {occurrences} {dayName}{occurrences === 1 ? '' : 's'} · {sharePct}% of NC</div>
                               </>
                             )
                           ) : (
@@ -1454,7 +1489,13 @@ export function DynamicChartsSection({
                               : 'text-[#0c4ca3]'
                             : 'text-slate-500'
                         }`}>
-                          {isDayNc ? (ncAverage === null ? 'no data' : ncAverage.toFixed(1)) : `${sharePct}%`}
+                          {isOutOfScope
+                            ? 'no data'
+                            : activityLabelMode === 'share'
+                            ? `${sharePct}%`
+                            : ncAverage !== null
+                            ? ncAverage.toFixed(1)
+                            : val.toLocaleString()}
                         </span>
 
                         {/* Bar */}
@@ -1518,10 +1559,10 @@ export function DynamicChartsSection({
                   </span>
                 ) : (
                   <span>
-                    Peak Days: <strong>{topDay ? `${topDay.day_label}${secondDay ? ` & ${secondDay.day_label}` : ''}` : 'None'}</strong>
+                    Peak Days: <strong>{topDay ? `${topDay.day_label} (${getDayVal(topDay).toLocaleString()} ${unitLabel})${secondDay ? ` & ${secondDay.day_label} (${getDayVal(secondDay).toLocaleString()} ${unitLabel})` : ''}` : 'None'}</strong>
                   </span>
                 )}
-                <span className="shrink-0 ml-3">Active Filter: <strong className="uppercase text-[#0c4ca3]">{isDayNc ? 'NC' : `${dayTrxType} Trx`}</strong></span>
+                <span className="shrink-0 ml-3">Active Filter: <strong className="uppercase text-[#0c4ca3]">{isDayNc ? (metricMode === 'tx' ? 'NC' : 'NC (count only)') : `${dayTrxType} Trx`}</strong></span>
               </div>
             </div>
           </div>

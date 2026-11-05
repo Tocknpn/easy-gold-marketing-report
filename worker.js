@@ -358,8 +358,8 @@ async function requireStaff(request, env) {
 // calendar ranges (full past months/quarters) that only need recomputing if
 // their resolved date range itself changes (e.g. month rollover); the rest
 // shift forward daily and always refresh at 3AM.
-const DYNAMIC_BI_CACHEABLE_PRESETS = ['today', 'yesterday', 'last7d', 'last30d', 'this_month', 'last_month', 'aug_month', 'q3'];
-const STATIC_DYNAMIC_BI_PRESETS = new Set(['last_month', 'aug_month', 'q3']);
+const DYNAMIC_BI_CACHEABLE_PRESETS = ['today', 'yesterday', 'last7d', 'last30d', 'this_month', 'last_month', 'two_months_ago', 'q3'];
+const STATIC_DYNAMIC_BI_PRESETS = new Set(['last_month', 'two_months_ago', 'q3']);
 
 // Named (not `export default {...}` directly) so handlers can self-invoke
 // `workerHandlers.fetch(...)` in-process for internal recomputes (see
@@ -760,6 +760,8 @@ const workerHandlers = {
           const prevLast = new Date(Date.UTC(ly, lm - 1, 0));
           startDate = prevFirst.toISOString().split('T')[0];
           endDate = prevLast.toISOString().split('T')[0];
+        } else if (quickPreset === 'two_months_ago' || quickPreset === 'q3') {
+          ({ startDate, endDate } = resolveQuickPresetRange(quickPreset, latestAvailableDate));
         }
         if (endDate < startDate) endDate = startDate;
 
@@ -850,10 +852,19 @@ const workerHandlers = {
             const cacheRows = cacheRowRes.ok ? await cacheRowRes.json() : [];
             const cacheRow = Array.isArray(cacheRows) && cacheRows.length > 0 ? cacheRows[0] : null;
 
-            if (cacheRow && cacheRow.payload) {
-              const isFresh = STATIC_DYNAMIC_BI_PRESETS.has(quickPreset)
-                ? cacheRow.resolved_start_date === startDate && cacheRow.resolved_end_date === endDate
-                : cacheRow.latest_available_date === latestAvailableDate;
+            // A snapshot for another period, or one without NC activity, would show the
+            // wrong thing, so it is recomputed now instead of being served as stale.
+            const isWrongPeriod =
+              cacheRow && STATIC_DYNAMIC_BI_PRESETS.has(quickPreset) &&
+              (cacheRow.resolved_start_date !== startDate || cacheRow.resolved_end_date !== endDate);
+            const hasNcActivity =
+              Array.isArray(cacheRow?.payload?.hourly) &&
+              cacheRow.payload.hourly.every((h) => h.nc_tx !== undefined);
+
+            if (cacheRow && cacheRow.payload && !isWrongPeriod && hasNcActivity) {
+              const isFresh =
+                STATIC_DYNAMIC_BI_PRESETS.has(quickPreset) ||
+                cacheRow.latest_available_date === latestAvailableDate;
 
               const servedPayload = {
                 ...cacheRow.payload,
@@ -884,7 +895,8 @@ const workerHandlers = {
                   'Cache-Control': 'public, max-age=60, s-maxage=60, stale-while-revalidate=300',
                 },
               });
-              ctx.waitUntil(cache.put(cacheKey, cachedResponse.clone()));
+              // Stale snapshots stay out of the edge cache so the refreshed row shows on the next request
+              if (isFresh) ctx.waitUntil(cache.put(cacheKey, cachedResponse.clone()));
               return cachedResponse;
             }
           } catch (e) {
@@ -2417,8 +2429,14 @@ function resolveQuickPresetRange(presetId, latestAvailableDate) {
         endDate: prevLast.toISOString().split('T')[0],
       };
     }
-    case 'aug_month':
-      return { startDate: '2026-08-01', endDate: '2026-08-31' };
+    case 'two_months_ago': {
+      const first = new Date(Date.UTC(ay, am - 3, 1));
+      const last = new Date(Date.UTC(ay, am - 2, 0));
+      return {
+        startDate: first.toISOString().split('T')[0],
+        endDate: last.toISOString().split('T')[0],
+      };
+    }
     case 'q3':
       return { startDate: '2026-07-01', endDate: '2026-09-30' };
     case 'this_month':
@@ -2444,7 +2462,7 @@ async function fetchDynamicBiReportInternal(env, ctx, { quickPreset, startDate, 
 // Automated 3:00 AM Dynamic BI Cache Runner — refreshes the Supabase JSON
 // cache (dynamic_bi_report_cache) for the 8 default-filter quick presets.
 // Dynamic presets (today/yesterday/last7d/last30d/this_month) always refresh;
-// static closed-period presets (last_month/aug_month/q3) skip recomputation
+// static closed-period presets (last_month/two_months_ago/q3) skip recomputation
 // when their resolved date range hasn't changed, since that data is final.
 async function syncDynamicBiCache(env, ctx) {
   try {

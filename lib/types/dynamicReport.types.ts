@@ -1,7 +1,7 @@
 export interface DynamicFilterState {
   startDate: string; // YYYY-MM-DD
   endDate: string; // YYYY-MM-DD
-  quickPreset: string; // 'today' | 'yesterday' | 'last7d' | 'last30d' | 'this_month' | 'last_month' | 'q3' | 'q4' | 'custom'
+  quickPreset: string; // 'today' | 'yesterday' | 'last7d' | 'last30d' | 'this_month' | 'last_month' | 'two_months_ago' | 'q3' | 'q4' | 'custom'
   selectedBanks: string[]; // empty means all
   selectedBranches: string[]; // empty means all
   selectedTxTypes: string[]; // empty means all
