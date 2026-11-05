@@ -85,6 +85,7 @@ export interface HourlyMetric {
   total_tx: number;
   buy_tx: number;
   sell_tx: number;
+  nc_tx?: number; // New customer registrations; absent on payloads cached before migration 56
   total_weight_g?: number;
   buy_weight_g: number;
   sell_weight_g: number;
@@ -139,6 +140,7 @@ export interface DayOfWeekMetric {
   total_tx: number;
   buy_tx: number;
   sell_tx: number;
+  nc_tx?: number; // New customer registrations; absent on payloads cached before migration 56
   total_weight_g?: number;
   buy_weight_g: number;
   sell_weight_g: number;

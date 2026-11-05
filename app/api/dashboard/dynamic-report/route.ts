@@ -589,6 +589,7 @@ export async function GET(request: NextRequest) {
         total_tx: 0,
         buy_tx: 0,
         sell_tx: 0,
+        nc_tx: 0,
         total_weight_g: 0,
         buy_weight_g: 0,
         sell_weight_g: 0,
@@ -607,6 +608,7 @@ export async function GET(request: NextRequest) {
         total_tx: 0,
         buy_tx: 0,
         sell_tx: 0,
+        nc_tx: 0,
         total_weight_g: 0,
         buy_weight_g: 0,
         sell_weight_g: 0,
@@ -688,6 +690,7 @@ export async function GET(request: NextRequest) {
       hObj.total_tx += rTotalTx;
       hObj.buy_tx += rBuyTx;
       hObj.sell_tx += rSellTx;
+      hObj.nc_tx = (hObj.nc_tx || 0) + rNewReg;
       hObj.total_weight_g = Number(((hObj.total_weight_g || 0) + rBuyWt + rSellWt + rWdWt).toFixed(2));
       hObj.buy_weight_g = Number((hObj.buy_weight_g + rBuyWt).toFixed(2));
       hObj.sell_weight_g = Number((hObj.sell_weight_g + rSellWt).toFixed(2));
@@ -701,6 +704,7 @@ export async function GET(request: NextRequest) {
         dObj.total_tx += rTotalTx;
         dObj.buy_tx += rBuyTx;
         dObj.sell_tx += rSellTx;
+        dObj.nc_tx = (dObj.nc_tx || 0) + rNewReg;
         dObj.total_weight_g = Number(((dObj.total_weight_g || 0) + rBuyWt + rSellWt + rWdWt).toFixed(2));
         dObj.buy_weight_g = Number((dObj.buy_weight_g + rBuyWt).toFixed(2));
         dObj.sell_weight_g = Number((dObj.sell_weight_g + rSellWt).toFixed(2));
@@ -942,6 +946,7 @@ export async function GET(request: NextRequest) {
             dObj.total_tx += rTotalTx;
             dObj.buy_tx += rBuyTx;
             dObj.sell_tx += rSellTx;
+            dObj.nc_tx = (dObj.nc_tx || 0) + rNewReg;
             dObj.total_weight_g = Number(((dObj.total_weight_g || 0) + rBuyWt + rSellWt + rWdWt).toFixed(2));
             dObj.buy_weight_g = Number((dObj.buy_weight_g + rBuyWt).toFixed(2));
             dObj.sell_weight_g = Number((dObj.sell_weight_g + rSellWt).toFixed(2));

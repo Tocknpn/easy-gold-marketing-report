@@ -18,6 +18,7 @@ import { DynamicKpiRibbon } from './DynamicKpiRibbon';
 import { DynamicChartsSection } from './DynamicChartsSection';
 import { DaxMeasuresTable } from './DaxMeasuresTable';
 import { exportDynamicReportToCsv } from './exportUtils';
+import { resolveAppliedHours } from '@/lib/utils/ncActivity';
 
 const INITIAL_THIS_MONTH_FILTER: DynamicFilterState = {
   ...DEFAULT_FILTER_STATE,
@@ -314,6 +315,11 @@ export function DynamicReportView() {
             dayOfWeek={reportData.day_of_week}
             timelineTrend={reportData.timeline_trend}
             yearTrend={reportData.year_trend}
+            periodStart={reportData.meta.start_date}
+            periodEnd={reportData.meta.end_date}
+            latestAvailableDate={reportData.meta.latest_available_date}
+            appliedHours={resolveAppliedHours(appliedFilters)}
+            appliedDaysOfWeek={appliedFilters.selectedDaysOfWeek}
           />
 
           {/* 4. Complete PowerBI / Excel DAX Measures Table */}

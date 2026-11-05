@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
+import { countWeekdayOccurrences, findExtremes } from '@/lib/utils/ncActivity';
 import { 
   Clock, 
   Landmark, 
@@ -32,6 +33,11 @@ interface DynamicChartsSectionProps {
   dayOfWeek?: DayOfWeekMetric[];
   timelineTrend?: TrendPoint[];
   yearTrend?: TrendPoint[];
+  periodStart?: string;
+  periodEnd?: string;
+  latestAvailableDate?: string;
+  appliedHours?: number[]; // Empty means all 24 hours
+  appliedDaysOfWeek?: string[]; // Empty means all 7 days
 }
 
 const EMPTY_HOURLY: HourlyMetric[] = Array.from({ length: 24 }, (_, hr) => ({
@@ -40,6 +46,7 @@ const EMPTY_HOURLY: HourlyMetric[] = Array.from({ length: 24 }, (_, hr) => ({
   total_tx: 0,
   buy_tx: 0,
   sell_tx: 0,
+  nc_tx: 0,
   total_weight_g: 0,
   buy_weight_g: 0,
   sell_weight_g: 0,
@@ -49,13 +56,13 @@ const EMPTY_HOURLY: HourlyMetric[] = Array.from({ length: 24 }, (_, hr) => ({
 }));
 
 const EMPTY_DAY_OF_WEEK: DayOfWeekMetric[] = [
-  { day_code: 'mon', day_label: 'Mon', day_full: 'Monday', total_tx: 0, buy_tx: 0, sell_tx: 0, buy_weight_g: 0, sell_weight_g: 0, total_amount_lak: 0, buy_amount_lak: 0, sell_amount_lak: 0 },
-  { day_code: 'tue', day_label: 'Tue', day_full: 'Tuesday', total_tx: 0, buy_tx: 0, sell_tx: 0, buy_weight_g: 0, sell_weight_g: 0, total_amount_lak: 0, buy_amount_lak: 0, sell_amount_lak: 0 },
-  { day_code: 'wed', day_label: 'Wed', day_full: 'Wednesday', total_tx: 0, buy_tx: 0, sell_tx: 0, buy_weight_g: 0, sell_weight_g: 0, total_amount_lak: 0, buy_amount_lak: 0, sell_amount_lak: 0 },
-  { day_code: 'thu', day_label: 'Thu', day_full: 'Thursday', total_tx: 0, buy_tx: 0, sell_tx: 0, buy_weight_g: 0, sell_weight_g: 0, total_amount_lak: 0, buy_amount_lak: 0, sell_amount_lak: 0 },
-  { day_code: 'fri', day_label: 'Fri', day_full: 'Friday (Payday)', total_tx: 0, buy_tx: 0, sell_tx: 0, buy_weight_g: 0, sell_weight_g: 0, total_amount_lak: 0, buy_amount_lak: 0, sell_amount_lak: 0 },
-  { day_code: 'sat', day_label: 'Sat', day_full: 'Saturday', total_tx: 0, buy_tx: 0, sell_tx: 0, buy_weight_g: 0, sell_weight_g: 0, total_amount_lak: 0, buy_amount_lak: 0, sell_amount_lak: 0 },
-  { day_code: 'sun', day_label: 'Sun', day_full: 'Sunday', total_tx: 0, buy_tx: 0, sell_tx: 0, buy_weight_g: 0, sell_weight_g: 0, total_amount_lak: 0, buy_amount_lak: 0, sell_amount_lak: 0 },
+  { day_code: 'mon', day_label: 'Mon', day_full: 'Monday', total_tx: 0, buy_tx: 0, sell_tx: 0, nc_tx: 0, buy_weight_g: 0, sell_weight_g: 0, total_amount_lak: 0, buy_amount_lak: 0, sell_amount_lak: 0 },
+  { day_code: 'tue', day_label: 'Tue', day_full: 'Tuesday', total_tx: 0, buy_tx: 0, sell_tx: 0, nc_tx: 0, buy_weight_g: 0, sell_weight_g: 0, total_amount_lak: 0, buy_amount_lak: 0, sell_amount_lak: 0 },
+  { day_code: 'wed', day_label: 'Wed', day_full: 'Wednesday', total_tx: 0, buy_tx: 0, sell_tx: 0, nc_tx: 0, buy_weight_g: 0, sell_weight_g: 0, total_amount_lak: 0, buy_amount_lak: 0, sell_amount_lak: 0 },
+  { day_code: 'thu', day_label: 'Thu', day_full: 'Thursday', total_tx: 0, buy_tx: 0, sell_tx: 0, nc_tx: 0, buy_weight_g: 0, sell_weight_g: 0, total_amount_lak: 0, buy_amount_lak: 0, sell_amount_lak: 0 },
+  { day_code: 'fri', day_label: 'Fri', day_full: 'Friday (Payday)', total_tx: 0, buy_tx: 0, sell_tx: 0, nc_tx: 0, buy_weight_g: 0, sell_weight_g: 0, total_amount_lak: 0, buy_amount_lak: 0, sell_amount_lak: 0 },
+  { day_code: 'sat', day_label: 'Sat', day_full: 'Saturday', total_tx: 0, buy_tx: 0, sell_tx: 0, nc_tx: 0, buy_weight_g: 0, sell_weight_g: 0, total_amount_lak: 0, buy_amount_lak: 0, sell_amount_lak: 0 },
+  { day_code: 'sun', day_label: 'Sun', day_full: 'Sunday', total_tx: 0, buy_tx: 0, sell_tx: 0, nc_tx: 0, buy_weight_g: 0, sell_weight_g: 0, total_amount_lak: 0, buy_amount_lak: 0, sell_amount_lak: 0 },
 ];
 
 const EMPTY_WEIGHT_BRACKETS: WeightBracketMetric[] = [
@@ -171,6 +178,11 @@ export function DynamicChartsSection({
   dayOfWeek,
   timelineTrend,
   yearTrend,
+  periodStart,
+  periodEnd,
+  latestAvailableDate,
+  appliedHours,
+  appliedDaysOfWeek,
 }: DynamicChartsSectionProps) {
   const activeHourly = useMemo(() => {
     if (hourly && hourly.length > 0) return hourly;
@@ -218,17 +230,35 @@ export function DynamicChartsSection({
   const [bankMetricType, setBankMetricType] = useState<'tx' | 'weight' | 'value'>('tx');
   const [bankSideFilter, setBankSideFilter] = useState<'all' | 'buy' | 'sell'>('all');
 
-  // Hourly Activity Trx Type Filter: 'all' | 'buy' | 'sell'
-  const [hourlyTrxType, setHourlyTrxType] = useState<'all' | 'buy' | 'sell'>('all');
+  // Hourly Activity Trx Type Filter: 'all' | 'buy' | 'sell' | 'nc'
+  const [hourlyTrxType, setHourlyTrxType] = useState<'all' | 'buy' | 'sell' | 'nc'>('all');
 
-  // Day Activity Trx Type Filter: 'all' | 'buy' | 'sell'
-  const [dayTrxType, setDayTrxType] = useState<'all' | 'buy' | 'sell'>('all');
+  // Day Activity Trx Type Filter: 'all' | 'buy' | 'sell' | 'nc'
+  const [dayTrxType, setDayTrxType] = useState<'all' | 'buy' | 'sell' | 'nc'>('all');
 
   // Ticket Distribution Side Filter: 'all' | 'buy' | 'sell'
   const [ticketSideFilter, setTicketSideFilter] = useState<'all' | 'buy' | 'sell'>('all');
 
+  // How often each weekday occurs in the report period, for NC per-weekday averages
+  const weekdayOccurrences = useMemo(() => {
+    const end = periodEnd && latestAvailableDate && latestAvailableDate < periodEnd ? latestAvailableDate : periodEnd;
+    return countWeekdayOccurrences(periodStart, end);
+  }, [periodStart, periodEnd, latestAvailableDate]);
+
+  const isHourInScope = (hour: number) => !appliedHours?.length || appliedHours.includes(hour);
+
+  // Average NC per occurrence of the weekday; null when the weekday is not in the report scope
+  const getNcDayAverage = (d: DayOfWeekMetric): number | null => {
+    const occurrences = weekdayOccurrences[d.day_code] || 0;
+    if (occurrences === 0) return null;
+    if (appliedDaysOfWeek?.length && !appliedDaysOfWeek.includes(d.day_code)) return null;
+    return (d.nc_tx || 0) / occurrences;
+  };
+
   // Value getters based on metric mode (100% live SQL values)
   const getHourlyVal = (h: HourlyMetric) => {
+    // NC has no meaningful gold weight or revenue, so it is always a count
+    if (hourlyTrxType === 'nc') return h.nc_tx || 0;
     if (hourlyTrxType === 'buy') {
       if (metricMode === 'weight') return Number((h.buy_weight_g || 0).toFixed(1));
       if (metricMode === 'amount') return Math.round(((h.buy_amount_lak ?? h.total_amount_lak) || 0) / 1000000);
@@ -245,6 +275,7 @@ export function DynamicChartsSection({
   };
 
   const getDayVal = (d: DayOfWeekMetric) => {
+    if (dayTrxType === 'nc') return getNcDayAverage(d) ?? 0;
     if (dayTrxType === 'buy') {
       if (metricMode === 'weight') return Number((d.buy_weight_g || 0).toFixed(1));
       if (metricMode === 'amount') return Math.round(((d.buy_amount_lak ?? d.total_amount_lak) || 0) / 1000000);
@@ -275,7 +306,7 @@ export function DynamicChartsSection({
   const unitLabel = metricMode === 'weight' ? 'g' : metricMode === 'amount' ? 'M LAK' : 'tx';
 
   const maxHourlyVal = Math.max(...activeHourly.map(getHourlyVal), 1);
-  const maxDayVal = Math.max(...activeDayOfWeek.map(getDayVal), 1);
+  const maxDayVal = Math.max(...activeDayOfWeek.map(getDayVal), dayTrxType === 'nc' ? 0.0001 : 1);
   const maxBankVal = Math.max(...activeBanks.map(getBankVal), 1);
   const maxBranchVal = Math.max(...activeBranches.map(getBranchVal), 1);
 
@@ -1097,7 +1128,19 @@ export function DynamicChartsSection({
         const sortedHoursByVal = [...activeHourly]
           .filter((h) => getHourlyVal(h) > 0)
           .sort((a, b) => getHourlyVal(b) - getHourlyVal(a));
-        const peakHourSet = new Set(sortedHoursByVal.slice(0, 6).map((h) => h.hour));
+        const isHourlyNc = hourlyTrxType === 'nc';
+        const hourlyUnit = isHourlyNc ? 'NC' : unitLabel;
+        const hourExtremes = findExtremes(activeHourly, (h) => (isHourInScope(h.hour) ? getHourlyVal(h) : null));
+        const hourlyNoClear = isHourlyNc && hourExtremes.allEqual;
+        const peakHourSet = new Set(hourlyNoClear ? [] : sortedHoursByVal.slice(0, 6).map((h) => h.hour));
+        const lowestHourSet = new Set(isHourlyNc && !hourlyNoClear ? hourExtremes.lowest.map((h) => h.hour) : []);
+        const hourlyNcMessage = !isHourlyNc
+          ? null
+          : activeHourly.some((h) => h.nc_tx === undefined)
+          ? 'NC data is refreshing, reload shortly'
+          : totalHourlySum === 0
+          ? 'No NC in this filter'
+          : null;
         const topHour = sortedHoursByVal[0] || null;
         const topHourSharePct = topHour && totalHourlySum > 0
           ? Number(((getHourlyVal(topHour) / totalHourlyVal) * 100).toFixed(1))
@@ -1107,7 +1150,19 @@ export function DynamicChartsSection({
         const sortedDaysByVal = [...activeDayOfWeek]
           .filter((d) => getDayVal(d) > 0)
           .sort((a, b) => getDayVal(b) - getDayVal(a));
-        const peakDaySet = new Set(sortedDaysByVal.slice(0, 2).map((d) => d.day_code));
+        const isDayNc = dayTrxType === 'nc';
+        const dayExtremes = findExtremes(activeDayOfWeek, getNcDayAverage);
+        const dayNcSingleWeekday = isDayNc && activeDayOfWeek.filter((d) => getNcDayAverage(d) !== null).length === 1;
+        const dayNoClear = isDayNc && !dayNcSingleWeekday && dayExtremes.allEqual;
+        const peakDaySet = new Set(dayNoClear ? [] : sortedDaysByVal.slice(0, 2).map((d) => d.day_code));
+        const lowestDaySet = new Set(isDayNc && !dayNcSingleWeekday && !dayNoClear ? dayExtremes.lowest.map((d) => d.day_code) : []);
+        const dayNcMessage = !isDayNc
+          ? null
+          : activeDayOfWeek.some((d) => d.nc_tx === undefined)
+          ? 'NC data is refreshing, reload shortly'
+          : totalDayWeekSum === 0
+          ? 'No NC in this filter'
+          : null;
         const topDay = sortedDaysByVal[0] || null;
         const secondDay = sortedDaysByVal[1] || null;
 
@@ -1120,11 +1175,11 @@ export function DynamicChartsSection({
                   <div className="flex items-center gap-2">
                     <Clock className="w-4 h-4 text-[#0c4ca3]" />
                     <h3 className="text-xs font-black uppercase text-slate-800 tracking-wider">
-                      Hourly Activity Curve ({unitLabel})
+                      Hourly Activity Curve ({hourlyUnit})
                     </h3>
                   </div>
 
-                  {/* Trx Type Filter: All / Buy / Sell */}
+                  {/* Trx Type Filter: All / Buy / Sell / NC */}
                   <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-[10px] font-black">
                     <button
                       type="button"
@@ -1159,10 +1214,26 @@ export function DynamicChartsSection({
                     >
                       Sell Only
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => setHourlyTrxType('nc')}
+                      className={`px-2 py-0.5 rounded-md transition-all cursor-pointer ${
+                        hourlyTrxType === 'nc'
+                          ? 'bg-violet-600 text-white shadow-2xs'
+                          : 'text-slate-500 hover:text-slate-900'
+                      }`}
+                    >
+                      NC
+                    </button>
                   </div>
                 </div>
 
                 {/* 24-Column Mini Bar Chart with % Contribution Share Data Labels */}
+                {hourlyNcMessage ? (
+                  <div className="h-48 flex items-center justify-center text-xs font-bold text-slate-400 border-b border-slate-100">
+                    {hourlyNcMessage}
+                  </div>
+                ) : (
                 <div className="h-48 flex items-end gap-1 sm:gap-1.5 pt-8 pb-2 px-1 border-b border-slate-100">
                   {activeHourly.map((h) => {
                     const val = getHourlyVal(h);
@@ -1171,26 +1242,36 @@ export function DynamicChartsSection({
                     const isTop1 = topHour?.hour === h.hour;
                     const sharePct = totalHourlySum > 0 ? Number(((val / totalHourlyVal) * 100).toFixed(1)) : 0;
                     const isProminent = isPeak || sharePct >= 4.0;
+                    const isLowest = lowestHourSet.has(h.hour);
+                    const isOutOfScope = isHourlyNc && !isHourInScope(h.hour);
 
                     return (
                       <div key={h.hour} className="flex-1 flex flex-col items-center h-full justify-end group relative">
                         {/* Hover Tooltip Insight */}
                         <div className="absolute -top-14 opacity-0 group-hover:opacity-100 transition-opacity bg-slate-900 text-white text-[10px] py-1 px-2 rounded-lg pointer-events-none whitespace-nowrap z-30 shadow-xl border border-slate-700">
                           <div className="font-bold text-amber-300">{h.hour_label} · {sharePct}% of 24h</div>
-                          <div>{val.toLocaleString()} {unitLabel} (Buy: {h.buy_tx.toLocaleString()} tx / {h.buy_weight_g}g | Sell: {h.sell_tx.toLocaleString()} tx / {h.sell_weight_g}g)</div>
+                          {isHourlyNc ? (
+                            <div>{isOutOfScope ? 'Excluded by hour filter' : `${val.toLocaleString()} NC`}</div>
+                          ) : (
+                            <div>{val.toLocaleString()} {unitLabel} (Buy: {h.buy_tx.toLocaleString()} tx / {h.buy_weight_g}g | Sell: {h.sell_tx.toLocaleString()} tx / {h.sell_weight_g}g)</div>
+                          )}
                         </div>
 
                         {/* Top Data Label: % Contribution Share */}
                         {isProminent && val > 0 && (
                           <span className={`text-[8.5px] font-black tracking-tighter mb-1 transition-all ${
                             isTop1
-                              ? hourlyTrxType === 'buy'
+                              ? isHourlyNc
+                                ? 'text-violet-700 scale-105'
+                                : hourlyTrxType === 'buy'
                                 ? 'text-[#15803d] scale-105'
                                 : hourlyTrxType === 'sell'
                                 ? 'text-amber-700 scale-105'
                                 : 'text-[#0c4ca3] scale-105'
                               : isPeak
-                              ? hourlyTrxType === 'buy'
+                              ? isHourlyNc
+                                ? 'text-violet-600'
+                                : hourlyTrxType === 'buy'
                                 ? 'text-emerald-700'
                                 : hourlyTrxType === 'sell'
                                 ? 'text-amber-600'
@@ -1204,7 +1285,9 @@ export function DynamicChartsSection({
                         {/* Bar */}
                         <div
                           className={`w-full rounded-t-sm transition-all group-hover:brightness-110 ${
-                            hourlyTrxType === 'sell'
+                            isHourlyNc
+                              ? isOutOfScope ? 'bg-slate-100' : isLowest ? 'bg-rose-400' : isPeak ? 'bg-violet-600' : 'bg-violet-200'
+                              : hourlyTrxType === 'sell'
                               ? isPeak ? 'bg-[#e5a812]' : 'bg-amber-200/80'
                               : hourlyTrxType === 'buy'
                               ? isPeak ? 'bg-[#15803d]' : 'bg-emerald-200/80'
@@ -1216,15 +1299,16 @@ export function DynamicChartsSection({
                     );
                   })}
                 </div>
+                )}
 
                 {/* X-Axis Labels */}
                 <div className="flex justify-between text-[10px] font-bold text-slate-400 mt-2 px-1">
                   <span>00:00</span>
                   <span>06:00</span>
                   <span className={`font-black ${
-                    hourlyTrxType === 'buy' ? 'text-[#15803d]' : hourlyTrxType === 'sell' ? 'text-amber-700' : 'text-[#0c4ca3]'
+                    isHourlyNc ? 'text-violet-700' : hourlyTrxType === 'buy' ? 'text-[#15803d]' : hourlyTrxType === 'sell' ? 'text-amber-700' : 'text-[#0c4ca3]'
                   }`}>
-                    {topHour ? `${topHour.hour_label} (Peak: ${topHourSharePct}%)` : '12:00 (No Data)'}
+                    {hourlyNoClear && !hourlyNcMessage ? 'No clear peak' : topHour ? `${topHour.hour_label} (Peak: ${topHourSharePct}%)` : '12:00 (No Data)'}
                   </span>
                   <span>18:00</span>
                   <span>23:00</span>
@@ -1232,10 +1316,26 @@ export function DynamicChartsSection({
               </div>
 
               <div className="pt-2 mt-3 border-t border-slate-100 text-[10.5px] text-slate-500 font-medium flex justify-between">
-                <span>
-                  Peak Hour: <strong>{topHour ? `${topHour.hour_label} (${getHourlyVal(topHour).toLocaleString()} ${unitLabel})` : 'None'}</strong>
-                </span>
-                <span>Active Filter: <strong className="uppercase text-[#0c4ca3]">{hourlyTrxType} Trx</strong></span>
+                {isHourlyNc ? (
+                  <span>
+                    {hourlyNcMessage ? (
+                      <>Peak Hour: <strong>None</strong></>
+                    ) : hourlyNoClear ? (
+                      <strong>No clear peak or lowest</strong>
+                    ) : (
+                      <>
+                        Peak: <strong>{hourExtremes.peak.map((h) => h.hour_label).join(', ')} ({hourExtremes.peakValue.toLocaleString()} NC)</strong>
+                        {' · '}
+                        Lowest: <strong className="text-rose-600">{hourExtremes.lowest.map((h) => h.hour_label).join(', ')} ({hourExtremes.lowestValue.toLocaleString()} NC)</strong>
+                      </>
+                    )}
+                  </span>
+                ) : (
+                  <span>
+                    Peak Hour: <strong>{topHour ? `${topHour.hour_label} (${getHourlyVal(topHour).toLocaleString()} ${unitLabel})` : 'None'}</strong>
+                  </span>
+                )}
+                <span className="shrink-0 ml-3">Active Filter: <strong className="uppercase text-[#0c4ca3]">{isHourlyNc ? 'NC' : `${hourlyTrxType} Trx`}</strong></span>
               </div>
             </div>
 
@@ -1246,11 +1346,11 @@ export function DynamicChartsSection({
                   <div className="flex items-center gap-2">
                     <CalendarDays className="w-4 h-4 text-[#0c4ca3]" />
                     <h3 className="text-xs font-black uppercase text-slate-800 tracking-wider">
-                      Day Activity Curve (Trx) ({unitLabel})
+                      {isDayNc ? 'Day Activity Curve (NC/day)' : `Day Activity Curve (Trx) (${unitLabel})`}
                     </h3>
                   </div>
 
-                  {/* Trx Type Filter: All / Buy / Sell */}
+                  {/* Trx Type Filter: All / Buy / Sell / NC */}
                   <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-[10px] font-black">
                     <button
                       type="button"
@@ -1285,14 +1385,35 @@ export function DynamicChartsSection({
                     >
                       Sell Only
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => setDayTrxType('nc')}
+                      className={`px-2 py-0.5 rounded-md transition-all cursor-pointer ${
+                        dayTrxType === 'nc'
+                          ? 'bg-violet-600 text-white shadow-2xs'
+                          : 'text-slate-500 hover:text-slate-900'
+                      }`}
+                    >
+                      NC
+                    </button>
                   </div>
                 </div>
 
                 {/* 7-Column Day of Week Bar Chart */}
+                {dayNcMessage ? (
+                  <div className="h-48 flex items-center justify-center text-xs font-bold text-slate-400 border-b border-slate-100">
+                    {dayNcMessage}
+                  </div>
+                ) : (
                 <div className="h-48 flex items-end gap-2 sm:gap-3 pt-8 pb-2 px-1 border-b border-slate-100">
                   {activeDayOfWeek.map((d) => {
                     const val = getDayVal(d);
-                    const heightPct = totalDayWeekSum > 0 ? Math.max(6, Math.round((val / maxDayVal) * 100)) : 2;
+                    const ncAverage = isDayNc ? getNcDayAverage(d) : null;
+                    const isOutOfScope = isDayNc && ncAverage === null;
+                    const isLowest = lowestDaySet.has(d.day_code);
+                    const occurrences = weekdayOccurrences[d.day_code] || 0;
+                    const dayName = d.day_full.split(' ')[0];
+                    const heightPct = isOutOfScope ? 2 : totalDayWeekSum > 0 ? Math.max(6, Math.round((val / maxDayVal) * 100)) : 2;
                     const isPeak = peakDaySet.has(d.day_code);
                     const sharePct = totalDayWeekSum > 0 ? Number(((val / totalDayWeekVal) * 100).toFixed(1)) : 0;
 
@@ -1300,27 +1421,48 @@ export function DynamicChartsSection({
                       <div key={d.day_code} className="flex-1 flex flex-col items-center h-full justify-end group relative">
                         {/* Hover Tooltip */}
                         <div className="absolute -top-14 opacity-0 group-hover:opacity-100 transition-opacity bg-slate-900 text-white text-[10px] py-1 px-2 rounded-lg pointer-events-none whitespace-nowrap z-30 shadow-xl border border-slate-700">
-                          <div className="font-bold text-amber-300">{d.day_full} · {sharePct}% of Week</div>
-                          <div>{val.toLocaleString()} {unitLabel} (Buy: {d.buy_tx.toLocaleString()} tx / {d.buy_weight_g}g | Sell: {d.sell_tx.toLocaleString()} tx / {d.sell_weight_g}g)</div>
+                          {isDayNc ? (
+                            ncAverage === null ? (
+                              <div className="font-bold text-amber-300">{dayName} · no data in this range</div>
+                            ) : (
+                              <>
+                                <div className="font-bold text-amber-300">{dayName} · {ncAverage.toFixed(1)} NC/day</div>
+                                <div>{(d.nc_tx || 0).toLocaleString()} total across {occurrences} {dayName}{occurrences === 1 ? '' : 's'}</div>
+                              </>
+                            )
+                          ) : (
+                            <>
+                              <div className="font-bold text-amber-300">{d.day_full} · {sharePct}% of Week</div>
+                              <div>{val.toLocaleString()} {unitLabel} (Buy: {d.buy_tx.toLocaleString()} tx / {d.buy_weight_g}g | Sell: {d.sell_tx.toLocaleString()} tx / {d.sell_weight_g}g)</div>
+                            </>
+                          )}
                         </div>
 
                         {/* Top Data Label */}
                         <span className={`text-[9px] font-black tracking-tight mb-1 transition-all ${
-                          isPeak
-                            ? dayTrxType === 'buy'
+                          isOutOfScope
+                            ? 'text-slate-300'
+                            : isLowest
+                            ? 'text-rose-600'
+                            : isPeak
+                            ? isDayNc
+                              ? 'text-violet-700'
+                              : dayTrxType === 'buy'
                               ? 'text-[#15803d]'
                               : dayTrxType === 'sell'
                               ? 'text-amber-700'
                               : 'text-[#0c4ca3]'
                             : 'text-slate-500'
                         }`}>
-                          {sharePct}%
+                          {isDayNc ? (ncAverage === null ? 'no data' : ncAverage.toFixed(1)) : `${sharePct}%`}
                         </span>
 
                         {/* Bar */}
                         <div
                           className={`w-full rounded-t-md transition-all group-hover:brightness-110 ${
-                            dayTrxType === 'sell'
+                            isDayNc
+                              ? isOutOfScope ? 'bg-slate-200' : isLowest ? 'bg-rose-400' : isPeak ? 'bg-violet-600' : 'bg-violet-200'
+                              : dayTrxType === 'sell'
                               ? isPeak ? 'bg-[#e5a812]' : 'bg-amber-200/80'
                               : dayTrxType === 'buy'
                               ? isPeak ? 'bg-[#15803d]' : 'bg-emerald-200/80'
@@ -1332,13 +1474,22 @@ export function DynamicChartsSection({
                     );
                   })}
                 </div>
+                )}
 
                 {/* X-Axis Labels */}
                 <div className="flex justify-between text-[11px] font-bold text-slate-500 mt-2 px-1">
                   {activeDayOfWeek.map((d) => (
                     <span
                       key={d.day_code}
-                      className={peakDaySet.has(d.day_code) ? 'text-[#0c4ca3] font-black' : ''}
+                      className={
+                        isDayNc && getNcDayAverage(d) === null
+                          ? 'text-slate-300'
+                          : lowestDaySet.has(d.day_code)
+                          ? 'text-rose-600 font-black'
+                          : peakDaySet.has(d.day_code)
+                          ? isDayNc ? 'text-violet-700 font-black' : 'text-[#0c4ca3] font-black'
+                          : ''
+                      }
                     >
                       {d.day_label}
                     </span>
@@ -1347,10 +1498,30 @@ export function DynamicChartsSection({
               </div>
 
               <div className="pt-2 mt-3 border-t border-slate-100 text-[10.5px] text-slate-500 font-medium flex justify-between">
-                <span>
-                  Peak Days: <strong>{topDay ? `${topDay.day_label}${secondDay ? ` & ${secondDay.day_label}` : ''}` : 'None'}</strong>
-                </span>
-                <span>Active Filter: <strong className="uppercase text-[#0c4ca3]">{dayTrxType} Trx</strong></span>
+                {isDayNc ? (
+                  <span>
+                    {dayNcMessage ? (
+                      <>Peak Day: <strong>None</strong></>
+                    ) : dayNoClear ? (
+                      <strong>No clear peak or lowest</strong>
+                    ) : (
+                      <>
+                        Peak: <strong>{dayExtremes.peak.map((d) => d.day_label).join(', ')} ({dayExtremes.peakValue.toFixed(1)} NC/day)</strong>
+                        {' · '}
+                        {dayNcSingleWeekday ? (
+                          'Select 7+ days to compare weekdays'
+                        ) : (
+                          <>Lowest: <strong className="text-rose-600">{dayExtremes.lowest.map((d) => d.day_label).join(', ')} ({dayExtremes.lowestValue.toFixed(1)} NC/day)</strong></>
+                        )}
+                      </>
+                    )}
+                  </span>
+                ) : (
+                  <span>
+                    Peak Days: <strong>{topDay ? `${topDay.day_label}${secondDay ? ` & ${secondDay.day_label}` : ''}` : 'None'}</strong>
+                  </span>
+                )}
+                <span className="shrink-0 ml-3">Active Filter: <strong className="uppercase text-[#0c4ca3]">{isDayNc ? 'NC' : `${dayTrxType} Trx`}</strong></span>
               </div>
             </div>
           </div>
