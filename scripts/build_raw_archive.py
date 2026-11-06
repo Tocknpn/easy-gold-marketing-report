@@ -30,6 +30,7 @@ from export_raw_month import ARCHIVE_DIR, ExportError, load_credentials, request
 
 ARCHIVE_BUDGET_BYTES = 20 * 1024 * 1024
 WORKERS = 3
+SNAPSHOT_WORKERS = 2
 RETRIES = 4
 
 
@@ -131,11 +132,14 @@ def rule_type(row):
 
 def save_campaign_snapshots(base, key):
     say("== 2. Updating active campaigns")
-    result = post(base, key, "/rest/v1/rpc/sync_active_campaigns_daily", {"p_target_campaign_id": None})
-    say(f"  {json.dumps(result)}")
-    if not result or not result.get("success"):
-        raise ExportError("Campaign sync did not succeed.")
-    as_of = datetime.date.fromisoformat(result["as_of_date"])
+    # The sync can exceed its 60 second limit on the full table. The backward numbers
+    # below do not depend on it, so a timeout here is reported and does not stop the run.
+    try:
+        result = post(base, key, "/rest/v1/rpc/sync_active_campaigns_daily", {"p_target_campaign_id": None})
+        say(f"  {json.dumps(result)}")
+    except ExportError as err:
+        say(f"  Sync did not finish, continuing: {str(err)[:160]}")
+    as_of = datetime.date.fromisoformat(post(base, key, "/rest/v1/rpc/get_max_monthly_data_date", {}))
 
     say("== 3. Saving campaign backward numbers")
     settings = json.loads(request(f"{base}/rest/v1/raw_retention_settings?select=cutoff_date&id=eq.1", key)[0])
@@ -195,28 +199,48 @@ def save_campaign_snapshots(base, key):
                 f"&backward_end=eq.{backward_end}&order=version.asc,backward_start.asc",
             )
         }
-        done = 0
-        for window in windows:
-            for version in versions:
-                if (version["p_version"], window.isoformat(), backward_end.isoformat()) in existing:
-                    done += 1
-                    continue
-                args = {**base_args, **version, "p_backward_start": window.isoformat()}
-                post(base, key, "/rest/v1/rpc/save_campaign_backward_snapshot", args)
-                done += 1
-                say(f"    {window} v{version['p_version']}  saved ({done} of {len(windows) * len(versions)})")
+        todo = [
+            {**base_args, **version, "p_backward_start": window.isoformat()}
+            for window in windows
+            for version in versions
+            if (version["p_version"], window.isoformat(), backward_end.isoformat()) not in existing
+        ]
+        total = len(windows) * len(versions)
+        finished = {"count": total - len(todo)}
+        say(f"  {finished['count']} of {total} already saved")
+
+        def save(args):
+            post(base, key, "/rest/v1/rpc/save_campaign_backward_snapshot", args)
+            finished["count"] += 1
+            say(f"    {args['p_backward_start']} v{args['p_version']}  saved ({finished['count']} of {total})")
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=SNAPSHOT_WORKERS) as pool:
+            list(pool.map(save, todo))
+        done = finished["count"]
         say(f"  campaign {camp['id']}: all {done} saved")
 
 
 def report_args(start, end, dimension="all", value=""):
-    args = {"p_start_date": f"{start}T00:00:00Z", "p_end_date": f"{end}T23:59:59Z"}
-    if dimension == "bank":
-        args["p_banks"] = [value]
-    elif dimension == "branch":
-        args["p_branches"] = [value]
-    elif dimension == "tx_type":
-        args["p_tx_types"] = [value]
-    return args
+    """All 16 arguments, exactly as worker.js sends them for an unfiltered report.
+    Sending fewer is ambiguous, because the database has a 12 and a 16 argument version."""
+    return {
+        "p_start_date": f"{start}T00:00:00Z",
+        "p_end_date": f"{end}T23:59:59Z",
+        "p_banks": [value] if dimension == "bank" else None,
+        "p_branches": [value] if dimension == "branch" else None,
+        "p_tx_types": [value] if dimension == "tx_type" else None,
+        "p_min_weight": None,
+        "p_max_weight": None,
+        "p_min_amount": None,
+        "p_max_amount": None,
+        "p_start_hour": None,
+        "p_end_hour": None,
+        "p_status": "ສໍາເລັດ",
+        "p_hours": None,
+        "p_days_of_week": None,
+        "p_customer_segment": "all",
+        "p_search_keyword": None,
+    }
 
 
 def plan_reports(months):
@@ -293,24 +317,20 @@ def save_reports(base, key, months):
             return
         label = f"{period} {dimension} {value}".strip()
         try:
-            payload = post(base, key, "/rest/v1/rpc/get_dynamic_bi_report", report_args(start, end, dimension, value))
-            if not payload or not isinstance(payload.get("dax_measures"), dict):
-                raise ExportError("empty report")
-            size = len(json.dumps(payload))
-            if state["bytes"] + size > ARCHIVE_BUDGET_BYTES:
+            if state["bytes"] >= ARCHIVE_BUDGET_BYTES:
                 state["stopped"] = True
                 say(f"  size budget reached, stopping before {label}")
                 return
-            post(
-                base, key, "/rest/v1/raw_archive_snapshots?on_conflict=period_key,dimension,filter_value",
+            result = post(
+                base, key, "/rest/v1/rpc/archive_dynamic_bi_report",
                 {
-                    "period_key": period, "start_date": start.isoformat(), "end_date": end.isoformat(),
-                    "dimension": dimension, "filter_value": value, "payload": payload,
+                    "p_period_key": period, "p_start_date": start.isoformat(), "p_end_date": end.isoformat(),
+                    "p_dimension": dimension, "p_filter_value": value,
                 },
-                prefer="resolution=merge-duplicates,return=minimal",
             )
+            size = int(result["bytes"])
             state["bytes"] += size
-            say(f"  {label}  saved ({size // 1024}KB)")
+            say(f"  {label}  saved ({size // 1024}KB, {result['total_transaction']} transactions)")
         except ExportError as err:
             failed.append((label, str(err)[:160]))
             say(f"  {label}  FAILED: {str(err)[:160]}")
@@ -327,12 +347,14 @@ def save_reports(base, key, months):
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("months", nargs="+", help="Months as YYYY-MM")
+    parser.add_argument("--reports-only", action="store_true", help="Skip steps 2 and 3, which are already done")
     args = parser.parse_args()
 
     base, key = load_credentials()
     try:
         verify_manifests(base, key, args.months)
-        save_campaign_snapshots(base, key)
+        if not args.reports_only:
+            save_campaign_snapshots(base, key)
         failed = save_reports(base, key, args.months)
     except ExportError as err:
         sys.exit(f"STOP: {err}\nNothing was deleted. Finished work is saved. Run the same command again.")
