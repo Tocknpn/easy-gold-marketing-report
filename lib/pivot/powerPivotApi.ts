@@ -558,6 +558,53 @@ export function clearPivotCache() {
   PIVOT_CACHE.clear();
 }
 
+// Raw rows before raw_deleted_before were removed to save space (sql/60_raw_retention_archive_and_locks.sql).
+// Pivot reads raw rows, so a filter reaching before that date would show 0 or partial totals.
+let rawDeletedBeforeCache: { value: string | null; at: number } | null = null;
+
+async function getRawDeletedBefore(): Promise<string | null> {
+  if (rawDeletedBeforeCache && Date.now() - rawDeletedBeforeCache.at < PIVOT_CACHE_TTL) {
+    return rawDeletedBeforeCache.value;
+  }
+  try {
+    const { data } = await createClient()
+      .from('raw_retention_settings')
+      .select('raw_deleted_before')
+      .eq('id', 1)
+      .maybeSingle();
+    const value = (data?.raw_deleted_before as string | null) ?? null;
+    rawDeletedBeforeCache = { value, at: Date.now() };
+    return value;
+  } catch {
+    return null;
+  }
+}
+
+async function assertRawDataAvailable(config: PowerPivotConfig): Promise<void> {
+  const requested: string[] = [];
+  for (const f of config.filters) {
+    if (!f.enabled || f.scope !== 'row') continue;
+    if (f.field === 'month') {
+      const months = f.op === 'in' ? f.values || [] : f.value ? [String(f.value)] : [];
+      requested.push(...months.map((m) => `${m}-01`));
+    } else if (f.field === 'date' || f.field === 'datetime') {
+      if (f.value) requested.push(String(f.value).slice(0, 10));
+      if (f.op === 'in') requested.push(...(f.values || []).map((v) => String(v).slice(0, 10)));
+    }
+  }
+  if (requested.length === 0) return;
+
+  const rawDeletedBefore = await getRawDeletedBefore();
+  if (!rawDeletedBefore) return;
+  const earliest = requested.sort()[0];
+  if (earliest < rawDeletedBefore) {
+    throw new Error(
+      `Raw data is available from ${rawDeletedBefore}. Pivot cannot calculate dates before that. ` +
+        'Use the Weekly, MTD or Target reports, or Dynamic BI saved reports, for earlier months.'
+    );
+  }
+}
+
 export async function runPowerPivot(
   config: PowerPivotConfig,
   page = 1,
@@ -572,6 +619,8 @@ export async function runPowerPivot(
   if (!config.values.length) {
     throw new Error('Add at least one measure to VALUES before calculating.');
   }
+
+  await assertRawDataAvailable(config);
 
   const rpcPayload = buildRpcConfig(config, page, exportAll, false);
   const cacheKey = JSON.stringify({ rpcPayload, topN: config.topN, sortBy: config.sortBy });

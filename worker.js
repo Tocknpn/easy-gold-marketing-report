@@ -843,6 +843,89 @@ const workerHandlers = {
         const isCacheablePresetConfig = !hasAdvancedFilters && DYNAMIC_BI_CACHEABLE_PRESETS.includes(quickPreset);
         const shouldReadDynamicBiCache = isCacheablePresetConfig && !bypassCache;
 
+        // STEP -1: Raw retention. Raw rows before raw_deleted_before are removed to save space,
+        // so those dates are served from reports saved before the delete
+        // (sql/60_raw_retention_archive_and_locks.sql, scripts/build_raw_archive.py).
+        // A live query there would silently return 0 or partial totals, so anything not saved
+        // gets a clear message instead.
+        let rawDeletedBefore = null;
+        try {
+          const retentionRes = await fetch(
+            `${supabaseUrl}/rest/v1/raw_retention_settings?id=eq.1&select=raw_deleted_before`,
+            { headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` } }
+          );
+          const retentionRows = retentionRes.ok ? await retentionRes.json() : [];
+          rawDeletedBefore = Array.isArray(retentionRows) && retentionRows[0] ? retentionRows[0].raw_deleted_before : null;
+        } catch (e) {
+          console.warn('Raw retention settings read failed:', e);
+        }
+
+        if (rawDeletedBefore && startDate < rawDeletedBefore) {
+          const onlyOneFilter =
+            minWeight === null && maxWeight === null && minAmount === null && maxAmount === null &&
+            selectedHours.length === 0 && startHourParam === null && endHourParam === null &&
+            selectedDaysOfWeek.length === 0 && customerSegment === 'all' &&
+            statusParam === 'ສໍາເລັດ' && searchKeyword === '' &&
+            banks.length + branches.length + txTypes.length <= 1;
+          const archiveDimension =
+            banks.length === 1 ? 'bank' : branches.length === 1 ? 'branch' : txTypes.length === 1 ? 'tx_type' : 'all';
+          const archiveValue = banks[0] || branches[0] || txTypes[0] || '';
+
+          let archived = null;
+          if (onlyOneFilter) {
+            try {
+              const archiveRes = await fetch(
+                `${supabaseUrl}/rest/v1/raw_archive_snapshots?start_date=eq.${startDate}&end_date=eq.${endDate}` +
+                  `&dimension=eq.${archiveDimension}&filter_value=eq.${encodeURIComponent(archiveValue)}&select=payload&limit=1`,
+                { headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` } }
+              );
+              const archiveRows = archiveRes.ok ? await archiveRes.json() : [];
+              archived = Array.isArray(archiveRows) && archiveRows[0] ? archiveRows[0].payload : null;
+            } catch (e) {
+              console.warn('Raw archive read failed:', e);
+            }
+          }
+
+          if (archived) {
+            return new Response(
+              JSON.stringify({
+                ...archived,
+                meta: {
+                  ...archived.meta,
+                  source: 'raw_archive',
+                  elapsed_ms: Date.now() - startedAt,
+                  raw_available_from: rawDeletedBefore,
+                },
+              }),
+              {
+                status: 200,
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Access-Control-Allow-Origin': '*',
+                  'Cache-Control': 'no-store',
+                },
+              }
+            );
+          }
+
+          return new Response(
+            JSON.stringify({
+              error:
+                `Raw data is available from ${rawDeletedBefore}. Before that date, only saved reports exist: ` +
+                'a whole month, quarter, week or single day, with no filter or one bank, branch or transaction type.',
+              raw_available_from: rawDeletedBefore,
+            }),
+            {
+              status: 422,
+              headers: {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*',
+                'Cache-Control': 'no-store',
+              },
+            }
+          );
+        }
+
         if (shouldReadDynamicBiCache) {
           try {
             const cacheRowRes = await fetch(
