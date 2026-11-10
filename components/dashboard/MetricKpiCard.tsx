@@ -124,7 +124,7 @@ export function MetricKpiCard({
           themeColor={themeColor}
           selectedWeek={selectedWeek}
           isDecimal={isDecimal}
-          height={56}
+          height={64}
         />
       </div>
     </div>
