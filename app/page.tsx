@@ -103,6 +103,8 @@ export default function DashboardPage() {
       if (tab !== 'daily') localStorage.setItem('easy_gold_active_tab', tab);
       const url = new URL(window.location.href);
       url.searchParams.set('tab', tab);
+      // The campaign cut-off (?asof=) belongs to the Campaign Tracking tab only
+      if (tab !== 'campaign') url.searchParams.delete('asof');
       window.history.replaceState(null, '', url.pathname + url.search);
     }
   };

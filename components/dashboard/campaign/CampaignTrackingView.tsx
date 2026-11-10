@@ -131,7 +131,6 @@ export function CampaignTrackingView({
   });
   const [isExporting, setIsExporting] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [isBatchSyncing, setIsBatchSyncing] = useState(false);
   const [dbLatestDate, setDbLatestDate] = useState<string>(() => {
     if (typeof window !== 'undefined') {
       return localStorage.getItem('easy_gold_latest_db_date') || '2026-10-21';
@@ -140,6 +139,19 @@ export function CampaignTrackingView({
   });
   const [copiedSql, setCopiedSql] = useState<boolean>(false);
   const [showSqlScript, setShowSqlScript] = useState<boolean>(true);
+
+  // Cut-Off Date As: null = latest data. A past date is a read-only view: nothing is saved.
+  const [cutoffDate, setCutoffDate] = useState<string | null>(() => {
+    if (typeof window === 'undefined') return null;
+    const v = new URLSearchParams(window.location.search).get('asof');
+    return v && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null;
+  });
+  // Earliest date that still has raw rows (older months are deleted by the monthly rollover)
+  const [rawFromDate, setRawFromDate] = useState<string | null>(null);
+  const [rawStatusChecked, setRawStatusChecked] = useState<boolean>(false);
+  // As-of results, memory only, keyed `${campaignId}|${cutoffDate}`
+  const [asOfDataMap, setAsOfDataMap] = useState<Record<string, any>>({});
+  const isAsOf = Boolean(cutoffDate && cutoffDate < dbLatestDate);
 
   // In-flight background calculation tracker to avoid duplicate queries
   const calculatingIdsRef = useRef<Set<string>>(new Set());
@@ -203,35 +215,67 @@ export function CampaignTrackingView({
 
   currentTargetCampaignRef.current = currentTargetCampaign;
 
+  // As-of view: configs without the saved live actuals, so the engine cannot fall back to today's numbers
+  const asOfConfigs = useMemo<Record<string, CampaignSetupConfig>>(() => {
+    if (!isAsOf || !cutoffDate) return {};
+    const map: Record<string, CampaignSetupConfig> = {};
+    for (const c of allCampaigns) {
+      map[c.id] = { ...c, customers_actual: 0, data_update_on: cutoffDate, cached_as_of_date: cutoffDate };
+    }
+    return map;
+  }, [isAsOf, cutoffDate, allCampaigns]);
+
+  // Zero payload used while an as-of result loads, or when the cut-off has no matching rows
+  const emptyAsOfPayload = useMemo(() => (cutoffDate ? {
+    ec_actual_mtd: 0,
+    nc_actual_mtd: 0,
+    unique_users_actual_mtd: 0,
+    mtd_buy_weight_g: 0,
+    mtd_buy_value_mil_lak: 0,
+    max_db_date: cutoffDate,
+  } : null), [cutoffDate]);
+
+  // What a card, row or deep-dive shows for one campaign: live data, or the as-of result
+  const getDisplayData = useCallback((camp: CampaignSetupConfig): { config: CampaignSetupConfig; data: any; noRaw: boolean } => {
+    if (!isAsOf || !cutoffDate) {
+      return { config: camp, data: liveDataMap[camp.id], noRaw: false };
+    }
+    const entry = asOfDataMap[`${camp.id}|${cutoffDate}`];
+    return {
+      config: asOfConfigs[camp.id] || { ...camp, customers_actual: 0, data_update_on: cutoffDate, cached_as_of_date: cutoffDate },
+      data: entry && !entry.no_raw ? entry : emptyAsOfPayload,
+      noRaw: Boolean(entry?.no_raw),
+    };
+  }, [isAsOf, cutoffDate, liveDataMap, asOfDataMap, asOfConfigs, emptyAsOfPayload]);
+
+  // True when the cut-off needs raw rows (campaign period or backward window) older than the kept raw data
+  const needsDeletedRaw = useCallback((camp: CampaignSetupConfig, cutoff: string): boolean => {
+    if (!rawFromDate || !camp.campaign_date_start || !camp.campaign_date_end) return false;
+    if (camp.campaign_date_start < rawFromDate) return true;
+    const totalDays = calculateDateDiffDays(camp.campaign_date_start, camp.campaign_date_end);
+    const elapsedDays = cutoff >= camp.campaign_date_end
+      ? totalDays
+      : cutoff < camp.campaign_date_start
+        ? 0
+        : calculateDateDiffDays(camp.campaign_date_start, cutoff);
+    return computeBackwardDates(camp.campaign_date_start, elapsedDays, totalDays).start < rawFromDate;
+  }, [rawFromDate]);
+
   // Compute live analytics payload for active campaign
   const analytics: CampaignAnalyticsPayload | null = useMemo(() => {
     if (!currentTargetCampaign) return null;
+    if (isAsOf) {
+      const d = getDisplayData(currentTargetCampaign);
+      return computeCampaignAnalytics(d.config, d.data || undefined);
+    }
     const campLive = liveDataMap[currentTargetCampaign.id] || (activeCampaign?.id === currentTargetCampaign.id ? liveData : null);
     return computeCampaignAnalytics(currentTargetCampaign, campLive || undefined);
-  }, [currentTargetCampaign, liveData, liveDataMap, activeCampaign?.id]);
+  }, [currentTargetCampaign, liveData, liveDataMap, activeCampaign?.id, isAsOf, getDisplayData]);
 
-  // Execute Live Calculate from Supabase for target campaign
-  const handleExecuteCalculate = useCallback(async (targetCamp: CampaignSetupConfig, overrideAsOfDate?: string, forceRecalc: boolean = false) => {
-    // 0ms Instant Recall: If campaign has pre-computed result_json or is frozen, load JSON immediately without querying Supabase!
-    const precomputed = targetCamp.result_json || (targetCamp.is_frozen ? targetCamp.frozen_analytics : null);
-    if (!forceRecalc && precomputed && precomputed.ec_actual_mtd > 0) {
-      setLiveDataMap((prev) => {
-        const next = { ...prev, [targetCamp.id]: precomputed };
-        saveLiveDataMapCache(next);
-        return next;
-      });
-      if (currentTargetCampaignRef.current?.id === targetCamp.id) {
-        setLiveData(precomputed);
-      }
-      return;
-    }
+  const currentNoRaw = Boolean(isAsOf && currentTargetCampaign && getDisplayData(currentTargetCampaign).noRaw);
 
-    if (calculatingIdsRef.current.has(targetCamp.id)) return;
-    calculatingIdsRef.current.add(targetCamp.id);
-    setCalculatingIds(new Set(calculatingIdsRef.current));
-    setRecordingId(targetCamp.id);
-
-    try {
+  // Runs the campaign query for one as-of date and returns the payload (or null). Saves nothing.
+  const requestCampaignPayload = useCallback(async (targetCamp: CampaignSetupConfig, effectiveAsOfDate: string): Promise<any | null> => {
       const storedUrl = typeof window !== 'undefined' ? localStorage.getItem('supabase_project_url') : null;
       const storedKey = typeof window !== 'undefined' ? localStorage.getItem('supabase_anon_key') : null;
       const envUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://wlufvvawlbyvpyaubzph.supabase.co';
@@ -244,10 +288,6 @@ export function CampaignTrackingView({
       };
 
       let payload: any = null;
-      const effectiveAsOfDate = overrideAsOfDate 
-        || ((targetCamp.auto_sync_max_date !== false && dbLatestDate) 
-          ? dbLatestDate 
-          : (targetCamp.data_update_on || dbLatestDate || '2026-10-21'));
 
       try {
         const res = await fetch('/api/dashboard/campaign-analytics', {
@@ -423,6 +463,37 @@ WHERE created_at >= '${backwardWindow.start}'
         }
       }
 
+      return payload;
+  }, []);
+
+  // Execute Live Calculate from Supabase for target campaign
+  const handleExecuteCalculate = useCallback(async (targetCamp: CampaignSetupConfig, overrideAsOfDate?: string, forceRecalc: boolean = false) => {
+    // 0ms Instant Recall: If campaign has pre-computed result_json or is frozen, load JSON immediately without querying Supabase!
+    const precomputed = targetCamp.result_json || (targetCamp.is_frozen ? targetCamp.frozen_analytics : null);
+    if (!forceRecalc && precomputed && precomputed.ec_actual_mtd > 0) {
+      setLiveDataMap((prev) => {
+        const next = { ...prev, [targetCamp.id]: precomputed };
+        saveLiveDataMapCache(next);
+        return next;
+      });
+      if (currentTargetCampaignRef.current?.id === targetCamp.id) {
+        setLiveData(precomputed);
+      }
+      return;
+    }
+
+    if (calculatingIdsRef.current.has(targetCamp.id)) return;
+    calculatingIdsRef.current.add(targetCamp.id);
+    setCalculatingIds(new Set(calculatingIdsRef.current));
+    setRecordingId(targetCamp.id);
+
+    try {
+      const effectiveAsOfDate = overrideAsOfDate
+        || ((targetCamp.auto_sync_max_date !== false && dbLatestDate)
+          ? dbLatestDate
+          : (targetCamp.data_update_on || dbLatestDate || '2026-10-21'));
+      const payload = await requestCampaignPayload(targetCamp, effectiveAsOfDate);
+
       if (payload) {
         setLiveDataMap((prev) => {
           const next = { ...prev, [targetCamp.id]: payload };
@@ -479,7 +550,114 @@ WHERE created_at >= '${backwardWindow.start}'
       setCalculatingIds(new Set(calculatingIdsRef.current));
       setRecordingId((cur) => (cur === targetCamp.id ? null : cur));
     }
-  }, [currentUser?.id, dbLatestDate]);
+  }, [currentUser?.id, dbLatestDate, requestCampaignPayload]);
+
+  // As-of calculation for one campaign at a past cut-off. Read-only: never saves to the campaign or the live cache.
+  const handleExecuteAsOf = useCallback(async (camp: CampaignSetupConfig, cutoff: string, force: boolean = false) => {
+    const key = `${camp.id}|${cutoff}`;
+
+    // Campaign ended on or before the cut-off: its final saved snapshot is already the as-of result
+    if (!force && camp.campaign_date_end && cutoff >= camp.campaign_date_end) {
+      const snap = (camp.is_frozen && camp.frozen_analytics) || camp.result_json || liveDataMap[camp.id];
+      if (snap && snap.ec_actual_mtd > 0 && snap.max_db_date && snap.max_db_date >= camp.campaign_date_end) {
+        setAsOfDataMap((prev) => ({ ...prev, [key]: snap }));
+        return;
+      }
+    }
+
+    if (needsDeletedRaw(camp, cutoff)) {
+      setAsOfDataMap((prev) => ({ ...prev, [key]: { no_raw: true, max_db_date: cutoff } }));
+      return;
+    }
+
+    if (calculatingIdsRef.current.has(camp.id)) return;
+    calculatingIdsRef.current.add(camp.id);
+    setCalculatingIds(new Set(calculatingIdsRef.current));
+
+    try {
+      const payload = await requestCampaignPayload(camp, cutoff);
+      setAsOfDataMap((prev) => ({
+        ...prev,
+        [key]: payload ? { ...payload, max_db_date: payload.max_db_date || cutoff } : {
+          ec_actual_mtd: 0,
+          nc_actual_mtd: 0,
+          unique_users_actual_mtd: 0,
+          mtd_buy_weight_g: 0,
+          mtd_buy_value_mil_lak: 0,
+          max_db_date: cutoff,
+        },
+      }));
+    } catch (err) {
+      console.warn('As-of campaign calculation error:', err);
+    } finally {
+      calculatingIdsRef.current.delete(camp.id);
+      setCalculatingIds(new Set(calculatingIdsRef.current));
+    }
+  }, [liveDataMap, needsDeletedRaw, requestCampaignPayload]);
+
+  // Calculate button: as-of view recalculates at the cut-off (read-only), otherwise the live path
+  const handleCalculateClick = useCallback((camp: CampaignSetupConfig) => {
+    if (isAsOf && cutoffDate) {
+      handleExecuteAsOf(camp, cutoffDate, true);
+    } else {
+      handleExecuteCalculate(camp);
+    }
+  }, [isAsOf, cutoffDate, handleExecuteAsOf, handleExecuteCalculate]);
+
+  // Keep ?asof= in the URL so a shared link opens the same view
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const url = new URL(window.location.href);
+    if (cutoffDate) {
+      url.searchParams.set('asof', cutoffDate);
+    } else {
+      url.searchParams.delete('asof');
+    }
+    window.history.replaceState(null, '', url.pathname + url.search);
+  }, [cutoffDate]);
+
+  // Earliest raw date still in the database (picker minimum + no-raw-data check)
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data } = await createClient().rpc('get_raw_storage_status');
+        const rawFrom = data?.raw_from ? String(data.raw_from).split('T')[0] : null;
+        if (!cancelled && rawFrom) setRawFromDate(rawFrom);
+      } catch (err) {
+        console.warn('Raw storage status unavailable:', err);
+      } finally {
+        if (!cancelled) setRawStatusChecked(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Cut-off on or after the latest data means "latest"; before the raw start is clamped to it
+  useEffect(() => {
+    if (!cutoffDate || isLoadingCampaigns) return;
+    if (cutoffDate >= dbLatestDate) {
+      setCutoffDate(null);
+    } else if (rawFromDate && cutoffDate < rawFromDate) {
+      setCutoffDate(rawFromDate);
+    }
+  }, [cutoffDate, dbLatestDate, rawFromDate, isLoadingCampaigns]);
+
+  // As-of view: fetch the cut-off result for every campaign on the current page and the deep-dive one
+  useEffect(() => {
+    if (!isAsOf || !cutoffDate || !rawStatusChecked) return;
+    const targets = [...paginatedCampaigns];
+    if (currentTargetCampaign && !targets.some((c) => c.id === currentTargetCampaign.id)) {
+      targets.push(currentTargetCampaign);
+    }
+    for (const c of targets) {
+      if (!asOfDataMap[`${c.id}|${cutoffDate}`] && !calculatingIds.has(c.id)) {
+        handleExecuteAsOf(c, cutoffDate);
+      }
+    }
+  }, [isAsOf, cutoffDate, rawStatusChecked, paginatedCampaigns, currentTargetCampaign, asOfDataMap, calculatingIds, handleExecuteAsOf]);
 
   // Unified single initialization: Fetch DB latest date & campaigns, hydrate cache, prefetch missing in background
   const refreshCampaigns = useCallback(async () => {
@@ -629,12 +807,18 @@ WHERE created_at >= '${backwardWindow.start}'
     ? dbLatestDate
     : (liveData?.max_db_date || dbLatestDate || currentTargetCampaign?.data_update_on || '2026-10-21');
 
+  // Date the report shows: the chosen cut-off in the as-of view, otherwise the latest data date
+  const reportDate = isAsOf && cutoffDate ? cutoffDate : latestDataDate;
+
+  // Payload behind the deep-dive SQL panel (as-of result or live data)
+  const deepDiveData = isAsOf && currentTargetCampaign ? getDisplayData(currentTargetCampaign).data : liveData;
+
   // Generate fallback SQL script for target campaign
   const defaultGeneratedSql = useMemo(() => {
     if (!currentTargetCampaign) return '';
     const camp = currentTargetCampaign;
-    const isEnded = camp.campaign_date_end && latestDataDate >= camp.campaign_date_end;
-    const effectiveCutoff = isEnded ? camp.campaign_date_end : latestDataDate;
+    const isEnded = camp.campaign_date_end && reportDate >= camp.campaign_date_end;
+    const effectiveCutoff = isEnded ? camp.campaign_date_end : reportDate;
     const banks = camp.bank && camp.bank !== 'all' ? camp.bank.split(',').map((b: string) => b.trim()).filter(Boolean) : [];
     const bankFilter = banks.length === 1 
       ? `\n  AND bank ILIKE '%${banks[0]}%'` 
@@ -699,7 +883,7 @@ WHERE created_at >= '${backwardWindow.start}'
   AND created_at <= '${backwardWindow.end} 23:59:59'
   AND status IN ('ສໍາເລັດ', 'ສຳເລັດ')
   AND transaction_type = '${camp.tx_type || 'BUY_GOLD'}'${bankFilter}${condFilter};`;
-  }, [currentTargetCampaign, latestDataDate]);
+  }, [currentTargetCampaign, reportDate]);
 
   // Save (Create / Update) Campaign: Unfreezes campaign to force fresh recalculation
   const handleSaveCampaign = async (config: CampaignSetupConfig) => {
@@ -766,21 +950,6 @@ WHERE created_at >= '${backwardWindow.start}'
     setIsDetailModalOpen(true);
   };
 
-  // Trigger automated 3:00 AM backend engine sync on demand
-  const handleRunDailyBatchSync = async () => {
-    setIsBatchSyncing(true);
-    try {
-      const res = await fetch('/api/dashboard/campaign-analytics');
-      if (res.ok) {
-        await refreshCampaigns();
-      }
-    } catch (e) {
-      console.warn('Batch sync error:', e);
-    } finally {
-      setIsBatchSyncing(false);
-    }
-  };
-
 
   // Export report to CSV
   const handleExportCsv = () => {
@@ -792,7 +961,8 @@ WHERE created_at >= '${backwardWindow.start}'
         ['Category Tag', currentTargetCampaign.category_tag || 'Standard'],
         ['Condition Threshold', currentTargetCampaign.condition_label],
         ['Timeline Range', `${currentTargetCampaign.campaign_date_start} to ${currentTargetCampaign.campaign_date_end}`],
-        ['Report Data Up To', latestDataDate],
+        ['Report Data Up To', reportDate],
+        ...(isAsOf ? [['View', 'As-of cut-off (not saved)']] : []),
         ['Elapsed Days', `${analytics.targetAchievement.elapsed_days} of ${analytics.targetAchievement.total_days}`],
         [],
         ['Metric', 'MTD Volume', 'RR Projection', 'Target Goal', '% Hit MTD', '% Hit RR'],
@@ -899,16 +1069,6 @@ WHERE created_at >= '${backwardWindow.start}'
 
         {/* Action Buttons */}
         <div className="flex items-center gap-2">
-          <button
-            onClick={handleRunDailyBatchSync}
-            disabled={isBatchSyncing}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-black bg-emerald-50 border border-emerald-300 text-emerald-800 hover:bg-emerald-100 shadow-2xs transition-all disabled:opacity-50 cursor-pointer"
-            title="Trigger automated backend engine batch (syncs all active campaigns into result_json)"
-          >
-            <Sparkles className={`w-3.5 h-3.5 text-emerald-600 ${isBatchSyncing ? 'animate-spin' : ''}`} />
-            <span>{isBatchSyncing ? 'Syncing Engine...' : '⚡ 3AM Engine Sync'}</span>
-          </button>
-
           <button
             onClick={handleExportCsv}
             disabled={isExporting || !analytics}
@@ -1026,15 +1186,48 @@ WHERE created_at >= '${backwardWindow.start}'
             </button>
           </div>
 
-          {/* Prominent Latest Data Cutoff Chip in toolbar */}
-          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-blue-50/80 border border-blue-200/80 text-[#0c4ca3] text-xs font-bold">
-            <Calendar className="w-3.5 h-3.5 text-[#0c4ca3]" />
-            <span>Data Up To: <strong className="font-mono text-blue-950 font-black">{formatDisplayDate(latestDataDate)}</strong></span>
-          </div>
+          {/* Cut-Off Date As picker: latest by default, a past date opens the read-only as-of view */}
+          <label
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl border text-xs font-bold ${
+              isAsOf
+                ? 'bg-amber-50 border-amber-300 text-amber-900'
+                : 'bg-blue-50/80 border-blue-200/80 text-[#0c4ca3]'
+            }`}
+            title={`See all numbers as they were up to this date (latest data: ${formatDisplayDate(dbLatestDate)})`}
+          >
+            <Calendar className={`w-3.5 h-3.5 ${isAsOf ? 'text-amber-700' : 'text-[#0c4ca3]'}`} />
+            <span className="whitespace-nowrap">Cut-Off Date As:</span>
+            <input
+              type="date"
+              value={isAsOf && cutoffDate ? cutoffDate : dbLatestDate}
+              min={rawFromDate || undefined}
+              max={dbLatestDate}
+              onChange={(e) => {
+                const v = e.target.value;
+                if (!v || v >= dbLatestDate) {
+                  setCutoffDate(null);
+                } else {
+                  setCutoffDate(rawFromDate && v < rawFromDate ? rawFromDate : v);
+                }
+              }}
+              className="bg-transparent font-mono font-black text-blue-950 focus:outline-hidden cursor-pointer"
+            />
+          </label>
 
           {/* Refresh Button */}
           <button
-            onClick={refreshCampaigns}
+            onClick={() => {
+              if (isAsOf && cutoffDate) {
+                setAsOfDataMap((prev) => {
+                  const next: Record<string, any> = {};
+                  for (const [k, v] of Object.entries(prev)) {
+                    if (!k.endsWith(`|${cutoffDate}`)) next[k] = v;
+                  }
+                  return next;
+                });
+              }
+              refreshCampaigns();
+            }}
             disabled={isRefreshing}
             className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 hover:text-slate-900 text-xs font-bold transition-all disabled:opacity-50 cursor-pointer"
             title="Reload campaign list"
@@ -1044,6 +1237,21 @@ WHERE created_at >= '${backwardWindow.start}'
           </button>
         </div>
       </div>
+
+      {/* As-of view banner */}
+      {isAsOf && cutoffDate && (
+        <div className="flex items-center justify-between gap-3 flex-wrap px-3.5 py-2 rounded-2xl bg-amber-50 border border-amber-300 text-amber-900 text-xs font-bold">
+          <span>
+            As-of view: numbers up to <strong className="font-mono font-black">{formatDisplayDate(cutoffDate)}</strong>. These numbers are not saved.
+          </span>
+          <button
+            onClick={() => setCutoffDate(null)}
+            className="px-3 py-1 rounded-xl bg-white border border-amber-300 hover:bg-amber-100 text-amber-900 font-black transition-colors cursor-pointer"
+          >
+            Back to latest ({formatDisplayDate(dbLatestDate)})
+          </button>
+        </div>
+      )}
 
       {/* 3. Executive Campaign Deck (Cards or Dense Table for 30+ Campaigns) */}
       {isLoadingCampaigns && allCampaigns.length === 0 ? (
@@ -1072,11 +1280,12 @@ WHERE created_at >= '${backwardWindow.start}'
               <tbody className="divide-y divide-slate-100 font-mono text-xs">
                 {paginatedCampaigns.map((camp) => {
                   const isSelected = currentTargetCampaign?.id === camp.id;
-                  const itemAnalytics = computeCampaignAnalytics(camp, liveDataMap[camp.id]);
+                  const rowDisplay = getDisplayData(camp);
+                  const itemAnalytics = computeCampaignAnalytics(rowDisplay.config, rowDisplay.data || undefined);
                   const { targetAchievement } = itemAnalytics;
                   const isCompleted = targetAchievement.is_ended;
                   const isUpcoming = targetAchievement.is_upcoming;
-                  const statusLabel = isCompleted ? 'Completed' : isUpcoming ? 'Upcoming' : 'Active';
+                  const statusLabel = rowDisplay.noRaw ? 'No raw data' : isCompleted ? 'Completed' : isUpcoming ? 'Upcoming' : 'Active';
 
                   return (
                     <tr 
@@ -1175,7 +1384,7 @@ WHERE created_at >= '${backwardWindow.start}'
                             {isSelected ? 'Active' : 'Inspect'}
                           </button>
                           <button
-                            onClick={() => handleExecuteCalculate(camp)}
+                            onClick={() => handleCalculateClick(camp)}
                             disabled={calculatingIds.has(camp.id)}
                             className="px-2 py-0.5 rounded text-[10px] font-black bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50"
                             title="Execute live calculation with all condition rules & bank filters"
@@ -1213,10 +1422,12 @@ WHERE created_at >= '${backwardWindow.start}'
               key={camp.id}
               campaign={camp}
               isActive={currentTargetCampaign?.id === camp.id}
-              liveData={liveDataMap[camp.id]}
+              liveData={getDisplayData(camp).data}
+              analyticsCampaign={isAsOf ? getDisplayData(camp).config : undefined}
+              noRawNote={getDisplayData(camp).noRaw ? `No raw data for ${formatDisplayDate(cutoffDate || undefined)}` : undefined}
               onSelectCampaign={handleSelectCampaign}
               onOpenDetails={handleOpenDetails}
-              onRecord={handleExecuteCalculate}
+              onRecord={handleCalculateClick}
               onEdit={handleOpenEditModal}
               onDelete={handleDeleteCampaign}
               isRecording={calculatingIds.has(camp.id)}
@@ -1241,7 +1452,7 @@ WHERE created_at >= '${backwardWindow.start}'
             Showing <strong className="text-slate-800 font-mono">{Math.min(filteredCampaigns.length, (safeCurrentPage - 1) * pageSize + 1)}</strong> to{' '}
             <strong className="text-slate-800 font-mono">{Math.min(filteredCampaigns.length, safeCurrentPage * pageSize)}</strong> of{' '}
             <strong className="text-slate-900 font-mono">{filteredCampaigns.length}</strong> campaigns
-            {filteredCampaigns.some((c) => c.is_frozen) && (
+            {!isAsOf && filteredCampaigns.some((c) => c.is_frozen) && (
               <span className="ml-2 px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
                 ⚡ Frozen JSON Cache Active
               </span>
@@ -1345,7 +1556,7 @@ WHERE created_at >= '${backwardWindow.start}'
                     Report Data Up To:
                   </span>
                   <span className="text-xs font-bold text-brand-navy font-mono tabular-nums">
-                    {formatDisplayDate(latestDataDate)}
+                    {formatDisplayDate(reportDate)}
                   </span>
                 </div>
                 <span className="text-xs font-medium text-brand-navyLight block font-mono tabular-nums">
@@ -1357,19 +1568,25 @@ WHERE created_at >= '${backwardWindow.start}'
 
           {/* Side-by-Side Detailed Analytics Tables: Content-Sized (No 100% Artificial Stretching) */}
           <div className="flex flex-wrap items-start gap-4 justify-start">
+            {currentNoRaw ? (
+              <div className="w-full rounded-2xl bg-amber-50 border border-amber-200 px-4 py-6 text-center text-sm font-bold text-amber-900">
+                No raw data for {formatDisplayDate(reportDate)}. This campaign or its backward window uses months that were already deleted from the database.
+              </div>
+            ) : (<>
             {/* Table 1: Target Achievement & Run Rate Projections */}
-            <CampaignTargetTable 
-              data={analytics.targetAchievement} 
-              asOfDate={latestDataDate}
+            <CampaignTargetTable
+              data={analytics.targetAchievement}
+              asOfDate={reportDate}
               isLoading={calculatingIds.has(currentTargetCampaign.id)}
             />
 
             {/* Table 2: Comparison vs Same Period Backward (Past Baseline Benchmark) */}
-            <CampaignBackwardCompareTable 
-              data={analytics.backwardComparison} 
-              asOfDate={latestDataDate}
+            <CampaignBackwardCompareTable
+              data={analytics.backwardComparison}
+              asOfDate={reportDate}
               isLoading={calculatingIds.has(currentTargetCampaign.id)}
             />
+            </>)}
           </div>
 
           {/* SQL Intelligence & Supabase Query Bridge */}
@@ -1404,11 +1621,11 @@ WHERE created_at >= '${backwardWindow.start}'
 
                 <button
                   onClick={() => {
-                    const isSqlCurrent = liveData?.sql_script 
-                      && !liveData.sql_script.includes('2026-10-19') 
-                      && !liveData.sql_script.includes('2026-10-18')
-                      && liveData.sql_script.includes(latestDataDate);
-                    const rawSql = isSqlCurrent ? liveData.sql_script : defaultGeneratedSql;
+                    const isSqlCurrent = deepDiveData?.sql_script
+                      && !deepDiveData.sql_script.includes('2026-10-19')
+                      && !deepDiveData.sql_script.includes('2026-10-18')
+                      && deepDiveData.sql_script.includes(reportDate);
+                    const rawSql = isSqlCurrent ? deepDiveData.sql_script : defaultGeneratedSql;
                     const cleanSql = rawSql.replace(/\/\* (CONDITIONS_CONFIG|LIVE_METRICS_CACHE):[\s\S]*? \*\/\n?/g, '');
                     handleCopySql(cleanSql);
                   }}
@@ -1420,7 +1637,7 @@ WHERE created_at >= '${backwardWindow.start}'
                 </button>
 
                 <button
-                  onClick={() => handleExecuteCalculate(currentTargetCampaign)}
+                  onClick={() => handleCalculateClick(currentTargetCampaign)}
                   disabled={calculatingIds.has(currentTargetCampaign.id)}
                   className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-xs transition-all disabled:opacity-50 cursor-pointer"
                   title="Send generated SQL to Supabase and update campaign info live"
@@ -1435,7 +1652,7 @@ WHERE created_at >= '${backwardWindow.start}'
             {showSqlScript && (
               <div className="relative">
                 <pre className="text-[11px] font-mono text-emerald-400 bg-slate-950 p-3.5 rounded-xl overflow-x-auto whitespace-pre border border-slate-800/80 leading-relaxed max-h-56">
-                  {((liveData?.sql_script && !liveData.sql_script.includes('2026-10-19') && !liveData.sql_script.includes('2026-10-18') && liveData.sql_script.includes(latestDataDate)) ? liveData.sql_script : defaultGeneratedSql).replace(/\/\* (CONDITIONS_CONFIG|LIVE_METRICS_CACHE):[\s\S]*? \*\/\n?/g, '')}
+                  {((deepDiveData?.sql_script && !deepDiveData.sql_script.includes('2026-10-19') && !deepDiveData.sql_script.includes('2026-10-18') && deepDiveData.sql_script.includes(reportDate)) ? deepDiveData.sql_script : defaultGeneratedSql).replace(/\/\* (CONDITIONS_CONFIG|LIVE_METRICS_CACHE):[\s\S]*? \*\/\n?/g, '')}
                 </pre>
               </div>
             )}

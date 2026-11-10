@@ -29,6 +29,10 @@ interface CampaignCardItemProps {
   onEdit: (campaign: CampaignSetupConfig) => void;
   onDelete: (campaignId: string) => void;
   isRecording?: boolean;
+  /** Config used only for the numbers (as-of view strips saved live actuals). Defaults to `campaign`. */
+  analyticsCampaign?: CampaignSetupConfig;
+  /** When set, the metrics are replaced by this note (e.g. raw data deleted for the cut-off). */
+  noRawNote?: string;
 }
 
 // Format amount to Kip string (e.g. ₭2.8B, ₭395.7M, ₭0, or '—')
@@ -140,14 +144,16 @@ export function CampaignCardItem({
   onEdit,
   onDelete,
   isRecording = false,
+  analyticsCampaign,
+  noRawNote,
 }: CampaignCardItemProps) {
   const badgeStyle = getCategoryBadgeStyle(campaign.category_tag || campaign.scale_category);
   const tagText = campaign.category_tag || 'Marketing Campaign';
 
   // Compute live analytics based on configured campaign plan and dynamic calculate result
   const analytics = useMemo(() => {
-    return computeCampaignAnalytics(campaign, liveData);
-  }, [campaign, liveData]);
+    return computeCampaignAnalytics(analyticsCampaign || campaign, liveData);
+  }, [analyticsCampaign, campaign, liveData]);
 
   const { targetAchievement, backwardComparison } = analytics;
   const isCompleted = targetAchievement.is_ended;
@@ -249,6 +255,13 @@ export function CampaignCardItem({
           </div>
         </div>
 
+        {noRawNote ? (
+          <div className="pt-2 border-t border-slate-100">
+            <div className="rounded-lg bg-amber-50 border border-amber-200 px-2.5 py-3 text-[11px] font-bold text-amber-900 text-center">
+              {noRawNote}
+            </div>
+          </div>
+        ) : (<>
         {/* 3. Compact Target Progress Bar Strip */}
         <div className="pt-1 border-t border-slate-100">
           <div className="flex items-center justify-between text-[10px]">
@@ -359,6 +372,7 @@ export function CampaignCardItem({
             </span>
           </div>
         </div>
+        </>)}
       </div>
 
       {/* 5. Footer Action Bar - Ultra Compact */}
