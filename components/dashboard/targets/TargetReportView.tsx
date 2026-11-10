@@ -16,6 +16,7 @@ import {
 import { createClient } from '@/lib/supabase/client';
 import { ClassicRunRateTables } from './ClassicRunRateTables';
 import { VisualTargetTrackingCockpit } from './VisualTargetTrackingCockpit';
+import { Skeleton } from '../Skeleton';
 import { Table2, Download, Target as TargetIcon, TrendingUp, CheckCircle2, RefreshCw } from 'lucide-react';
 
 // Dynamic day cap calculation
@@ -234,6 +235,7 @@ export function TargetReportView() {
         <VisualTargetTrackingCockpit
           data={tgtData}
           showEst={showEst}
+          isSkeleton={isLoadingLive}
           filterControls={
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 items-end">
               <div className="flex flex-col gap-1.5">
@@ -283,6 +285,22 @@ export function TargetReportView() {
               <span className="hidden sm:inline">Export CSV</span>
             </button>
           </div>
+          {isLoadingLive ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-2 border-t border-slate-100" aria-busy="true">
+              <div className="flex flex-col gap-1">
+                <label className={labelClass}>Current Month (2026)</label>
+                <Skeleton className="h-9 w-full rounded-xl" />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className={labelClass}>Comparison Period</label>
+                <Skeleton className="h-9 w-full rounded-xl" />
+              </div>
+              <div className="flex flex-col gap-2 sm:col-span-2">
+                <Skeleton className="h-3 w-64" />
+                <Skeleton className="h-2 w-full rounded-full" />
+              </div>
+            </div>
+          ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-2 border-t border-slate-100">
             <div className="flex flex-col gap-1">
               <label className={labelClass}>Current Month (2026)</label>
@@ -335,9 +353,21 @@ export function TargetReportView() {
               year={currentYear}
             />
           </div>
+          )}
         </div>
 
-        <ClassicRunRateTables data={rrData} />
+        {isLoadingLive ? (
+          <div className="bg-white rounded-2xl border border-slate-300/80 shadow-xs p-4 space-y-2.5" aria-busy="true">
+            {Array.from({ length: 10 }).map((_, i) => (
+              <div key={i} className="flex items-center gap-3">
+                <Skeleton className="h-4 w-32" />
+                <Skeleton className="h-4 flex-1" />
+              </div>
+            ))}
+          </div>
+        ) : (
+          <ClassicRunRateTables data={rrData} />
+        )}
       </section>
     </div>
   );

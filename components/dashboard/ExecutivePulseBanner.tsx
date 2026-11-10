@@ -13,6 +13,7 @@ import {
   Flame,
   Gauge
 } from 'lucide-react';
+import { Skeleton, SkeletonOr } from './Skeleton';
 
 export interface ExecutivePulseProps {
   // 1. Target Pacing (from Business Target)
@@ -40,6 +41,10 @@ export interface ExecutivePulseProps {
   weeklyWoWVariance: number;
   isPartialWeek: boolean;
 
+  // Real data has arrived. Until then numbers, months and dates show skeletons.
+  mtdReady?: boolean;
+  weeklyReady?: boolean;
+
   // Tab navigation jump
   onNavigateTab: (tab: 'targets' | 'weekly' | 'mtd') => void;
 }
@@ -60,6 +65,8 @@ export function ExecutivePulseBanner({
   weeklyVolumeBaht,
   weeklyWoWVariance,
   isPartialWeek,
+  mtdReady = true,
+  weeklyReady = true,
   onNavigateTab,
 }: ExecutivePulseProps) {
   const timeElapsedPct = totalDays > 0 ? Math.round((daysGone / totalDays) * 100) : 0;
@@ -70,7 +77,7 @@ export function ExecutivePulseBanner({
   const isWeeklyPositive = weeklyWoWVariance >= 0;
 
   return (
-    <div id="email-snap-quick-brief" className="w-full bg-white text-slate-900 rounded-2xl p-3 sm:p-4 shadow-xs border border-slate-200/90 mb-4 transition-all">
+    <div id="email-snap-quick-brief" data-ready={mtdReady && weeklyReady ? 'true' : 'false'} className="w-full bg-white text-slate-900 rounded-2xl p-3 sm:p-4 shadow-xs border border-slate-200/90 mb-4 transition-all">
       {/* Top Header Label */}
       <div className="flex items-center justify-between pb-2.5 mb-2.5 border-b border-slate-100">
         <div className="flex items-center gap-2">
@@ -92,10 +99,11 @@ export function ExecutivePulseBanner({
           <div className="flex items-center justify-between text-xs text-slate-500 mb-1">
             <span className="font-extrabold flex items-center gap-1.5 uppercase tracking-tight text-[11px] text-slate-700">
               <Target className="w-3.5 h-3.5 text-brand-navy" />
-              Target Pacing ({targetMonthLabel})
+              Target Pacing (<SkeletonOr ready={mtdReady} className="h-2.5 w-10">{targetMonthLabel}</SkeletonOr>)
             </span>
             <ChevronRight className="w-3.5 h-3.5 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
           </div>
+          {!mtdReady ? <CardValueSkeleton /> : (<>
           <div className="flex items-baseline justify-between mt-1">
             <div className="flex items-baseline gap-1.5">
               <span className="text-xl sm:text-2xl font-black font-sans tabular-nums text-slate-900 tracking-tight">
@@ -119,6 +127,7 @@ export function ExecutivePulseBanner({
           <p className="text-[10.5px] text-slate-600 font-medium mt-1.5 line-clamp-1">
             Avg 5 targets • Est: {targetEstLandingPct.toFixed(0)}% hit
           </p>
+          </>)}
         </div>
 
         {/* Card 2: Est. Current Month Landing MoM (Avg of 7 MTD metrics) */}
@@ -133,6 +142,7 @@ export function ExecutivePulseBanner({
             </span>
             <ChevronRight className="w-3.5 h-3.5 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
           </div>
+          {!mtdReady ? <CardValueSkeleton /> : (<>
           <div className="flex items-baseline justify-between mt-1">
             <div className="flex items-baseline gap-1.5">
               <span className={`text-xl sm:text-2xl font-black font-sans tabular-nums tracking-tight ${
@@ -155,6 +165,7 @@ export function ExecutivePulseBanner({
           <p className="text-[10.5px] text-slate-600 font-medium mt-1.5 line-clamp-1">
             Avg of 7 MTD metrics forecast
           </p>
+          </>)}
         </div>
 
         {/* Card 3: All Transaction count MTD (MoM) */}
@@ -169,6 +180,7 @@ export function ExecutivePulseBanner({
             </span>
             <ChevronRight className="w-3.5 h-3.5 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
           </div>
+          {!mtdReady ? <CardValueSkeleton /> : (<>
           <div className="flex items-baseline justify-between mt-1">
             <div className="flex items-baseline gap-1.5">
               <span className="text-xl sm:text-2xl font-black font-sans tabular-nums text-slate-900 tracking-tight">
@@ -186,6 +198,7 @@ export function ExecutivePulseBanner({
           <p className="text-[10.5px] text-slate-600 font-medium mt-1.5 line-clamp-1">
             Total transactions vs {mtdCompMonthLabel}
           </p>
+          </>)}
         </div>
 
         {/* Card 4: NC MTD Pace (MoM) */}
@@ -200,6 +213,7 @@ export function ExecutivePulseBanner({
             </span>
             <ChevronRight className="w-3.5 h-3.5 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
           </div>
+          {!mtdReady ? <CardValueSkeleton /> : (<>
           <div className="flex items-baseline justify-between mt-1">
             <div className="flex items-baseline gap-1.5">
               <span className="text-xl sm:text-2xl font-black font-sans tabular-nums text-slate-900 tracking-tight">
@@ -217,6 +231,7 @@ export function ExecutivePulseBanner({
           <p className="text-[10.5px] text-slate-600 font-medium mt-1.5 line-clamp-1">
             New customers vs {mtdCompMonthLabel}
           </p>
+          </>)}
         </div>
 
         {/* Card 5: Weekly Trading Momentum */}
@@ -227,10 +242,11 @@ export function ExecutivePulseBanner({
           <div className="flex items-center justify-between text-xs text-slate-500 mb-1">
             <span className="font-extrabold flex items-center gap-1.5 uppercase tracking-tight text-[11px] text-slate-700">
               <Flame className="w-3.5 h-3.5 text-amber-500" />
-              Weekly Momentum ({activeWeekLabel})
+              Weekly Momentum (<SkeletonOr ready={weeklyReady} className="h-2.5 w-8">{activeWeekLabel}</SkeletonOr>)
             </span>
             <ChevronRight className="w-3.5 h-3.5 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
           </div>
+          {!weeklyReady ? <CardValueSkeleton /> : (<>
           <div className="flex items-baseline justify-between mt-1 flex-wrap gap-1">
             <div className="flex items-baseline gap-1">
               <span className="text-lg sm:text-xl font-black font-sans tabular-nums text-slate-900 tracking-tight">
@@ -256,9 +272,26 @@ export function ExecutivePulseBanner({
           <p className="text-[10.5px] text-slate-600 font-medium mt-1.5 line-clamp-1">
             Retail buy activity accounts for volume
           </p>
+          </>)}
         </div>
 
       </div>
     </div>
+  );
+}
+
+/** Value row + caption placeholders, same height as a loaded card body. */
+function CardValueSkeleton() {
+  return (
+    <>
+      <div className="flex items-center justify-between mt-1.5 gap-2">
+        <div className="flex items-center gap-1.5">
+          <Skeleton className="h-6 w-20" />
+          <Skeleton className="h-4 w-12" />
+        </div>
+        <Skeleton className="h-3 w-14" />
+      </div>
+      <Skeleton className="h-2.5 w-32 mt-2.5" />
+    </>
   );
 }

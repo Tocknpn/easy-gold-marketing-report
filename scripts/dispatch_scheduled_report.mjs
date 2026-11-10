@@ -476,6 +476,11 @@ async function main() {
       pdfBase64 = Buffer.from(pdfBuffer).toString('base64');
     }
 
+    // The Quick Brief shows skeletons until live data arrives; wait so the snapshot has real numbers
+    await page.waitForSelector('#email-snap-quick-brief[data-ready="true"]', { timeout: 30000 }).catch(() => {
+      console.warn('[!] Quick Brief data-ready timeout, capturing current state...');
+    });
+
     try {
       console.log('[*] Capturing Quick Brief & Daily Velocity inline email snapshots...');
       snapshots = await page.evaluate(async () => {

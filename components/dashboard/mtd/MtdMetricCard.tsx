@@ -17,6 +17,10 @@ import {
   CheckCircle2,
   AlertCircle
 } from 'lucide-react';
+import { Skeleton } from '../Skeleton';
+
+/** True while the MTD report has no real data yet: cards show labels with skeleton values. */
+export const MtdSkeletonContext = React.createContext(false);
 
 interface MtdMetricCardProps {
   metric: MtdMetricItem;
@@ -31,6 +35,8 @@ export function MtdMetricCard({
   elapsedDays = 11,
   totalDays = 31
 }: MtdMetricCardProps) {
+  const isSkeleton = React.useContext(MtdSkeletonContext);
+
   // Render corresponding icon
   const renderIcon = () => {
     const iconProps = { className: 'w-4 h-4 sm:w-5 sm:h-5 text-[#0c4ca3]' };
@@ -97,6 +103,56 @@ export function MtdMetricCard({
           .replace('New Customer', 'NC');
     }
   })();
+
+  if (isSkeleton) {
+    return (
+      <div className="bg-white rounded-2xl border border-slate-200/90 p-3.5 sm:p-4 shadow-xs flex flex-col justify-between relative overflow-hidden">
+        <div className="absolute top-0 left-0 right-0 h-1 bg-slate-200" />
+        <div>
+          <div className="flex items-center justify-between gap-1 mb-2 pt-0.5">
+            <div className="flex items-center gap-1 min-w-0">
+              <div className="p-1 rounded-lg bg-blue-50 text-[#0c4ca3] shrink-0">{renderIcon()}</div>
+              <h4 className="font-black text-slate-800 text-[11px] sm:text-xs tracking-tight whitespace-nowrap">{cleanLabel}</h4>
+            </div>
+            <Skeleton className="h-4 w-14" />
+          </div>
+          <div className="flex flex-col items-center justify-center gap-1.5 pb-2.5 pt-1">
+            <Skeleton className="h-8 w-28" />
+            <Skeleton className="h-5 w-16 rounded-full" />
+            <Skeleton className="h-2.5 w-24" />
+          </div>
+          <div className="my-2 px-1 space-y-1.5">
+            <div className="flex justify-between">
+              <Skeleton className="h-2.5 w-16" />
+              <Skeleton className="h-2.5 w-20" />
+            </div>
+            <Skeleton className="h-2 w-full rounded-full" />
+          </div>
+        </div>
+        <div className="w-full h-[1px] bg-slate-200/80 my-2.5" />
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <div>
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight block">Est. Month End</span>
+              <Skeleton className="h-5 w-20 mt-1" />
+            </div>
+            <div>
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight block">vs. Full</span>
+              <Skeleton className="h-4 w-12 mt-1" />
+            </div>
+          </div>
+          <div className="px-2 py-1.5 rounded-xl bg-slate-50 border border-slate-200/80 text-[10px] sm:text-[10.5px] flex items-center justify-between gap-1">
+            <div className="flex items-center gap-1">
+              <Gauge className="w-3 h-3 text-[#0c4ca3] shrink-0" />
+              <span className="text-slate-500 font-semibold">Avg.:</span>
+              <Skeleton className="h-2.5 w-10" />
+            </div>
+            <Skeleton className="h-2.5 w-16" />
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-white rounded-2xl border border-slate-200/90 p-3.5 sm:p-4 shadow-xs hover:shadow-md transition-all flex flex-col justify-between group relative overflow-hidden">

@@ -13,6 +13,7 @@ import {
   Sparkles,
   Info
 } from 'lucide-react';
+import { Skeleton, SkeletonOr } from '../Skeleton';
 
 interface VisualTargetTrackingCockpitProps {
   data: RunRateComparisonPayload;
@@ -22,6 +23,8 @@ interface VisualTargetTrackingCockpitProps {
   hideHeader?: boolean;
   /** Controls slot to combine month selector and cutoff slider into the same card border */
   filterControls?: React.ReactNode;
+  /** No real data yet: keep titles and metric names, show skeletons for numbers, months and dates. */
+  isSkeleton?: boolean;
 }
 
 const fmt = (n: number) => Math.round(n).toLocaleString();
@@ -33,7 +36,8 @@ const STATUS_STYLE: Record<'below' | 'near' | 'ahead', { bar: string; text: stri
   ahead: { bar: 'bg-[#10b981]', text: 'text-[#10b981]' },
 };
 
-export function VisualTargetTrackingCockpit({ data, showEst = true, hideHeader = false, filterControls }: VisualTargetTrackingCockpitProps) {
+export function VisualTargetTrackingCockpit({ data, showEst = true, hideHeader = false, filterControls, isSkeleton = false }: VisualTargetTrackingCockpitProps) {
+  const ready = !isSkeleton;
   const {
     current_month_label,
     display_as_of_date,
@@ -71,10 +75,10 @@ export function VisualTargetTrackingCockpit({ data, showEst = true, hideHeader =
               </div>
               <div>
                 <h2 className="text-xl sm:text-2xl font-black text-[#0c4ca3] tracking-tight">
-                  {current_month_label}&apos;26 Performance - Vs Target
+                  <SkeletonOr ready={ready} className="h-6 w-16 mr-1">{current_month_label}&apos;26</SkeletonOr> Performance - Vs Target
                 </h2>
                 <p className="text-xs text-slate-500 font-bold">
-                  Data up to date {display_as_of_date}
+                  Data up to date <SkeletonOr ready={ready} className="h-3 w-20">{display_as_of_date}</SkeletonOr>
                 </p>
               </div>
             </div>
@@ -82,7 +86,18 @@ export function VisualTargetTrackingCockpit({ data, showEst = true, hideHeader =
 
           {filterControls && (
             <div className="pt-2 border-t border-slate-100">
-              {filterControls}
+              {ready ? filterControls : (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 items-end">
+                  <div className="flex flex-col gap-1.5">
+                    <Skeleton className="h-3 w-32" />
+                    <Skeleton className="h-9 w-full rounded-xl" />
+                  </div>
+                  <div className="flex flex-col gap-2 sm:col-span-2">
+                    <Skeleton className="h-3 w-64" />
+                    <Skeleton className="h-2 w-full rounded-full" />
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -101,12 +116,14 @@ export function VisualTargetTrackingCockpit({ data, showEst = true, hideHeader =
                 Monthly Target Tracking
               </h3>
               <div className="flex items-center gap-1.5">
+                {ready ? (<>
                 <span className="text-xs sm:text-sm font-black text-slate-700">
                   {monthly_tracking.days_gone} Days Gone
                 </span>
                 <span className="px-2 py-0.5 rounded-lg border border-blue-200 bg-blue-50 text-xs sm:text-sm font-black font-mono text-[#0c4ca3]">
                   {monthly_tracking.days_gone_pct}%
                 </span>
+                </>) : <Skeleton className="h-5 w-28" />}
               </div>
             </div>
 
@@ -138,11 +155,12 @@ export function VisualTargetTrackingCockpit({ data, showEst = true, hideHeader =
                         {metric.label}
                       </span>
                       <span className="text-[9.5px] font-mono font-medium text-slate-500 block">
-                        {fmt(metric.actual)} / {fmt(metric.target)}
+                        <SkeletonOr ready={ready} className="h-2 w-20">{fmt(metric.actual)} / {fmt(metric.target)}</SkeletonOr>
                       </span>
                     </div>
 
                     {/* Progress Bar Container with vertical benchmark line */}
+                    {!ready ? <Skeleton className="flex-1 h-5" /> : (
                     <div className="flex-1 relative h-5 bg-slate-100 rounded-md overflow-hidden flex items-center">
                       {/* Vertical Benchmark Line for % Month Gone */}
                       <div
@@ -164,12 +182,13 @@ export function VisualTargetTrackingCockpit({ data, showEst = true, hideHeader =
                         </span>
                       </div>
                     </div>
+                    )}
 
                     {/* Right Readout: %Est Target Hit */}
                     {showEst && (
                       <div className="w-11 text-right shrink-0">
                         <span className={`font-mono text-xs sm:text-sm font-black ${hitColor}`}>
-                          {metric.est_target_hit_pct}%
+                          <SkeletonOr ready={ready} className="h-3 w-8">{metric.est_target_hit_pct}%</SkeletonOr>
                         </span>
                       </div>
                     )}
@@ -188,7 +207,7 @@ export function VisualTargetTrackingCockpit({ data, showEst = true, hideHeader =
               </div>
               <div>
                 <span className="text-base sm:text-lg font-black text-red-700 leading-none block">
-                  {monthly_tracking.counts.below}
+                  <SkeletonOr ready={ready} className="h-4 w-5">{monthly_tracking.counts.below}</SkeletonOr>
                 </span>
                 <span className="text-[9px] font-bold text-red-600 uppercase tracking-tight block">
                   Below Target (&lt;90%)
@@ -203,7 +222,7 @@ export function VisualTargetTrackingCockpit({ data, showEst = true, hideHeader =
               </div>
               <div>
                 <span className="text-base sm:text-lg font-black text-blue-700 leading-none block">
-                  {monthly_tracking.counts.near}
+                  <SkeletonOr ready={ready} className="h-4 w-5">{monthly_tracking.counts.near}</SkeletonOr>
                 </span>
                 <span className="text-[9px] font-bold text-blue-600 uppercase tracking-tight block">
                   Near Target (90-100%)
@@ -218,7 +237,7 @@ export function VisualTargetTrackingCockpit({ data, showEst = true, hideHeader =
               </div>
               <div>
                 <span className="text-base sm:text-lg font-black text-emerald-700 leading-none block">
-                  {monthly_tracking.counts.ahead}
+                  <SkeletonOr ready={ready} className="h-4 w-5">{monthly_tracking.counts.ahead}</SkeletonOr>
                 </span>
                 <span className="text-[9px] font-bold text-emerald-600 uppercase tracking-tight block">
                   Ahead (&gt;100%)
@@ -236,15 +255,17 @@ export function VisualTargetTrackingCockpit({ data, showEst = true, hideHeader =
             {/* Card Header with Year Days Gone */}
             <div className="flex items-center justify-between pb-4 border-b border-slate-100">
               <h3 className="text-base sm:text-lg font-black text-slate-900">
-                YTD Tracking ({ytd_tracking.year})
+                YTD Tracking (<SkeletonOr ready={ready} className="h-4 w-10">{ytd_tracking.year}</SkeletonOr>)
               </h3>
               <div className="flex items-center gap-1.5">
+                {ready ? (<>
                 <span className="text-xs sm:text-sm font-black text-slate-700">
                   {ytd_tracking.days_gone} Days Gone
                 </span>
                 <span className="px-2 py-0.5 rounded-lg border border-blue-200 bg-blue-50 text-xs sm:text-sm font-black font-mono text-[#0c4ca3]">
                   {ytd_tracking.days_gone_pct}%
                 </span>
+                </>) : <Skeleton className="h-5 w-28" />}
               </div>
             </div>
 
@@ -276,11 +297,12 @@ export function VisualTargetTrackingCockpit({ data, showEst = true, hideHeader =
                         {metric.label}
                       </span>
                       <span className="text-[9.5px] font-mono font-medium text-slate-500 block">
-                        {fmt(metric.ytd_actual)} / {fmt(metric.ytd_target)}
+                        <SkeletonOr ready={ready} className="h-2 w-24">{fmt(metric.ytd_actual)} / {fmt(metric.ytd_target)}</SkeletonOr>
                       </span>
                     </div>
 
                     {/* Progress Bar Container with vertical benchmark line */}
+                    {!ready ? <Skeleton className="flex-1 h-5" /> : (
                     <div className="flex-1 relative h-5 bg-slate-100 rounded-md overflow-hidden flex items-center">
                       {/* Vertical Benchmark Line for % Year Gone */}
                       <div
@@ -298,12 +320,13 @@ export function VisualTargetTrackingCockpit({ data, showEst = true, hideHeader =
                         </span>
                       </div>
                     </div>
+                    )}
 
                     {/* Right Readout: Est. Year End % */}
                     {showEst && (
                       <div className="w-11 text-right shrink-0">
                         <span className={`font-mono text-xs sm:text-sm font-black ${hitColor}`}>
-                          {metric.est_year_end_pct}%
+                          <SkeletonOr ready={ready} className="h-3 w-8">{metric.est_year_end_pct}%</SkeletonOr>
                         </span>
                       </div>
                     )}
@@ -322,7 +345,7 @@ export function VisualTargetTrackingCockpit({ data, showEst = true, hideHeader =
               </div>
               <div>
                 <span className="text-base sm:text-lg font-black text-red-700 leading-none block">
-                  {ytd_tracking.counts.below}
+                  <SkeletonOr ready={ready} className="h-4 w-5">{ytd_tracking.counts.below}</SkeletonOr>
                 </span>
                 <span className="text-[9px] font-bold text-red-600 uppercase tracking-tight block">
                   Below Target (&lt;90%)
@@ -337,7 +360,7 @@ export function VisualTargetTrackingCockpit({ data, showEst = true, hideHeader =
               </div>
               <div>
                 <span className="text-base sm:text-lg font-black text-blue-700 leading-none block">
-                  {ytd_tracking.counts.near}
+                  <SkeletonOr ready={ready} className="h-4 w-5">{ytd_tracking.counts.near}</SkeletonOr>
                 </span>
                 <span className="text-[9px] font-bold text-blue-600 uppercase tracking-tight block">
                   Near Target (90-100%)
@@ -352,7 +375,7 @@ export function VisualTargetTrackingCockpit({ data, showEst = true, hideHeader =
               </div>
               <div>
                 <span className="text-base sm:text-lg font-black text-emerald-700 leading-none block">
-                  {ytd_tracking.counts.ahead}
+                  <SkeletonOr ready={ready} className="h-4 w-5">{ytd_tracking.counts.ahead}</SkeletonOr>
                 </span>
                 <span className="text-[9px] font-bold text-emerald-600 uppercase tracking-tight block">
                   Ahead (&gt;100%)

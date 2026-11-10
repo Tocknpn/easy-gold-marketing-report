@@ -5,6 +5,8 @@ import { MtdReportPayload, MtdQuery } from '@/lib/types/mtd.types';
 import { MtdBuyActivitySection } from './MtdBuyActivitySection';
 import { MtdSellActivitySection } from './MtdSellActivitySection';
 import { MtdPlatformSection } from './MtdPlatformSection';
+import { MtdSkeletonContext } from './MtdMetricCard';
+import { Skeleton } from '../Skeleton';
 import { 
   Calendar, 
   RefreshCw, 
@@ -19,9 +21,11 @@ interface MtdReportViewProps {
   onRefresh?: (query?: MtdQuery) => Promise<void>;
   loading?: boolean;
   error?: string | null;
+  /** No real data yet: keep titles, show skeletons for every number, month and date. */
+  isSkeleton?: boolean;
 }
 
-export function MtdReportView({ initialData, onRefresh, loading = false, error = null }: MtdReportViewProps) {
+export function MtdReportView({ initialData, onRefresh, loading = false, error = null, isSkeleton = false }: MtdReportViewProps) {
   const [selectedReportMonth, setSelectedReportMonth] = useState<string>(
     initialData.current_month_label || "Oct'26"
   );
@@ -242,6 +246,65 @@ export function MtdReportView({ initialData, onRefresh, loading = false, error =
   const signed = (n: number) => (n > 0 ? `+${n}%` : `${n}%`);
   const chipTone = (n: number) =>
     n >= 0 ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-rose-50 text-rose-700 border-rose-200';
+
+  if (isSkeleton) {
+    return (
+      <div className="w-full flex flex-col gap-4" aria-busy="true">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 pb-2 border-b border-slate-200/80">
+          <div>
+            <h1 className="text-2xl sm:text-3xl lg:text-[34px] font-black text-brand-navy tracking-tight flex items-center gap-2 flex-wrap">
+              <span>Overall performance MTD and Forecast vs</span>
+              <Skeleton className="h-8 w-24" />
+            </h1>
+            <div className="mt-1.5 flex items-center gap-2 sm:gap-3 flex-wrap text-xs">
+              <span className="font-bold text-brand-navyLight">Data up to date</span>
+              <Skeleton className="h-3 w-20" />
+              <span className="text-slate-300">•</span>
+              <span className="text-slate-500 font-medium">Elapsed:</span>
+              <Skeleton className="h-3 w-28" />
+              <span className="text-slate-300">•</span>
+              <Skeleton className="h-5 w-36" />
+              <Skeleton className="h-5 w-44" />
+            </div>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <Skeleton className="h-8 w-40 rounded-xl" />
+            <Skeleton className="h-8 w-36 rounded-xl" />
+            <Skeleton className="h-8 w-28 rounded-xl" />
+            <Skeleton className="h-8 w-44 rounded-xl" />
+            <Skeleton className="h-8 w-24 rounded-xl" />
+            <Skeleton className="h-8 w-24 rounded-xl" />
+          </div>
+        </div>
+        <MtdSkeletonContext.Provider value={true}>
+          <div className="grid grid-cols-1 xl:grid-cols-7 gap-3 sm:gap-3.5 items-stretch">
+            <div className="xl:col-span-2 flex flex-col">
+              <MtdBuyActivitySection
+                buyWeight={initialData.metrics.buy_weight_g}
+                buyTransactions={initialData.metrics.buy_transactions}
+                comparisonMonthLabel=""
+              />
+            </div>
+            <div className="xl:col-span-3 flex flex-col">
+              <MtdSellActivitySection
+                sellWeight={initialData.metrics.sell_weight_g}
+                sellTransactions={initialData.metrics.sell_transactions}
+                withdraw15g={initialData.metrics.withdraw_15g}
+                comparisonMonthLabel=""
+              />
+            </div>
+            <div className="xl:col-span-2 flex flex-col">
+              <MtdPlatformSection
+                newCustomers={initialData.metrics.new_customers}
+                totalTransactions={initialData.metrics.total_transactions}
+                comparisonMonthLabel=""
+              />
+            </div>
+          </div>
+        </MtdSkeletonContext.Provider>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full flex flex-col gap-4">

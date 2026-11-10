@@ -18,6 +18,8 @@ import { SystemCheckAndValidationModal } from '@/components/dashboard/audit/Syst
 import { ReportingPdfModal } from '@/components/dashboard/reports/ReportingPdfModal';
 import { FreshnessBadge } from '@/components/dashboard/FreshnessBadge';
 import { ExecutivePulseBanner } from '@/components/dashboard/ExecutivePulseBanner';
+import { Skeleton } from '@/components/dashboard/Skeleton';
+import { WeeklySkeleton } from '@/components/dashboard/weekly/WeeklySkeleton';
 import { prorateWeeklyRow, calculateVariance } from '@/lib/utils/runRate';
 import { ExecutiveDashboardData, WeeklyMetricRow, MetricVariances } from '@/lib/types/dashboard.types';
 import { MtdReportPayload, MtdQuery } from '@/lib/types/mtd.types';
@@ -134,6 +136,8 @@ export default function DashboardPage() {
   // Weekly data state initialized with default data
   const [weeklyData, setWeeklyData] = useState<ExecutiveDashboardData>(DEFAULT_WEEKLY_FALLBACK_DATA);
   const [weeklyLoading, setWeeklyLoading] = useState(false);
+  // True once real weekly data has arrived. Until then the WoW views show skeletons, not the built-in defaults.
+  const [weeklyReady, setWeeklyReady] = useState(false);
   const [weeklyError, setWeeklyError] = useState<string | null>(null);
   const [selectedWeekLabel, setSelectedWeekLabel] = useState<string>(DEFAULT_WEEKLY_FALLBACK_DATA.current_week.week_label || 'W43');
   const [isProratedWoW, setIsProratedWoW] = useState<boolean>(false);
@@ -142,6 +146,8 @@ export default function DashboardPage() {
   // MTD data state initialized with default values for instant render
   const [mtdData, setMtdData] = useState<MtdReportPayload>(DEFAULT_MTD_PAYLOAD);
   const [mtdLoading, setMtdLoading] = useState(false);
+  // True once real MTD data has arrived. Until then the MTD views and Quick Brief show skeletons.
+  const [mtdReady, setMtdReady] = useState(false);
   const [mtdError, setMtdError] = useState<string | null>(null);
   // Last filters used by the MTD report, so page-level refreshes keep the user's selection
   const mtdQueryRef = useRef<MtdQuery>({});
@@ -185,6 +191,7 @@ export default function DashboardPage() {
       const json: ExecutiveDashboardData = await res.json();
       if (json && json.current_week) {
         setWeeklyData(json);
+        setWeeklyReady(true);
         setWeeklyError(null);
         if (json.current_week?.week_label) {
           setSelectedWeekLabel(json.current_week.week_label);
@@ -241,6 +248,7 @@ export default function DashboardPage() {
       const json = await res.json();
       if (json?.metrics) {
         setMtdData(json as MtdReportPayload);
+        setMtdReady(true);
         setMtdError(null);
       } else {
         setMtdError(json?.error || `MTD report failed (HTTP ${res.status})`);
@@ -927,6 +935,8 @@ export default function DashboardPage() {
               weeklyVolumeBaht={activeWeeklyMetrics ? Number(activeWeeklyMetrics.currentWeek.buy_weight_15g) : 1912}
               weeklyWoWVariance={activeWeeklyMetrics ? activeWeeklyMetrics.variances.buy_weight_15g : -36}
               isPartialWeek={activeWeeklyMetrics?.isPartial ?? true}
+              mtdReady={mtdReady}
+              weeklyReady={weeklyReady}
               onNavigateTab={(tab) => handleTabChange(tab)}
             />
             <TargetReportView />
@@ -943,17 +953,13 @@ export default function DashboardPage() {
         {/* TAB 1: MTD & FORECAST REPORT */}
         {activeReportTab === 'mtd' && (
           <div role="tabpanel" id="panel-mtd" aria-labelledby="tab-mtd" tabIndex={0} className="focus:outline-hidden">
-            {mtdLoading && !mtdData ? (
-              <div className="flex-1 flex flex-col items-center justify-center gap-3 py-24 text-slate-500">
-                <RefreshCw className="w-8 h-8 animate-spin text-brand-navy" />
-                <p className="font-semibold text-sm">Loading MTD and Forecast Report...</p>
-              </div>
-            ) : mtdData ? (
+            {mtdReady || !mtdError ? (
               <MtdReportView
                 initialData={mtdData}
                 onRefresh={fetchMtdData}
                 loading={mtdLoading}
                 error={mtdError}
+                isSkeleton={!mtdReady}
               />
             ) : mtdError ? (
               <div className="p-6 rounded-2xl bg-amber-50 border border-amber-300 text-amber-900 text-sm space-y-3">
@@ -982,10 +988,21 @@ export default function DashboardPage() {
               <div>
                 <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black text-brand-navy tracking-tight flex items-center gap-2.5 flex-wrap">
                   <span>Overall Performance Week over Week</span>
+                  {weeklyReady ? (
                   <span className="px-3 py-0.5 rounded-xl bg-blue-50 text-brand-navy border border-blue-200 text-xl sm:text-2xl lg:text-3xl font-black font-mono tabular-nums">
                     {activeWeeklyMetrics?.currentWeek.week_label || selectedWeekLabel}
                   </span>
+                  ) : <Skeleton className="h-9 w-20 rounded-xl" />}
                 </h1>
+                {!weeklyReady ? (
+                  <div className="mt-2 flex items-center gap-2 sm:gap-3 flex-wrap text-xs">
+                    <span className="font-bold text-brand-navyLight">Data up to date</span>
+                    <Skeleton className="h-3 w-20" />
+                    <span className="text-slate-300">•</span>
+                    <span className="text-slate-500 font-medium">Period:</span>
+                    <Skeleton className="h-3 w-40" />
+                  </div>
+                ) : (
                 <div className="mt-1.5 flex items-center gap-2 sm:gap-3 flex-wrap">
                   <span className="text-xs sm:text-sm font-bold text-brand-navyLight underline underline-offset-2">
                     Data up to date {formatDisplayDate(activeWeeklyMetrics?.isPartial ? (mtdData?.as_of_date || mtdData?.latest_data_date || activeWeeklyMetrics?.currentWeek.start_date) : activeWeeklyMetrics?.currentWeek.end_date)}
@@ -995,9 +1012,13 @@ export default function DashboardPage() {
                     Period: {activeWeeklyMetrics?.currentWeek.start_date} to {activeWeeklyMetrics?.currentWeek.end_date}
                   </span>
                 </div>
+                )}
               </div>
 
               {/* Week Selector Controls */}
+              {!weeklyReady ? (
+                <Skeleton className="h-9 w-64 rounded-xl" />
+              ) : (
               <div className="flex items-center gap-1.5 sm:gap-2 bg-white px-2.5 sm:px-3 py-1.5 rounded-xl border border-slate-300/80 shadow-xs flex-wrap">
                 <div className="flex items-center gap-1">
                   <button
@@ -1066,14 +1087,12 @@ export default function DashboardPage() {
                   <RefreshCw className={`w-3.5 h-3.5 ${weeklyLoading ? 'animate-spin' : ''}`} />
                 </button>
               </div>
+              )}
             </div>
 
             {/* Weekly Content */}
-            {weeklyLoading && !activeWeeklyMetrics ? (
-              <div className="flex-1 flex flex-col items-center justify-center gap-3 py-20 text-slate-500">
-                <RefreshCw className="w-8 h-8 animate-spin text-[#0c4ca3]" />
-                <p className="font-semibold text-sm">Loading Weekly Performance Report...</p>
-              </div>
+            {!weeklyReady ? (
+              <WeeklySkeleton />
             ) : activeWeeklyMetrics ? (
               <main className={`flex-1 flex flex-col justify-between ${densityMode === 'compact' ? 'gap-2 sm:gap-2.5' : 'gap-3 sm:gap-3.5'}`}>
                 {/* 1. Partial week controls moved into week filter bar */}
