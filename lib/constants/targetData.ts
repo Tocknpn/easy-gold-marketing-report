@@ -510,6 +510,28 @@ export function calculateRunRateComparison(
   let momSameSum = 0;
   let rowCount = 0;
 
+  // Withdraw (15g), same formulas as the rows below, but not part of the Run Rate tables
+  const w15RrProjected = Math.round(cur_withdraw_15g * runRateMultiplier);
+  const withdraw_15g_row: RunRateRowData = {
+    id: 'withdraw_15g',
+    label: 'Withdraw (15g)',
+    section: 'neutral',
+    format: 'number',
+    comp_full_month: comp_full_withdraw_15g,
+    cur_mtd: cur_withdraw_15g,
+    rr_projected: w15RrProjected,
+    diff_full: w15RrProjected - comp_full_withdraw_15g,
+    mom_full_pct: comp_full_withdraw_15g > 0
+      ? Math.round(((w15RrProjected - comp_full_withdraw_15g) / comp_full_withdraw_15g) * 100)
+      : 0,
+    comp_same_period: comp_same_withdraw_15g,
+    cur_same_period: cur_withdraw_15g,
+    diff_same: cur_withdraw_15g - comp_same_withdraw_15g,
+    mom_same_pct: comp_same_withdraw_15g > 0
+      ? Math.round(((cur_withdraw_15g - comp_same_withdraw_15g) / comp_same_withdraw_15g) * 100)
+      : 0,
+  };
+
   const rows: RunRateRowData[] = metricDefs.map((m) => {
     // RR = (Current MTD / Days) * Total Days
     const rr_projected = Math.round(m.cur_mtd * runRateMultiplier);
@@ -702,6 +724,7 @@ export function calculateRunRateComparison(
     table1_avg_mom,
     table2_avg_mom,
     rows,
+    withdraw_15g_row,
     monthly_tracking: {
       days_gone: clampedDay,
       days_gone_pct: timeGonePct,

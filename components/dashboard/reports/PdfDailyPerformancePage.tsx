@@ -96,11 +96,14 @@ export function PdfDailyPerformancePage({
     { id: 'sell_weight_g', label: 'Sell Weight (Baht)', div: 15 },
     { id: 'sell_transactions', label: 'Sell Transactions', div: 1 },
     { id: 'new_customer', label: 'New Register', div: 1 },
-    { id: 'withdraw_refund', label: 'Withdraw + Refund', div: 1 },
+    // Same 7 metrics as the MTD Forecast cards, so "Average of the 7 measures" matches that page
+    { id: 'withdraw_15g', label: 'Withdraw (15g)', div: 1 },
     { id: 'total_transactions', label: 'Total Transactions', div: 1 },
   ]
     .map((t) => {
-      const r = runRate.rows.find((q) => q.id === t.id);
+      const r = t.id === 'withdraw_15g'
+        ? runRate.withdraw_15g_row
+        : runRate.rows.find((q) => q.id === t.id);
       return r ? { ...t, r } : null;
     })
     .filter((t): t is NonNullable<typeof t> => t !== null);

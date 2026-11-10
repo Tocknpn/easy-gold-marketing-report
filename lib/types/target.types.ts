@@ -59,6 +59,9 @@ export interface RunRateComparisonPayload {
   table2_avg_mom: number;
 
   rows: RunRateRowData[];
+  /** Withdraw (15g) in baht units. Kept out of `rows` so the Run Rate tables are unchanged.
+   *  Used by the "Average of the 7 measures" (same 7 metrics as the MTD Forecast cards). */
+  withdraw_15g_row: RunRateRowData;
 
   // Visual tracking cards for Image 3
   monthly_tracking: {
