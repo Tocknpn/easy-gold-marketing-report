@@ -31,7 +31,6 @@ export function MetricKpiCard({
 }: MetricKpiCardProps) {
   const isPositive = variancePercent > 0;
   const isNegative = variancePercent < 0;
-  const isNeutral = variancePercent === 0;
 
   // Formatting display value
   const formattedValue =
@@ -41,23 +40,9 @@ export function MetricKpiCard({
         : value.toLocaleString()
       : value;
 
-  // Partial week: pace = 7-day run-rate vs last week's full total (last week = point before the selected week)
-  const estimateNum =
-    proratedEstimate === undefined ? undefined : Number(String(proratedEstimate).replace(/,/g, ''));
-  const showRunRate = isPartialWeek && estimateNum !== undefined && Number.isFinite(estimateNum);
-  const selIdx = historyData.findIndex((h) => h.week === selectedWeek);
-  const prevValue = selIdx > 0 ? historyData[selIdx - 1].value : undefined;
-  const pacePct =
-    showRunRate && prevValue && prevValue > 0 ? Math.round(((estimateNum as number) / prevValue - 1) * 100) : undefined;
-  const pace =
-    pacePct === undefined
-      ? null
-      : pacePct >= 5
-      ? { label: 'Fast', arrow: '▲', cls: 'text-emerald-700 bg-emerald-50 border-emerald-200/80' }
-      : pacePct <= -5
-      ? { label: 'Slow', arrow: '▼', cls: 'text-rose-700 bg-rose-50 border-rose-200/80' }
-      : { label: 'Steady', arrow: '●', cls: 'text-slate-700 bg-slate-50 border-slate-200' };
-  const estimateText =
+  // Partial week: 7-day run-rate landing, shown as a small chip next to the value
+  const showLanding = isPartialWeek && proratedEstimate !== undefined;
+  const landingText =
     typeof proratedEstimate === 'number' ? proratedEstimate.toLocaleString() : proratedEstimate;
 
   // Curated border & indicator styling
@@ -84,7 +69,7 @@ export function MetricKpiCard({
       }`}
     >
       <div>
-        {/* Title Row with Domain Status Indicator */}
+        {/* Row 1: title + WoW % */}
         <div className="flex items-center justify-between gap-1 mb-1.5">
           <div className="flex items-center gap-1.5 min-w-0">
             <span
@@ -96,56 +81,39 @@ export function MetricKpiCard({
               {title}
             </h4>
           </div>
-          {subtitle && (
-            <span className="text-[11px] text-slate-500 font-semibold shrink-0 uppercase tracking-wider">
-              {subtitle}
+          <div className="flex items-center gap-1.5 shrink-0">
+            {subtitle && (
+              <span className="text-[11px] text-slate-500 font-semibold uppercase tracking-wider">
+                {subtitle}
+              </span>
+            )}
+            <span
+              className={`px-1.5 py-0.5 rounded text-[11px] font-bold font-mono tabular-nums border ${
+                isPositive
+                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200/80'
+                  : isNegative
+                  ? 'bg-rose-50 text-rose-700 border-rose-200/80'
+                  : 'bg-slate-100 text-slate-600 border-slate-200'
+              }`}
+            >
+              {isPositive ? `+${variancePercent}%` : `${variancePercent}%`}
             </span>
-          )}
+          </div>
         </div>
 
-        {/* Hero KPI Number + Variance Badge */}
-        <div className={`flex justify-between gap-2 my-1 ${showRunRate ? 'items-start' : 'items-baseline'}`}>
+        {/* Row 2: current value + 7-day landing (partial week only) */}
+        <div className="flex items-center justify-between gap-2 my-1">
           <div className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight font-mono tabular-nums leading-none">
             {formattedValue}
           </div>
-
-          {/* Step 1: WoW so far. Step 2 (partial week): pace. Step 3: 7-day landing. */}
-          <div className="shrink-0 flex flex-col items-end gap-1">
-            {isNeutral && (
-              <span className="px-1.5 py-0.5 rounded text-[11px] font-bold font-mono tabular-nums bg-slate-100 text-slate-600 border border-slate-200">
-                0%
-              </span>
-            )}
-            {isPositive && (
-              <span className="px-1.5 py-0.5 rounded text-[11px] font-bold font-mono tabular-nums bg-emerald-50 text-emerald-700 border border-emerald-200/80">
-                +{variancePercent}%
-              </span>
-            )}
-            {isNegative && (
-              <span className="px-1.5 py-0.5 rounded text-[11px] font-bold font-mono tabular-nums border bg-rose-50 text-rose-700 border-rose-200/80">
-                {variancePercent}%
-              </span>
-            )}
-
-            {showRunRate && (
-              <>
-                {pace && (
-                  <span
-                    className={`px-1.5 py-0.5 rounded text-[10px] font-black border tabular-nums whitespace-nowrap ${pace.cls}`}
-                    title="7-day run-rate vs last week's full total"
-                  >
-                    {pace.arrow} {pace.label} {pacePct! > 0 ? `+${pacePct}` : pacePct}%
-                  </span>
-                )}
-                <span
-                  className="text-[10px] font-semibold text-slate-500 whitespace-nowrap"
-                  title="Expected full-week total at the current daily pace"
-                >
-                  Landing <span className="font-black font-mono tabular-nums text-slate-900">{estimateText}</span>
-                </span>
-              </>
-            )}
-          </div>
+          {showLanding && (
+            <span
+              className="shrink-0 px-1.5 py-0.5 rounded-md border border-slate-200 bg-slate-50 text-[10px] font-semibold text-slate-500 whitespace-nowrap"
+              title="Expected full-week total at the current daily pace (7-day run-rate)"
+            >
+              Landing <span className="font-bold font-mono tabular-nums text-slate-700">{landingText}</span>
+            </span>
+          )}
         </div>
       </div>
 
@@ -156,7 +124,7 @@ export function MetricKpiCard({
           themeColor={themeColor}
           selectedWeek={selectedWeek}
           isDecimal={isDecimal}
-          height={32}
+          height={56}
         />
       </div>
     </div>
