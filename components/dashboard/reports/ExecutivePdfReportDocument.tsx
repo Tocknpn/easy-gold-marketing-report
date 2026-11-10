@@ -121,13 +121,15 @@ export function ExecutivePdfReportDocument({
 }: ExecutivePdfReportDocumentProps) {
   // Compute Executive Pulse statistics dynamically matching live front tab
   const pulseStats = useMemo(() => {
-    const octTarget = DEFAULT_2026_TARGETS.find(t => t.month === currentMonth) || DEFAULT_2026_TARGETS[9];
-    
-    const curNc = momMtdData?.metrics?.new_customers?.current_mtd || 1571;
-    const curBuyTx = momMtdData?.metrics?.buy_transactions?.current_mtd || 90253;
-    const curBuyWt = (momMtdData?.metrics?.buy_weight_g?.current_mtd ? momMtdData.metrics.buy_weight_g.current_mtd * 15 : 142751);
-    const curSellTx = momMtdData?.metrics?.sell_transactions?.current_mtd || 35016;
-    const curSellWt = (momMtdData?.metrics?.sell_weight_g?.current_mtd ? momMtdData.metrics.sell_weight_g.current_mtd * 15 : 59251);
+    // Same calculation as the live Quick Brief (app/page.tsx): report month's target, real actuals, no made-up fallbacks
+    const octTarget = DEFAULT_2026_TARGETS.find(t => t.month === currentMonth) || DEFAULT_2026_TARGETS[0];
+
+    const m0 = momMtdData?.metrics;
+    const curNc = m0?.new_customers?.current_mtd ?? 0;
+    const curBuyTx = m0?.buy_transactions?.current_mtd ?? 0;
+    const curBuyWt = (m0?.buy_weight_g?.current_mtd ?? 0) * 15;
+    const curSellTx = m0?.sell_transactions?.current_mtd ?? 0;
+    const curSellWt = (m0?.sell_weight_g?.current_mtd ?? 0) * 15;
 
     const ncPct = octTarget.target_nc > 0 ? (curNc / octTarget.target_nc) * 100 : 0;
     const buyTxPct = octTarget.buy_trans > 0 ? (curBuyTx / octTarget.buy_trans) * 100 : 0;
@@ -136,12 +138,12 @@ export function ExecutivePdfReportDocument({
     const sellWtPct = octTarget.sell_weight_g > 0 ? (curSellWt / octTarget.sell_weight_g) * 100 : 0;
 
     const avgPace = (ncPct + buyTxPct + buyWtPct + sellTxPct + sellWtPct) / 5;
-    const daysGone = momMtdData?.elapsed_days || 21;
-    const totalDays = momMtdData?.total_days_current_month || 31;
+    const daysGone = momMtdData?.elapsed_days || 0;
+    const totalDays = momMtdData?.total_days_current_month || 0;
     const estLanding = daysGone > 0 ? avgPace * (totalDays / daysGone) : avgPace;
 
     // Est MoM average
-    let avgEstLandingMoM = -4;
+    let avgEstLandingMoM = 0;
     if (momMtdData?.metrics) {
       const m = momMtdData.metrics;
       const list = [
@@ -218,13 +220,13 @@ export function ExecutivePdfReportDocument({
               totalDays={pulseStats.totalDays}
               mtdCompMonthLabel={comparisonMonthLabel}
               avgEstLandingMoMPct={pulseStats.avgEstLandingMoM}
-              totalTransactionsMtd={momMtdData?.metrics?.total_transactions?.current_mtd || 127982}
-              totalTransactionsMoMPct={momMtdData?.metrics?.total_transactions?.mtd_variance_percent || 16}
-              newCustomersMtd={momMtdData?.metrics?.new_customers?.current_mtd || 1571}
-              newCustomersMoMPct={momMtdData?.metrics?.new_customers?.mtd_variance_percent || -27}
+              totalTransactionsMtd={momMtdData?.metrics?.total_transactions?.current_mtd ?? 0}
+              totalTransactionsMoMPct={momMtdData?.metrics?.total_transactions?.mtd_variance_percent ?? 0}
+              newCustomersMtd={momMtdData?.metrics?.new_customers?.current_mtd ?? 0}
+              newCustomersMoMPct={momMtdData?.metrics?.new_customers?.mtd_variance_percent ?? 0}
               activeWeekLabel={selectedWeekLabel}
-              weeklyVolumeBaht={Number((weeklyRawWeek ?? weeklyCurrentWeek)?.buy_weight_15g || 1912)}
-              weeklyWoWVariance={weeklyVariances?.buy_weight_15g || -26}
+              weeklyVolumeBaht={Number((weeklyRawWeek ?? weeklyCurrentWeek)?.buy_weight_15g ?? 0)}
+              weeklyWoWVariance={weeklyVariances?.buy_weight_15g ?? 0}
               isPartialWeek={isPartialWeek}
               onNavigateTab={() => {}}
             />

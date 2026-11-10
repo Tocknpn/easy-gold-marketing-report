@@ -215,18 +215,15 @@ export function PdfMtdMetricCard({
 
         {/* Velocity Callout (Single Clean Row) */}
         <div className="px-2 py-1.5 rounded-xl bg-slate-50 border border-slate-200/80 text-[10.5px] flex items-center justify-between gap-1 whitespace-nowrap">
-          <div className="flex items-center gap-1 text-slate-500 font-semibold shrink-0">
+          <div className="flex items-center gap-1 shrink-0 tabular-nums">
             <Gauge className="w-3.5 h-3.5 text-[#0c4ca3] shrink-0" />
-            <span>Avg.:</span>
-          </div>
-          <div className="font-extrabold text-slate-800 shrink-0 flex items-center gap-1 tabular-nums">
-            <span>{currentDailyRate.toLocaleString()}</span>
+            <span className="text-slate-500 font-semibold">Avg.:</span>
+            <span className="font-extrabold text-slate-800">{currentDailyRate.toLocaleString()}</span>
             <span className="text-slate-400 font-normal">/d</span>
-            <span className="text-slate-300">|</span>
-            <span className={targetDailyRate > currentDailyRate ? 'text-amber-700' : 'text-emerald-700'}>
-              Need {targetDailyRate.toLocaleString()}/d
-            </span>
           </div>
+          <span className={`font-extrabold shrink-0 tabular-nums ${targetDailyRate > currentDailyRate ? 'text-amber-700' : 'text-emerald-700'}`}>
+            Need {targetDailyRate.toLocaleString()}/d
+          </span>
         </div>
       </div>
     </div>
