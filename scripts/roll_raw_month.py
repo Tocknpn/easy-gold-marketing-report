@@ -150,7 +150,20 @@ def storage_line(base, key):
         return f"Storage status unavailable: {err}"
 
 
+def check_database_connection():
+    """Read-only check on every run, so a wrong SUPABASE_DB_URL shows up today, not on rollover day."""
+    if not os.environ.get("SUPABASE_DB_URL"):
+        say("Database connection: SUPABASE_DB_URL not set here, skipped")
+        return
+    role = psql("SELECT current_user")
+    can_delete = psql("SELECT has_function_privilege('public.delete_raw_month(text)', 'EXECUTE')")
+    if can_delete != "t":
+        raise ExportError(f"connected as {role}, but that role cannot run delete_raw_month.")
+    say(f"Database connection OK (as {role}, can run the monthly delete)")
+
+
 def rollover(base, key, dry_run):
+    check_database_connection()
     oldest, latest, skip = decide(base, key)
     if skip:
         say(skip)
