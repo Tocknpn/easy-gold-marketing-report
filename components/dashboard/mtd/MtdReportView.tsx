@@ -8,13 +8,8 @@ import { MtdPlatformSection } from './MtdPlatformSection';
 import { 
   Calendar, 
   RefreshCw, 
-  Info,
-  Clock,
   Sparkles,
-  Filter,
   FileSpreadsheet,
-  ChevronDown,
-  ChevronUp,
   Loader2,
   AlertTriangle
 } from 'lucide-react';
@@ -39,9 +34,7 @@ export function MtdReportView({ initialData, onRefresh, loading = false, error =
   const [hasExecuted, setHasExecuted] = useState<boolean>(true);
   const [isExecuting, setIsExecuting] = useState<boolean>(false);
   const [isExporting, setIsExporting] = useState<boolean>(false);
-  const [isSlicersExpanded, setIsSlicersExpanded] = useState<boolean>(false);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
-  const [showFormulaInfo, setShowFormulaInfo] = useState<boolean>(false);
   const [executionTimestamp, setExecutionTimestamp] = useState<string>(() => new Date().toLocaleTimeString());
 
   // Dynamically compile all available months from payload
@@ -237,11 +230,18 @@ export function MtdReportView({ initialData, onRefresh, loading = false, error =
 
   const elapsedPercent = Math.round((displayedData.elapsed_days / displayedData.total_days_current_month) * 100);
 
-  // Active filters count
-  const activeSlicersCount = [
-    asOfDate !== initialData.as_of_date ? 1 : 0,
-    forecastScenario !== 'standard' ? 1 : 0,
-  ].reduce((a, b) => a + b, 0);
+  // Simple average of the 7 cards' % vs the comparison month (same method as the Quick Brief)
+  const avgCompare = useMemo(() => {
+    const list = Object.values(displayedData.metrics);
+    if (list.length === 0) return { mtd: 0, est: 0 };
+    const avg = (pick: (m: (typeof list)[number]) => number) =>
+      Math.round(list.reduce((s, m) => s + pick(m), 0) / list.length);
+    return { mtd: avg((m) => m.mtd_variance_percent), est: avg((m) => m.forecast_variance_percent) };
+  }, [displayedData]);
+
+  const signed = (n: number) => (n > 0 ? `+${n}%` : `${n}%`);
+  const chipTone = (n: number) =>
+    n >= 0 ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-rose-50 text-rose-700 border-rose-200';
 
   return (
     <div className="w-full flex flex-col gap-4">
@@ -280,18 +280,18 @@ export function MtdReportView({ initialData, onRefresh, loading = false, error =
               Elapsed: {displayedData.elapsed_days} / {displayedData.total_days_current_month} days ({elapsedPercent}% of month)
             </span>
             <span className="text-slate-300">•</span>
-            <span className="text-[11px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200 flex items-center gap-1">
-              <Clock className="w-3 h-3" />
-              Run-Rate Forecast
-            </span>
-            <button
-              onClick={() => setShowFormulaInfo(!showFormulaInfo)}
-              className="text-xs text-slate-500 hover:text-brand-navy font-medium flex items-center gap-1 transition-colors"
-              title="Click to view formula calculation details"
+            <span
+              className={`text-[11px] font-bold px-2 py-0.5 rounded-md border whitespace-nowrap ${chipTone(avgCompare.mtd)}`}
+              title={`Average of the 7 metrics: MTD vs same period of ${displayedData.comparison_month_label}`}
             >
-              <Info className="w-3.5 h-3.5 text-slate-400" />
-              <span>How it works</span>
-            </button>
+              Avg MTD vs {displayedData.comparison_month_label}: <span className="font-black">{signed(avgCompare.mtd)}</span>
+            </span>
+            <span
+              className={`text-[11px] font-bold px-2 py-0.5 rounded-md border whitespace-nowrap ${chipTone(avgCompare.est)}`}
+              title={`Average of the 7 metrics: Est. month end vs full ${displayedData.comparison_month_label}`}
+            >
+              Avg Est. Month-End vs {displayedData.comparison_month_label}: <span className="font-black">{signed(avgCompare.est)}</span>
+            </span>
           </div>
         </div>
 
@@ -333,21 +333,32 @@ export function MtdReportView({ initialData, onRefresh, loading = false, error =
             </select>
           </div>
 
-          {/* Toggle Slicers Dropdown Button */}
-          <button
-            onClick={() => setIsSlicersExpanded(!isSlicersExpanded)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-slate-300/80 text-xs font-bold text-slate-700 hover:bg-slate-50 shadow-xs transition-all cursor-pointer"
-            title="Filter by Cutoff Date & Forecast Scenario"
-          >
-            <Filter className="w-3.5 h-3.5 text-brand-navy" />
-            <span>Filters</span>
-            {activeSlicersCount > 0 && (
-              <span className="w-4 h-4 rounded-full bg-brand-navy text-white text-[10px] flex items-center justify-center font-black">
-                {activeSlicersCount}
-              </span>
-            )}
-            {isSlicersExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-          </button>
+          {/* 3. Cutoff As-Of Date */}
+          <input
+            type="date"
+            value={asOfDate}
+            min="2025-01-01"
+            max="2026-12-31"
+            onChange={(e) => setAsOfDate(e.target.value)}
+            className="text-xs font-black text-slate-800 bg-white border border-slate-300/80 rounded-xl px-2.5 py-1.5 shadow-xs cursor-pointer focus:ring-1 focus:ring-brand-navy focus:outline-hidden"
+            title="Cutoff As-Of Date"
+          />
+
+          {/* 4. Forecast Model Scenario */}
+          <div className="relative flex items-center">
+            <Sparkles className="w-3.5 h-3.5 text-brand-navy absolute left-2.5 pointer-events-none" />
+            <select
+              value={forecastScenario}
+              onChange={(e) => setForecastScenario(e.target.value as any)}
+              className="text-xs font-black text-brand-navy bg-blue-50/60 border border-blue-200 rounded-xl pl-8 pr-3 py-1.5 shadow-xs cursor-pointer focus:ring-1 focus:ring-brand-navy"
+              title="Forecast Model Scenario"
+            >
+              <option value="standard">Linear Run-Rate (Standard)</option>
+              <option value="payday_surge">Payday Surge (+15%)</option>
+              <option value="conservative">Conservative (-10%)</option>
+              <option value="optimistic">Optimistic (+10%)</option>
+            </select>
+          </div>
 
           {/* Calculate MTD Report Button */}
           <button
@@ -388,99 +399,6 @@ export function MtdReportView({ initialData, onRefresh, loading = false, error =
           </button>
         </div>
       </div>
-
-      {/* Collapsible Advanced Filters Bar (Date Cutoff & Forecast Scenario) */}
-      {isSlicersExpanded && (
-        <div className="bg-white rounded-2xl p-4 border border-slate-200/90 shadow-sm space-y-3 animate-in fade-in duration-200">
-          <div className="flex items-center justify-between pb-2 border-b border-slate-100 flex-wrap gap-2">
-            <div className="flex items-center gap-2">
-              <Filter className="w-4 h-4 text-brand-navy" />
-              <span className="text-xs font-black uppercase tracking-wider text-slate-800">
-                MTD Slicers &amp; Forecast Scenarios
-              </span>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl">
-            {/* 1. As-Of Cutoff Date Picker */}
-            <div className="flex flex-col gap-1">
-              <label className="text-[11px] font-bold text-slate-600 flex items-center gap-1.5">
-                <Calendar className="w-3.5 h-3.5 text-brand-navy" />
-                <span>Cutoff As-Of Date</span>
-              </label>
-              <input
-                type="date"
-                value={asOfDate}
-                min="2025-01-01"
-                max="2026-12-31"
-                onChange={(e) => setAsOfDate(e.target.value)}
-                className="text-xs font-semibold bg-slate-50 border border-slate-300 rounded-xl px-2.5 py-1.5 focus:ring-2 focus:ring-brand-navy focus:outline-hidden text-slate-800"
-              />
-            </div>
-
-            {/* 2. Forecast Model Scenario */}
-            <div className="flex flex-col gap-1">
-              <label className="text-[11px] font-bold text-slate-600 flex items-center gap-1.5">
-                <Sparkles className="w-3.5 h-3.5 text-brand-navy" />
-                <span>Forecast Model Scenario</span>
-              </label>
-              <select
-                value={forecastScenario}
-                onChange={(e) => setForecastScenario(e.target.value as any)}
-                className="text-xs font-semibold bg-blue-50/60 border border-blue-200 text-brand-navy rounded-xl px-2.5 py-1.5 focus:ring-2 focus:ring-brand-navy focus:outline-hidden"
-              >
-                <option value="standard">Linear Run-Rate (Standard)</option>
-                <option value="payday_surge">Payday Surge (+15% Month-End Payroll Rally)</option>
-                <option value="conservative">Conservative (-10% Outliers Excluded)</option>
-                <option value="optimistic">Optimistic (+10% Month-End Rally)</option>
-              </select>
-            </div>
-          </div>
-
-          <div className="bg-slate-50 border border-slate-200 text-slate-600 text-[11px] rounded-xl px-3 py-1.5 flex items-center gap-2">
-            <Info className="w-3.5 h-3.5 text-brand-navy shrink-0" />
-            <span>
-              <strong>Note:</strong> MTD Forecast displays certified company-wide consolidated ledger metrics. For granular ad-hoc bank or branch dimensional analysis, switch to <strong>Dynamic BI</strong> or <strong>Power Pivot Studio</strong>.
-            </span>
-          </div>
-        </div>
-      )}
-
-      {/* Optional Formula Explainer Collapsible Banner */}
-      {showFormulaInfo && (
-        <div className="bg-gradient-to-r from-blue-50 to-indigo-50/70 border border-blue-200/80 rounded-xl p-3.5 text-xs text-slate-700 animate-in fade-in duration-200 shadow-xs">
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex items-start gap-2.5">
-              <Sparkles className="w-4 h-4 text-brand-navy shrink-0 mt-0.5" />
-              <div className="space-y-1">
-                <p className="font-bold text-slate-900">
-                  Business Intelligence Methodology (MTD &amp; Forecast Landing):
-                </p>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-slate-600">
-                  <div>
-                    <span className="font-semibold text-slate-800">&bull; MTD State:</span> Actual accumulated metrics from Day 1 to Day {displayedData.elapsed_days} ({displayedData.display_as_of_date}).
-                  </div>
-                  <div>
-                    <span className="font-semibold text-slate-800">&bull; vs. {displayedData.comparison_month_label}:</span> Compared to the exact same period (Day 1 to {displayedData.elapsed_days}) of {displayedData.comparison_month_label}.
-                  </div>
-                  <div>
-                    <span className="font-semibold text-slate-800">&bull; Est. Month End:</span> Projected landing via linear run rate: <code className="bg-white/80 px-1 py-0.5 rounded border border-slate-200 font-mono text-[11px]">(MTD / {displayedData.elapsed_days}) &times; {displayedData.total_days_current_month} days</code>.
-                  </div>
-                  <div>
-                    <span className="font-semibold text-slate-800">&bull; vs. Full {displayedData.comparison_month_label}:</span> Compared to the full completed total of {displayedData.comparison_month_label}.
-                  </div>
-                </div>
-              </div>
-            </div>
-            <button
-              onClick={() => setShowFormulaInfo(false)}
-              className="text-slate-400 hover:text-slate-600 font-bold px-1 cursor-pointer"
-            >
-              ✕
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* 2. Main Executive Grid OR Empty "Ready to Calculate" State */}
       {!hasExecuted ? (

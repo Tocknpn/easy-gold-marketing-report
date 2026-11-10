@@ -626,12 +626,14 @@ export function calculateRunRateComparison(
   const totalAnnualSellTx = customTargets.reduce((s, t) => s + t.sell_trans, 0);
   const totalAnnualSellWt = customTargets.reduce((s, t) => s + t.sell_weight_g, 0);
 
-  // YTD Actuals from live rows or verified baseline
-  const ytdActualNc = ytd_nc > 0 ? ytd_nc : Math.round(totalAnnualNc * 0.50);
-  const ytdActualBuyTx = ytd_buy_tx > 0 ? ytd_buy_tx : Math.round(totalAnnualBuyTx * 0.65);
-  const ytdActualBuyWt = ytd_buy_wt > 0 ? ytd_buy_wt : Math.round(totalAnnualBuyWt * 1.03);
-  const ytdActualSellTx = ytd_sell_tx > 0 ? ytd_sell_tx : Math.round(totalAnnualSellTx * 0.60);
-  const ytdActualSellWt = ytd_sell_wt > 0 ? ytd_sell_wt : Math.round(totalAnnualSellWt * 0.90);
+  // YTD Actuals. Missing data shows 0, never an estimate.
+  // YTD status (Below / Near / Ahead) uses actual progress vs the annual target.
+  // Monthly status uses %Est Target Hit, because actual progress mid-month is always low.
+  const ytdActualNc = ytd_nc;
+  const ytdActualBuyTx = ytd_buy_tx;
+  const ytdActualBuyWt = ytd_buy_wt;
+  const ytdActualSellTx = ytd_sell_tx;
+  const ytdActualSellWt = ytd_sell_wt;
 
   const calcEstEnd = (act: number, tgt: number) =>
     tgt > 0 && ytdDaysElapsed > 0 ? Math.round(((act / ytdDaysElapsed) * 365 / tgt) * 100) : 0;
@@ -644,7 +646,7 @@ export function calculateRunRateComparison(
       ytd_target: totalAnnualNc,
       current_pct: Math.round((ytdActualNc / totalAnnualNc) * 100),
       est_year_end_pct: calcEstEnd(ytdActualNc, totalAnnualNc),
-      status: getStatus(calcEstEnd(ytdActualNc, totalAnnualNc)),
+      status: getStatus(Math.round((ytdActualNc / totalAnnualNc) * 100)),
     },
     {
       id: 'buy_tx',
@@ -653,7 +655,7 @@ export function calculateRunRateComparison(
       ytd_target: totalAnnualBuyTx,
       current_pct: Math.round((ytdActualBuyTx / totalAnnualBuyTx) * 100),
       est_year_end_pct: calcEstEnd(ytdActualBuyTx, totalAnnualBuyTx),
-      status: getStatus(calcEstEnd(ytdActualBuyTx, totalAnnualBuyTx)),
+      status: getStatus(Math.round((ytdActualBuyTx / totalAnnualBuyTx) * 100)),
     },
     {
       id: 'buy_wt',
@@ -662,7 +664,7 @@ export function calculateRunRateComparison(
       ytd_target: totalAnnualBuyWt,
       current_pct: Math.round((ytdActualBuyWt / totalAnnualBuyWt) * 100),
       est_year_end_pct: calcEstEnd(ytdActualBuyWt, totalAnnualBuyWt),
-      status: getStatus(calcEstEnd(ytdActualBuyWt, totalAnnualBuyWt)),
+      status: getStatus(Math.round((ytdActualBuyWt / totalAnnualBuyWt) * 100)),
     },
     {
       id: 'sell_tx',
@@ -671,7 +673,7 @@ export function calculateRunRateComparison(
       ytd_target: totalAnnualSellTx,
       current_pct: Math.round((ytdActualSellTx / totalAnnualSellTx) * 100),
       est_year_end_pct: calcEstEnd(ytdActualSellTx, totalAnnualSellTx),
-      status: getStatus(calcEstEnd(ytdActualSellTx, totalAnnualSellTx)),
+      status: getStatus(Math.round((ytdActualSellTx / totalAnnualSellTx) * 100)),
     },
     {
       id: 'sell_wt',
@@ -680,7 +682,7 @@ export function calculateRunRateComparison(
       ytd_target: totalAnnualSellWt,
       current_pct: Math.round((ytdActualSellWt / totalAnnualSellWt) * 100),
       est_year_end_pct: calcEstEnd(ytdActualSellWt, totalAnnualSellWt),
-      status: getStatus(calcEstEnd(ytdActualSellWt, totalAnnualSellWt)),
+      status: getStatus(Math.round((ytdActualSellWt / totalAnnualSellWt) * 100)),
     },
   ];
 

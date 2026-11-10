@@ -62,7 +62,7 @@ export function ExecutivePulseBanner({
   isPartialWeek,
   onNavigateTab,
 }: ExecutivePulseProps) {
-  const timeElapsedPct = totalDays > 0 ? Math.round((daysGone / totalDays) * 100) : 68;
+  const timeElapsedPct = totalDays > 0 ? Math.round((daysGone / totalDays) * 100) : 0;
   const isTargetAhead = targetPacePct >= timeElapsedPct;
   const isLandingPositive = avgEstLandingMoMPct >= 0;
   const isTotalTxPositive = totalTransactionsMoMPct >= 0;
@@ -109,8 +109,11 @@ export function ExecutivePulseBanner({
                 {isTargetAhead ? '▲ Ahead' : '▼ Behind'}
               </span>
             </div>
-            <span className="text-[10px] text-slate-500 font-bold font-mono">
+            <span className="flex items-center gap-1 text-[10px] text-slate-500 font-bold font-mono whitespace-nowrap">
               Day {daysGone}/{totalDays}
+              <span className="px-1.5 py-0.5 rounded-md border border-blue-200 bg-blue-50 text-[10px] font-black text-[#0c4ca3]">
+                {timeElapsedPct}%
+              </span>
             </span>
           </div>
           <p className="text-[10.5px] text-slate-600 font-medium mt-1.5 line-clamp-1">

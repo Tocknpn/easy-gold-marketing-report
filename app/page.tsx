@@ -146,6 +146,15 @@ export default function DashboardPage() {
   // Last filters used by the MTD report, so page-level refreshes keep the user's selection
   const mtdQueryRef = useRef<MtdQuery>({});
 
+  // Sticky header: show a soft shadow once the page scrolls under it
+  const [isHeaderScrolled, setIsHeaderScrolled] = useState(false);
+  useEffect(() => {
+    const onScroll = () => setIsHeaderScrolled(window.scrollY > 4);
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
   // Fetch weekly summary with cache-busting & resilient status/content-type checks
   const fetchWeeklySummary = async () => {
     setWeeklyLoading(true);
@@ -434,29 +443,42 @@ export default function DashboardPage() {
 
   // 1. Business Target Pacing (tracks the 5 official metrics of the target month in Business Target)
   const targetPacingStats = useMemo(() => {
-    // Current target month: October 2026 (month 10) by default or latest month
-    const octTarget = DEFAULT_2026_TARGETS.find(t => t.month === 10) || DEFAULT_2026_TARGETS[9];
-    
-    // October actuals from latest MTD or verified daily summary
-    const curNc = mtdData?.metrics?.new_customers?.current_mtd || 1571;
-    const curBuyTx = mtdData?.metrics?.buy_transactions?.current_mtd || 90253;
-    const curBuyWt = (mtdData?.metrics?.buy_weight_g?.current_mtd ? mtdData.metrics.buy_weight_g.current_mtd * 15 : 142751);
-    const curSellTx = mtdData?.metrics?.sell_transactions?.current_mtd || 35016;
-    const curSellWt = (mtdData?.metrics?.sell_weight_g?.current_mtd ? mtdData.metrics.sell_weight_g.current_mtd * 15 : 59251);
+    // Target month = the month of the MTD data (the latest data month by default)
+    const year = mtdData?.current_month_year || 2026;
+    const month = mtdData?.current_month_num || 1;
+    let targets: typeof DEFAULT_2026_TARGETS = DEFAULT_2026_TARGETS;
+    try {
+      const saved = typeof window !== 'undefined' ? localStorage.getItem('easy_gold_2026_targets') : null;
+      if (saved) targets = JSON.parse(saved);
+    } catch {
+      // ignore, use defaults
+    }
+    const target =
+      targets.find(t => t.month === month && t.year === year) ||
+      DEFAULT_2026_TARGETS.find(t => t.month === month) ||
+      DEFAULT_2026_TARGETS[0];
 
-    const ncPct = octTarget.target_nc > 0 ? (curNc / octTarget.target_nc) * 100 : 0;
-    const buyTxPct = octTarget.buy_trans > 0 ? (curBuyTx / octTarget.buy_trans) * 100 : 0;
-    const buyWtPct = octTarget.buy_weight_g > 0 ? (curBuyWt / octTarget.buy_weight_g) * 100 : 0;
-    const sellTxPct = octTarget.sell_trans > 0 ? (curSellTx / octTarget.sell_trans) * 100 : 0;
-    const sellWtPct = octTarget.sell_weight_g > 0 ? (curSellWt / octTarget.sell_weight_g) * 100 : 0;
+    // Actuals from the MTD report. Weights come in baht (15 g); targets are in grams.
+    const m = mtdData?.metrics;
+    const curNc = m?.new_customers?.current_mtd ?? 0;
+    const curBuyTx = m?.buy_transactions?.current_mtd ?? 0;
+    const curBuyWt = (m?.buy_weight_g?.current_mtd ?? 0) * 15;
+    const curSellTx = m?.sell_transactions?.current_mtd ?? 0;
+    const curSellWt = (m?.sell_weight_g?.current_mtd ?? 0) * 15;
 
-    const avgPace = (ncPct + buyTxPct + buyWtPct + sellTxPct + sellWtPct) / 5;
-    const elapsedDays = mtdData?.elapsed_days || 21;
-    const totalDays = mtdData?.total_days_current_month || 31;
+    const pct = (actual: number, tgt: number) => (tgt > 0 ? (actual / tgt) * 100 : 0);
+    const avgPace =
+      (pct(curNc, target.target_nc) +
+        pct(curBuyTx, target.buy_trans) +
+        pct(curBuyWt, target.buy_weight_g) +
+        pct(curSellTx, target.sell_trans) +
+        pct(curSellWt, target.sell_weight_g)) / 5;
+    const elapsedDays = mtdData?.elapsed_days || 0;
+    const totalDays = mtdData?.total_days_current_month || 0;
     const estLanding = elapsedDays > 0 ? avgPace * (totalDays / elapsedDays) : avgPace;
 
     return {
-      monthLabel: "Oct'26",
+      monthLabel: mtdData?.current_month_label || `${target.month_label}'${String(year).slice(-2)}`,
       avgPace: Number(avgPace.toFixed(1)),
       estLanding: Number(estLanding.toFixed(0)),
       elapsedDays,
@@ -548,9 +570,17 @@ export default function DashboardPage() {
   return (
     <div className="min-h-screen bg-[#f3f5f9] text-slate-900 flex flex-col select-none">
       {/* Main Executive Report Content Area */}
-      <div className="flex-1 flex flex-col p-3 sm:p-5 lg:p-6 overflow-x-hidden min-w-0">
-        {/* Tier 1: Brand Logo & Executive Reporting Tabs & Sandwich Menu */}
-        <header className="flex flex-col xl:flex-row xl:items-center justify-between pb-3 mb-3.5 border-b border-slate-200/90 gap-3 min-w-0">
+      {/* overflow-x-clip (not hidden) so the sticky header can pin to the page scroll */}
+      <div className="flex-1 flex flex-col p-3 sm:p-5 lg:p-6 overflow-x-clip min-w-0">
+        {/* Tier 1: Brand Logo & Executive Reporting Tabs & Sandwich Menu (pinned on scroll) */}
+        <header
+          id="app-sticky-header"
+          className={`sticky top-0 z-40 -mx-3 sm:-mx-5 lg:-mx-6 -mt-3 sm:-mt-5 lg:-mt-6 px-3 sm:px-5 lg:px-6 pt-3 sm:pt-4 flex flex-col xl:flex-row xl:items-center justify-between pb-3 mb-3.5 border-b gap-3 min-w-0 bg-[#f3f5f9]/90 backdrop-blur-md transition-[box-shadow,border-color] duration-300 ease-out ${
+            isHeaderScrolled
+              ? 'shadow-[0_6px_20px_-10px_rgba(15,23,42,0.25)] border-slate-200'
+              : 'border-slate-200/90'
+          }`}
+        >
           {/* Left & Center: Brand Identity + Integrated Navigation Tabs */}
           <div className="flex items-center gap-3 sm:gap-4 min-w-0 flex-1 overflow-x-auto scrollbar-none">
             {/* Brand Logo */}

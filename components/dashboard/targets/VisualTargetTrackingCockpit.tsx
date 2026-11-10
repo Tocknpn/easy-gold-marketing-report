@@ -26,6 +26,13 @@ interface VisualTargetTrackingCockpitProps {
 
 const fmt = (n: number) => Math.round(n).toLocaleString();
 
+// Bar and % colors follow the same status as the Below / Near / Ahead cards.
+const STATUS_STYLE: Record<'below' | 'near' | 'ahead', { bar: string; text: string }> = {
+  below: { bar: 'bg-[#ef4444]', text: 'text-slate-900' },
+  near: { bar: 'bg-blue-600', text: 'text-blue-700' },
+  ahead: { bar: 'bg-[#10b981]', text: 'text-[#10b981]' },
+};
+
 export function VisualTargetTrackingCockpit({ data, showEst = true, hideHeader = false, filterControls }: VisualTargetTrackingCockpitProps) {
   const {
     current_month_label,
@@ -116,9 +123,7 @@ export function VisualTargetTrackingCockpit({ data, showEst = true, hideHeader =
             {/* Metrics List with Progress Bars & Benchmark Line */}
             <div className="space-y-2.5">
               {monthly_tracking.metrics.map((metric) => {
-                const isAhead = metric.est_target_hit_pct >= 100;
-                const barColor = isAhead ? 'bg-[#10b981]' : 'bg-[#ef4444]';
-                const hitColor = isAhead ? 'text-[#10b981]' : 'text-slate-900';
+                const { bar: barColor, text: hitColor } = STATUS_STYLE[metric.status];
 
                 return (
                   <div key={`m-${metric.id}`} className="flex items-center gap-3">
@@ -256,9 +261,7 @@ export function VisualTargetTrackingCockpit({ data, showEst = true, hideHeader =
             {/* Metrics List with Progress Bars & Benchmark Line */}
             <div className="space-y-2.5">
               {ytd_tracking.metrics.map((metric) => {
-                const isAhead = metric.est_year_end_pct >= 100;
-                const barColor = isAhead ? 'bg-[#10b981]' : 'bg-[#ef4444]';
-                const hitColor = isAhead ? 'text-[#10b981]' : 'text-slate-900';
+                const { bar: barColor, text: hitColor } = STATUS_STYLE[metric.status];
 
                 return (
                   <div key={`ytd-${metric.id}`} className="flex items-center gap-3">

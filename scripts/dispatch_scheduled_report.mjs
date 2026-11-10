@@ -491,6 +491,8 @@ async function main() {
     // Fallback direct selector snapshot if hook returned empty
     if (!snapshots?.quickBriefBase64) {
       try {
+        // Unpin the sticky header so it cannot cover the element screenshots
+        await page.addStyleTag({ content: '#app-sticky-header{position:static !important}' });
         const qbHandle = await page.$('#email-snap-quick-brief');
         if (qbHandle) {
           const buf = await qbHandle.screenshot({ type: 'jpeg', quality: 92 });
