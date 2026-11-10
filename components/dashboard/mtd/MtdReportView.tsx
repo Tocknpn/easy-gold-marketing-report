@@ -16,6 +16,23 @@ import {
   AlertTriangle
 } from 'lucide-react';
 
+const METHOD_ORDER: MtdForecastMethod[] = ['standard', 'ma28', 'hybrid', 'ets'];
+
+const METHOD_LABEL: Record<MtdForecastMethod, string> = {
+  standard: 'Linear Run-Rate (Standard)',
+  ma28: 'MA 28-day × Day-of-Week',
+  hybrid: 'Hybrid Trend (EMA × Day-of-Week × Payday)',
+  ets: 'Holt-Winters ETS (weekly)',
+};
+
+/** Metric field holding each server-side method's month-end estimate (Linear is computed here). */
+const METHOD_FIELD: Record<MtdForecastMethod, 'est_month_end_ma28' | 'est_month_end_hybrid' | 'est_month_end_ets' | null> = {
+  standard: null,
+  ma28: 'est_month_end_ma28',
+  hybrid: 'est_month_end_hybrid',
+  ets: 'est_month_end_ets',
+};
+
 interface MtdReportViewProps {
   initialData: MtdReportPayload;
   onRefresh?: (query?: MtdQuery) => Promise<void>;
@@ -159,11 +176,20 @@ export function MtdReportView({ initialData, onRefresh, loading = false, error =
       const mtdVar = compMtd > 0 ? Math.round(((currentMtd - compMtd) / compMtd) * 100) : 0;
       
       const linearLanding = Math.round(currentMtd * runRateMultiplier);
-      // Hybrid Trend comes from the server (sql/65); without it, stay on linear.
-      const useHybrid = forecastScenario === 'hybrid' && typeof base.est_month_end_hybrid === 'number';
-      const estLanding = useHybrid ? Math.round(base.est_month_end_hybrid as number) : linearLanding;
+      // MA28 / Hybrid / ETS come from the server (sql/65); a missing one stays on linear.
+      const serverEst = METHOD_FIELD[forecastScenario] ? base[METHOD_FIELD[forecastScenario]!] : undefined;
+      const usesServer = typeof serverEst === 'number';
+      const estLanding = usesServer ? Math.round(serverEst as number) : linearLanding;
       const fullComp = base.full_comp_month;
       const estVar = fullComp > 0 ? Math.round(((estLanding - fullComp) / fullComp) * 100) : 0;
+
+      // ~80% range: est +/- 1.28 x daily error spread (ETS) x remaining days.
+      // Backtest Aug-Oct 2026: the actual landed inside it about 85% of the time.
+      const sigma = base.ets?.resid_sigma;
+      const daysLeft = base.ets?.remaining_days ?? 0;
+      const halfWidth = typeof sigma === 'number' && sigma > 0 && daysLeft > 0 ? 1.28 * sigma * daysLeft : 0;
+      const estLow = halfWidth > 0 ? Math.max(currentMtd, Math.round(estLanding - halfWidth)) : undefined;
+      const estHigh = halfWidth > 0 ? Math.round(estLanding + halfWidth) : undefined;
 
       updatedMetrics[mKey] = {
         ...base,
@@ -173,8 +199,9 @@ export function MtdReportView({ initialData, onRefresh, loading = false, error =
         est_month_end: estLanding,
         full_comp_month: fullComp,
         forecast_variance_percent: estVar,
-        // The card shows the hybrid breakdown only while Hybrid is selected.
-        hybrid: useHybrid ? base.hybrid : undefined,
+        forecast_method: usesServer ? forecastScenario : 'standard',
+        est_low: estLow,
+        est_high: estHigh,
       };
     });
 
@@ -208,18 +235,19 @@ export function MtdReportView({ initialData, onRefresh, loading = false, error =
         `EASY GOLD - MTD AND FORECAST PERFORMANCE REPORT`,
         `Report Month: ${selectedReportMonth}, As Of Date: ${displayedData.display_as_of_date}, Comparison Month: ${displayedData.comparison_month_label}`,
         `Elapsed Days: ${displayedData.elapsed_days} / ${displayedData.total_days_current_month} (${Math.round((displayedData.elapsed_days / displayedData.total_days_current_month) * 100)}%)`,
-        `Forecast Method: ${forecastScenario === 'hybrid' ? 'Hybrid Trend (EMA x Day-of-Week x Payday)' : 'Linear Run-Rate'}`,
+        `Forecast Method: ${METHOD_LABEL[forecastScenario]}`,
         ``,
-        `Metric Name,Current MTD,Comp MTD,MTD Variance %,Est. Month End (Selected),Est. Month End (Linear),Est. Month End (Hybrid),Full Comp Month,Forecast Variance %`,
+        `Metric Name,Current MTD,Comp MTD,MTD Variance %,Est. Month End (Selected),Range Low (80%),Range High (80%),Est. Month End (Linear),Est. Month End (MA28 x DOW),Est. Month End (Hybrid),Est. Month End (ETS),Full Comp Month,Forecast Variance %`,
       ];
 
       const linearMultiplier = displayedData.total_days_current_month / Math.max(1, displayedData.elapsed_days);
       Object.values(displayedData.metrics).forEach((m) => {
         const cleanName = metricLabelMap[m.id] || m.label;
         const linear = Math.round(m.current_mtd * linearMultiplier);
-        const hybrid = initialData.metrics[m.id as keyof typeof initialData.metrics]?.est_month_end_hybrid;
+        const src = initialData.metrics[m.id as keyof typeof initialData.metrics];
+        const cell = (v: number | undefined) => (typeof v === 'number' ? String(v) : '');
         rows.push(
-          `"${cleanName}",${m.current_mtd},${m.comp_mtd},${m.mtd_variance_percent}%,${m.est_month_end},${linear},${hybrid ?? ''},${m.full_comp_month},${m.forecast_variance_percent}%`
+          `"${cleanName}",${m.current_mtd},${m.comp_mtd},${m.mtd_variance_percent}%,${m.est_month_end},${cell(m.est_low)},${cell(m.est_high)},${linear},${cell(src?.est_month_end_ma28)},${cell(src?.est_month_end_hybrid)},${cell(src?.est_month_end_ets)},${m.full_comp_month},${m.forecast_variance_percent}%`
         );
       });
 
@@ -237,9 +265,10 @@ export function MtdReportView({ initialData, onRefresh, loading = false, error =
     }
   };
 
-  const hybridAvailable = Object.values(initialData.metrics || {}).some(
-    (m) => typeof m?.est_month_end_hybrid === 'number'
-  );
+  const isAvailable = (method: MtdForecastMethod) => {
+    const field = METHOD_FIELD[method];
+    return !field || Object.values(initialData.metrics || {}).some((m) => typeof m?.[field] === 'number');
+  };
 
   const elapsedPercent = Math.round((displayedData.elapsed_days / displayedData.total_days_current_month) * 100);
 
@@ -423,12 +452,13 @@ export function MtdReportView({ initialData, onRefresh, loading = false, error =
               value={forecastScenario}
               onChange={(e) => setForecastScenario(e.target.value as MtdForecastMethod)}
               className="text-xs font-black text-brand-navy bg-blue-50/60 border border-blue-200 rounded-xl pl-8 pr-3 py-1.5 shadow-xs cursor-pointer focus:ring-1 focus:ring-brand-navy"
-              title="Linear: MTD x days in month / days elapsed. Hybrid: each remaining day = 14-day EMA base x day-of-week index (60 days) x payday factor (25th-EOM, last 2 months)."
+              title="Linear: MTD x days in month / days elapsed. MA28 x DOW: 28-day average x day-of-week index x payday factor. Hybrid: 14-day EMA base x day-of-week index (60 days) x payday factor (25th-EOM, last 2 months). ETS: Holt-Winters with weekly season and damped trend (like Excel FORECAST.ETS)."
             >
-              <option value="standard">Linear Run-Rate (Standard)</option>
-              <option value="hybrid" disabled={!hybridAvailable}>
-                {hybridAvailable ? 'Hybrid Trend (EMA × Day-of-Week × Payday)' : 'Hybrid Trend (not available yet)'}
-              </option>
+              {METHOD_ORDER.map((method) => (
+                <option key={method} value={method} disabled={!isAvailable(method)}>
+                  {isAvailable(method) ? METHOD_LABEL[method] : `${METHOD_LABEL[method]} (not available yet)`}
+                </option>
+              ))}
             </select>
           </div>
 

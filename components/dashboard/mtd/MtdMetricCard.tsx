@@ -20,24 +20,64 @@ import {
 } from 'lucide-react';
 import { Skeleton } from '../Skeleton';
 
-function hybridTooltip(metric: MtdMetricItem): string {
+const fmt = (n: number | null | undefined, d = 0) =>
+  Number(n ?? 0).toLocaleString(undefined, { minimumFractionDigits: d, maximumFractionDigits: d });
+
+/** Short label and hover text explaining how the selected method built Est. Month End. */
+function forecastInfo(metric: MtdMetricItem): { label: string; tooltip: string } | null {
+  const method = metric.forecast_method;
   const h = metric.hybrid;
-  if (!h) return '';
-  const fmt = (n: number, d = 0) =>
-    Number(n).toLocaleString(undefined, { minimumFractionDigits: d, maximumFractionDigits: d });
-  const lines = [
-    'Hybrid Trend forecast',
-    `Fresh base: ${fmt(h.base_per_day, metric.is_decimal ? 1 : 0)} / day (14-day EMA)`,
-    `Payday factor (25th-EOM): x${fmt(h.payday_factor, 2)}`,
-    `Day-of-week index: ${fmt(h.dow_min, 2)} - ${fmt(h.dow_max, 2)}`,
-    `Remaining ${h.remaining_days} days forecast: ${fmt(h.remaining_forecast)}`,
-    `= MTD ${fmt(metric.current_mtd)} + ${fmt(h.remaining_forecast)}`,
-    'Holidays not adjusted.',
-  ];
-  if (h.fallback) {
-    lines.push(`Fallback to linear: only ${h.history_days} days of history (needs 28).`);
+  const e = metric.ets;
+  const dp = metric.is_decimal ? 1 : 0;
+  let label = '';
+  let fallback = false;
+  let historyDays = 0;
+  const lines: string[] = [];
+
+  if (method === 'hybrid' && h) {
+    label = 'Hybrid';
+    fallback = h.fallback;
+    historyDays = h.history_days;
+    lines.push(
+      'Hybrid Trend forecast',
+      `Fresh base: ${fmt(h.base_per_day, dp)} / day (14-day EMA)`,
+      `Payday factor (25th-EOM): x${fmt(h.payday_factor, 2)}`,
+      `Day-of-week index: ${fmt(h.dow_min, 2)} - ${fmt(h.dow_max, 2)}`,
+      `Remaining ${h.remaining_days} days forecast: ${fmt(h.remaining_forecast)}`,
+    );
+  } else if (method === 'ma28' && h) {
+    label = 'MA28';
+    fallback = h.fallback;
+    historyDays = h.history_days;
+    lines.push(
+      'MA 28-day x Day-of-Week forecast',
+      `Base: ${fmt(h.ma28_base_per_day, dp)} / day (28-day average)`,
+      `Payday factor (25th-EOM): x${fmt(h.payday_factor, 2)}`,
+      `Day-of-week index: ${fmt(h.dow_min, 2)} - ${fmt(h.dow_max, 2)}`,
+    );
+  } else if (method === 'ets' && e) {
+    label = 'ETS';
+    fallback = e.fallback;
+    historyDays = e.history_days;
+    lines.push(
+      'Holt-Winters ETS forecast (weekly season, damped trend)',
+      `Fitted alpha ${e.alpha ?? '-'} / beta ${e.beta ?? '-'} / gamma ${e.gamma ?? '-'}`,
+      `Typical daily error: ${fmt(e.resid_sigma, dp)}`,
+      'Payday effect not modelled.',
+    );
+  } else {
+    return null;
   }
-  return lines.join(String.fromCharCode(10));
+
+  if (typeof metric.est_low === 'number' && typeof metric.est_high === 'number') {
+    lines.push(`80% range: ${fmt(metric.est_low)} - ${fmt(metric.est_high)}`);
+  }
+  lines.push('Holidays not adjusted.');
+  if (fallback) {
+    label = 'Linear*';
+    lines.push(`Fallback to linear: only ${historyDays} days of history (needs 28).`);
+  }
+  return { label, tooltip: lines.join(String.fromCharCode(10)) };
 }
 
 /** True while the MTD report has no real data yet: cards show labels with skeleton values. */
@@ -92,6 +132,7 @@ export function MtdMetricCard({
   const currentDailyRate = Math.round(metric.current_mtd / Math.max(1, elapsedDays));
   // Required benchmark daily run-rate across the month to hit previous month total (e.g. 123,977 / 31 = 3,999/d)
   const targetDailyRate = Math.round(metric.full_comp_month / Math.max(1, totalDays));
+  const info = forecastInfo(metric);
   
   // Pacing Health: % Target Achieved vs % Month Elapsed
   const targetAchievedPct = metric.full_comp_month > 0 
@@ -282,19 +323,27 @@ export function MtdMetricCard({
           <div>
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight flex items-center gap-1">
               Est. Month End
-              {metric.hybrid && (
+              {info && (
                 <span
                   className="inline-flex items-center gap-0.5 normal-case text-brand-navy cursor-help"
-                  title={hybridTooltip(metric)}
+                  title={info.tooltip}
                 >
                   <Info className="w-3 h-3" />
-                  <span className="text-[9px] font-black">{metric.hybrid.fallback ? 'Linear*' : 'Hybrid'}</span>
+                  <span className="text-[9px] font-black">{info.label}</span>
                 </span>
               )}
             </span>
             <div className="text-lg sm:text-xl font-black text-slate-800 tracking-tight leading-none mt-0.5">
               {metric.est_month_end.toLocaleString()}
             </div>
+            {typeof metric.est_low === 'number' && typeof metric.est_high === 'number' && (
+              <div
+                className="text-[9px] font-semibold text-slate-400 mt-1 whitespace-nowrap"
+                title="About 80% chance the month ends inside this range (based on recent daily forecast errors)."
+              >
+                80% range {metric.est_low.toLocaleString()} – {metric.est_high.toLocaleString()}
+              </div>
+            )}
           </div>
 
           <div className="text-left">

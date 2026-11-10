@@ -18,9 +18,30 @@ export interface MtdMetricItem {
   /** Hybrid Trend month-end estimate (sql/65). Missing when the function is not deployed. */
   est_month_end_hybrid?: number;
   hybrid?: MtdHybridDetail;
+  /** MA 28-day x Day-of-Week month-end estimate (sql/65). */
+  est_month_end_ma28?: number;
+  /** Holt-Winters ETS month-end estimate (sql/65). */
+  est_month_end_ets?: number;
+  ets?: MtdEtsDetail;
+  /** Set by the page: the method behind est_month_end, and its ~80% range. */
+  forecast_method?: MtdForecastMethod;
+  est_low?: number;
+  est_high?: number;
 }
 
-export type MtdForecastMethod = 'standard' | 'hybrid';
+export type MtdForecastMethod = 'standard' | 'ma28' | 'hybrid' | 'ets';
+
+export interface MtdEtsDetail {
+  est_month_end_ets: number;
+  alpha?: number;
+  beta?: number;
+  gamma?: number;
+  /** Spread of one-day forecast errors (last 28 days). Null on fallback. */
+  resid_sigma: number | null;
+  remaining_days: number;
+  history_days: number;
+  fallback: boolean;
+}
 
 export interface MtdHybridDetail {
   est_month_end_hybrid: number;
@@ -32,6 +53,8 @@ export interface MtdHybridDetail {
   remaining_days: number;
   history_days: number;
   fallback: boolean;
+  est_month_end_ma28?: number;
+  ma28_base_per_day?: number;
 }
 
 export interface MtdReportPayload {

@@ -46,25 +46,29 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: data?.error || 'MTD RPC returned no data.' }, { status: 502 });
     }
 
-    // Hybrid Trend forecast (sql/65_mtd_hybrid_forecast.sql), merged into each metric.
-    // Optional: if the function is not deployed yet the page simply stays on Linear.
+    // Extra forecast methods (sql/65_mtd_hybrid_forecast.sql), merged into each metric.
+    // Optional: if a function is not deployed yet, its options stay disabled on the page.
     if (data.as_of_date) {
-      const { data: hybrid, error: hybridError } = await supabase.rpc('mtd_hybrid_forecast', {
-        p_as_of: data.as_of_date,
-      });
-      if (hybridError) {
-        console.warn('MTD hybrid forecast unavailable:', hybridError.message);
-      } else if (hybrid && typeof hybrid === 'object') {
-        for (const key of Object.keys(data.metrics)) {
-          const h = (hybrid as Record<string, any>)[key];
-          if (h) {
-            data.metrics[key] = {
-              ...data.metrics[key],
-              est_month_end_hybrid: Number(h.est_month_end_hybrid),
-              hybrid: h,
-            };
-          }
-        }
+      const [hybridRes, etsRes] = await Promise.all([
+        supabase.rpc('mtd_hybrid_forecast', { p_as_of: data.as_of_date }),
+        supabase.rpc('mtd_ets_forecast', { p_as_of: data.as_of_date }),
+      ]);
+      if (hybridRes.error) console.warn('MTD hybrid forecast unavailable:', hybridRes.error.message);
+      if (etsRes.error) console.warn('MTD ETS forecast unavailable:', etsRes.error.message);
+      const hybrid = (!hybridRes.error && hybridRes.data && typeof hybridRes.data === 'object'
+        ? hybridRes.data : {}) as Record<string, any>;
+      const ets = (!etsRes.error && etsRes.data && typeof etsRes.data === 'object'
+        ? etsRes.data : {}) as Record<string, any>;
+      const num = (v: unknown) => (v != null && Number.isFinite(Number(v)) ? Number(v) : undefined);
+
+      for (const key of Object.keys(data.metrics)) {
+        const h = hybrid[key];
+        const e = ets[key];
+        data.metrics[key] = {
+          ...data.metrics[key],
+          ...(h ? { est_month_end_hybrid: num(h.est_month_end_hybrid), est_month_end_ma28: num(h.est_month_end_ma28), hybrid: h } : {}),
+          ...(e ? { est_month_end_ets: num(e.est_month_end_ets), ets: e } : {}),
+        };
       }
     }
 
