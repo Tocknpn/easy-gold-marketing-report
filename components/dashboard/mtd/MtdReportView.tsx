@@ -2,6 +2,7 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { MtdReportPayload, MtdQuery, MtdForecastMethod } from '@/lib/types/mtd.types';
+import { FORECAST_METHOD_ORDER, FORECAST_METHOD_LABEL, FORECAST_METHOD_HELP } from '@/lib/forecast/methods';
 import { MtdBuyActivitySection } from './MtdBuyActivitySection';
 import { MtdSellActivitySection } from './MtdSellActivitySection';
 import { MtdPlatformSection } from './MtdPlatformSection';
@@ -16,14 +17,8 @@ import {
   AlertTriangle
 } from 'lucide-react';
 
-const METHOD_ORDER: MtdForecastMethod[] = ['standard', 'ma28', 'hybrid', 'ets'];
-
-const METHOD_LABEL: Record<MtdForecastMethod, string> = {
-  standard: 'Linear Run-Rate (Standard)',
-  ma28: 'MA 28-day × Day-of-Week',
-  hybrid: 'Hybrid Trend (EMA × Day-of-Week × Payday)',
-  ets: 'Holt-Winters ETS (weekly)',
-};
+const METHOD_ORDER = FORECAST_METHOD_ORDER;
+const METHOD_LABEL = FORECAST_METHOD_LABEL;
 
 /** Metric field holding each server-side method's month-end estimate (Linear is computed here). */
 const METHOD_FIELD: Record<MtdForecastMethod, 'est_month_end_ma28' | 'est_month_end_hybrid' | 'est_month_end_ets' | null> = {
@@ -452,7 +447,7 @@ export function MtdReportView({ initialData, onRefresh, loading = false, error =
               value={forecastScenario}
               onChange={(e) => setForecastScenario(e.target.value as MtdForecastMethod)}
               className="text-xs font-black text-brand-navy bg-blue-50/60 border border-blue-200 rounded-xl pl-8 pr-3 py-1.5 shadow-xs cursor-pointer focus:ring-1 focus:ring-brand-navy"
-              title="Linear: MTD x days in month / days elapsed. MA28 x DOW: 28-day average x day-of-week index x payday factor. Hybrid: 14-day EMA base x day-of-week index (60 days) x payday factor (25th-EOM, last 2 months). ETS: Holt-Winters with weekly season and damped trend (like Excel FORECAST.ETS)."
+              title={FORECAST_METHOD_HELP}
             >
               {METHOD_ORDER.map((method) => (
                 <option key={method} value={method} disabled={!isAvailable(method)}>

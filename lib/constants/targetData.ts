@@ -1,4 +1,5 @@
 import { MonthlyMarketingTarget, RunRateComparisonPayload, RunRateRowData } from '@/lib/types/target.types';
+import type { ForecastMetricKey } from '@/lib/forecast/methods';
 
 // Month names list
 export const MONTH_NAMES = [
@@ -190,7 +191,9 @@ export function calculateRunRateComparison(
   compMonth: number = 9,
   asOfDay: number = 19,
   customTargets: MonthlyMarketingTarget[] = DEFAULT_2026_TARGETS,
-  dailyRows?: DailyMetricRow[]
+  dailyRows?: DailyMetricRow[],
+  /** Month-end / MTD per metric from the selected forecast style. Missing = linear run rate. */
+  forecastMultipliers?: Partial<Record<ForecastMetricKey, number>>
 ): RunRateComparisonPayload {
   const totalDaysCurrentMonth = getDaysInMonth(currYear, currMonth);
   const totalDaysCompMonth = getDaysInMonth(compYear, compMonth);
@@ -198,6 +201,7 @@ export function calculateRunRateComparison(
   const clampedCompDay = Math.min(asOfDay, totalDaysCompMonth);
   const timeGonePct = Math.round((clampedDay / totalDaysCurrentMonth) * 100);
   const runRateMultiplier = totalDaysCurrentMonth / Math.max(1, clampedDay);
+  const mult = (key?: ForecastMetricKey) => (key && forecastMultipliers?.[key]) || runRateMultiplier;
 
   // Targets
   const currTarget = customTargets.find((t) => t.month === currMonth && t.year === currYear) || DEFAULT_2026_TARGETS[currMonth - 1];
@@ -408,9 +412,12 @@ export function calculateRunRateComparison(
     comp_same: number;
     target_val?: number;
     target_for_same?: number;
+    /** sql/65 metric key used for the forecast style; none = always linear. */
+    fkey?: ForecastMetricKey;
   }> = [
     {
       id: 'buy_weight_g',
+      fkey: 'buy_weight_g',
       label: 'Buy Weight (g)',
       section: 'buy',
       format: 'number',
@@ -422,6 +429,7 @@ export function calculateRunRateComparison(
     },
     {
       id: 'buy_transactions',
+      fkey: 'buy_transactions',
       label: 'Buy Trnx',
       section: 'buy',
       format: 'number',
@@ -443,6 +451,7 @@ export function calculateRunRateComparison(
     },
     {
       id: 'sell_weight_g',
+      fkey: 'sell_weight_g',
       label: 'Sell Weight (g)',
       section: 'sell',
       format: 'number',
@@ -454,6 +463,7 @@ export function calculateRunRateComparison(
     },
     {
       id: 'sell_transactions',
+      fkey: 'sell_transactions',
       label: 'Sell trnx',
       section: 'sell',
       format: 'number',
@@ -475,6 +485,7 @@ export function calculateRunRateComparison(
     },
     {
       id: 'total_transactions',
+      fkey: 'total_transactions',
       label: 'Total trnx',
       section: 'neutral',
       format: 'number',
@@ -485,6 +496,7 @@ export function calculateRunRateComparison(
     },
     {
       id: 'new_customer',
+      fkey: 'new_customers',
       label: 'NC',
       section: 'neutral',
       format: 'number',
@@ -511,7 +523,7 @@ export function calculateRunRateComparison(
   let rowCount = 0;
 
   // Withdraw (15g), same formulas as the rows below, but not part of the Run Rate tables
-  const w15RrProjected = Math.round(cur_withdraw_15g * runRateMultiplier);
+  const w15RrProjected = Math.round(cur_withdraw_15g * mult('withdraw_15g'));
   const withdraw_15g_row: RunRateRowData = {
     id: 'withdraw_15g',
     label: 'Withdraw (15g)',
@@ -533,8 +545,8 @@ export function calculateRunRateComparison(
   };
 
   const rows: RunRateRowData[] = metricDefs.map((m) => {
-    // RR = (Current MTD / Days) * Total Days
-    const rr_projected = Math.round(m.cur_mtd * runRateMultiplier);
+    // RR = (Current MTD / Days) * Total Days, or MTD x the selected forecast style's multiplier
+    const rr_projected = Math.round(m.cur_mtd * mult(m.fkey));
     const diff_full = rr_projected - m.comp_full;
     const mom_full_pct = m.comp_full > 0 ? Math.round((diff_full / m.comp_full) * 100) : 0;
     
@@ -596,7 +608,7 @@ export function calculateRunRateComparison(
       actual: cur_nc,
       target: currTarget.target_nc,
       current_pct: Math.round((cur_nc / currTarget.target_nc) * 100),
-      est_target_hit_pct: Math.round((Math.round(cur_nc * runRateMultiplier) / currTarget.target_nc) * 100),
+      est_target_hit_pct: Math.round((Math.round(cur_nc * mult('new_customers')) / currTarget.target_nc) * 100),
     },
     {
       id: 'buy_tx',
@@ -604,7 +616,7 @@ export function calculateRunRateComparison(
       actual: cur_buy_tx,
       target: currTarget.buy_trans,
       current_pct: Math.round((cur_buy_tx / currTarget.buy_trans) * 100),
-      est_target_hit_pct: Math.round((Math.round(cur_buy_tx * runRateMultiplier) / currTarget.buy_trans) * 100),
+      est_target_hit_pct: Math.round((Math.round(cur_buy_tx * mult('buy_transactions')) / currTarget.buy_trans) * 100),
     },
     {
       id: 'buy_wt',
@@ -612,7 +624,7 @@ export function calculateRunRateComparison(
       actual: cur_buy_wt,
       target: currTarget.buy_weight_g,
       current_pct: Math.round((cur_buy_wt / currTarget.buy_weight_g) * 100),
-      est_target_hit_pct: Math.round((Math.round(cur_buy_wt * runRateMultiplier) / currTarget.buy_weight_g) * 100),
+      est_target_hit_pct: Math.round((Math.round(cur_buy_wt * mult('buy_weight_g')) / currTarget.buy_weight_g) * 100),
     },
     {
       id: 'sell_tx',
@@ -620,7 +632,7 @@ export function calculateRunRateComparison(
       actual: cur_sell_tx,
       target: currTarget.sell_trans,
       current_pct: Math.round((cur_sell_tx / currTarget.sell_trans) * 100),
-      est_target_hit_pct: Math.round((Math.round(cur_sell_tx * runRateMultiplier) / currTarget.sell_trans) * 100),
+      est_target_hit_pct: Math.round((Math.round(cur_sell_tx * mult('sell_transactions')) / currTarget.sell_trans) * 100),
     },
     {
       id: 'sell_wt',
@@ -628,7 +640,7 @@ export function calculateRunRateComparison(
       actual: cur_sell_wt,
       target: currTarget.sell_weight_g,
       current_pct: Math.round((cur_sell_wt / currTarget.sell_weight_g) * 100),
-      est_target_hit_pct: Math.round((Math.round(cur_sell_wt * runRateMultiplier) / currTarget.sell_weight_g) * 100),
+      est_target_hit_pct: Math.round((Math.round(cur_sell_wt * mult('sell_weight_g')) / currTarget.sell_weight_g) * 100),
     },
   ].map((m) => ({
     ...m,

@@ -168,6 +168,7 @@ mtd AS (
     GROUP BY mk.k
 )
 SELECT jsonb_object_agg(mk.k, jsonb_build_object(
+    'current_mtd',        ROUND(m.cur, 2),
     'est_month_end_hybrid', CASE
         WHEN h.days < 28 THEN ROUND(m.cur * (EXTRACT(DAY FROM p.m_end) / GREATEST(1, EXTRACT(DAY FROM p.as_of))))
         ELSE ROUND(m.cur + rm.fc) END,
@@ -245,6 +246,7 @@ BEGIN
 
         IF v_n < 28 THEN
             v_out := v_out || jsonb_build_object(v_keys[j], jsonb_build_object(
+                'current_mtd', ROUND(v_cur::numeric, 2),
                 'est_month_end_ets', ROUND((v_cur * EXTRACT(DAY FROM v_m_end) / GREATEST(1, EXTRACT(DAY FROM p_as_of)))::numeric),
                 'resid_sigma', NULL, 'remaining_days', v_m_end - p_as_of, 'history_days', v_n, 'fallback', true));
             CONTINUE;
@@ -307,6 +309,7 @@ BEGIN
         FROM unnest(b_res[GREATEST(1, cardinality(b_res) - 27) : cardinality(b_res)]) AS x;
 
         v_out := v_out || jsonb_build_object(v_keys[j], jsonb_build_object(
+            'current_mtd', ROUND(v_cur::numeric, 2),
             'est_month_end_ets', ROUND((v_cur + v_fc)::numeric),
             'alpha', b_a, 'beta', b_b, 'gamma', b_g,
             'resid_sigma', ROUND(COALESCE(v_sig, 0)::numeric, 2),

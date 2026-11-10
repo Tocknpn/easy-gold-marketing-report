@@ -17,6 +17,18 @@ import { createClient } from '@/lib/supabase/client';
 import { ClassicRunRateTables } from './ClassicRunRateTables';
 import { VisualTargetTrackingCockpit } from './VisualTargetTrackingCockpit';
 import { Skeleton } from '../Skeleton';
+import { ForecastImpactTable } from './ForecastImpactTable';
+import type { MtdForecastMethod } from '@/lib/types/mtd.types';
+import {
+  FORECAST_METHOD_ORDER,
+  FORECAST_METHOD_LABEL,
+  FORECAST_METHOD_HELP,
+  ForecastEstimates,
+  ForecastMetricKey,
+  forecastMultiplier,
+  isForecastMethodAvailable,
+} from '@/lib/forecast/methods';
+import { useForecastEstimates } from '@/lib/hooks/useForecastEstimates';
 import { Table2, Download, Target as TargetIcon, TrendingUp, CheckCircle2, RefreshCw } from 'lucide-react';
 
 // Dynamic day cap calculation
@@ -26,6 +38,53 @@ const getDayCap = (month: number, latestCapMonth: number = 10, latestCapDay: num
 const selectClass =
   'w-full bg-slate-50 border border-slate-300 hover:border-slate-400 rounded-xl px-3 py-2 text-sm font-black text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#0c4ca3] transition-all cursor-pointer shadow-2xs';
 const labelClass = 'text-xs font-black uppercase text-slate-600 tracking-wider';
+
+const FORECAST_KEYS: ForecastMetricKey[] = [
+  'buy_weight_g', 'buy_transactions', 'sell_weight_g', 'sell_transactions',
+  'withdraw_15g', 'new_customers', 'total_transactions',
+];
+
+/** Multipliers (month-end / MTD) for every metric under one forecast style; empty = linear. */
+function buildMultipliers(estimates: ForecastEstimates | null, method: MtdForecastMethod) {
+  const out: Partial<Record<ForecastMetricKey, number>> = {};
+  for (const k of FORECAST_KEYS) {
+    const m = forecastMultiplier(estimates, k, method);
+    if (m !== undefined) out[k] = m;
+  }
+  return out;
+}
+
+const isoDate = (y: number, m: number, d: number) =>
+  `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+
+interface ForecastStyleSelectProps {
+  value: MtdForecastMethod;
+  onChange: (m: MtdForecastMethod) => void;
+  estimates: ForecastEstimates | null;
+}
+
+function ForecastStyleSelect({ value, onChange, estimates }: ForecastStyleSelectProps) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <label className={labelClass}>Forecast Style</label>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value as MtdForecastMethod)}
+        className={selectClass}
+        title={FORECAST_METHOD_HELP}
+      >
+        {FORECAST_METHOD_ORDER.map((m) => {
+          const ok = isForecastMethodAvailable(estimates, m);
+          return (
+            <option key={m} value={m} disabled={!ok}>
+              {ok ? FORECAST_METHOD_LABEL[m] : `${FORECAST_METHOD_LABEL[m]} (not available)`}
+            </option>
+          );
+        })}
+      </select>
+    </div>
+  );
+}
 
 interface CutoffSliderProps {
   month: number;
@@ -120,6 +179,10 @@ export function TargetReportView() {
   const [rrCompMonth, setRrCompMonth] = useState<number>(Math.max(1, LATEST_DATA_DATE.month - 1));
   const [rrDay, setRrDay] = useState<number>(LATEST_DATA_DATE.day);
 
+  // ---- Forecast style per section (default Linear, never remembered) ----
+  const [tgtMethod, setTgtMethod] = useState<MtdForecastMethod>('standard');
+  const [rrMethod, setRrMethod] = useState<MtdForecastMethod>('standard');
+
   // Months selectable as "current" (dynamically updates when new months like Nov arrive)
   const selectableMonths = useMemo(() => {
     const maxSelectable = Math.min(12, Math.max(latestMonth, 10));
@@ -171,14 +234,35 @@ export function TargetReportView() {
     fetchLiveData();
   }, []);
 
+  // Forecast estimates for each section's cutoff date (sql/65). Null = Linear only.
+  const tgtEstimates = useForecastEstimates(
+    isoDate(currentYear, tgtMonth, Math.min(tgtDay, getDaysInMonth(currentYear, tgtMonth))),
+    isLiveConnected
+  );
+  const rrEstimates = useForecastEstimates(
+    isoDate(currentYear, rrMonth, Math.min(rrDay, getDaysInMonth(currentYear, rrMonth))),
+    isLiveConnected
+  );
+  // A style that is not available for this date falls back to Linear.
+  const tgtActiveMethod: MtdForecastMethod = isForecastMethodAvailable(tgtEstimates, tgtMethod) ? tgtMethod : 'standard';
+  const rrActiveMethod: MtdForecastMethod = isForecastMethodAvailable(rrEstimates, rrMethod) ? rrMethod : 'standard';
+
   const tgtData: RunRateComparisonPayload = useMemo(
-    () => calculateRunRateComparison(currentYear, tgtMonth, currentYear, Math.max(1, tgtMonth - 1), tgtDay, targets, dailyRows),
-    [currentYear, tgtMonth, tgtDay, targets, dailyRows]
+    () =>
+      calculateRunRateComparison(
+        currentYear, tgtMonth, currentYear, Math.max(1, tgtMonth - 1), tgtDay, targets, dailyRows,
+        buildMultipliers(tgtEstimates, tgtActiveMethod)
+      ),
+    [currentYear, tgtMonth, tgtDay, targets, dailyRows, tgtEstimates, tgtActiveMethod]
   );
 
   const rrData: RunRateComparisonPayload = useMemo(
-    () => calculateRunRateComparison(currentYear, rrMonth, rrCompYear, rrCompMonth, rrDay, targets, dailyRows),
-    [currentYear, rrMonth, rrCompYear, rrCompMonth, rrDay, targets, dailyRows]
+    () =>
+      calculateRunRateComparison(
+        currentYear, rrMonth, rrCompYear, rrCompMonth, rrDay, targets, dailyRows,
+        buildMultipliers(rrEstimates, rrActiveMethod)
+      ),
+    [currentYear, rrMonth, rrCompYear, rrCompMonth, rrDay, targets, dailyRows, rrEstimates, rrActiveMethod]
   );
 
   // Past month at full cutoff = final achievement, so no estimate is shown.
@@ -197,6 +281,7 @@ export function TargetReportView() {
   // Export RR table to CSV
   const handleExportCsv = () => {
     const csvRows = [
+      [`Forecast Style: ${FORECAST_METHOD_LABEL[rrActiveMethod]}`],
       ['Metric', `${rrData.comparison_month_label} Full`, `${rrData.current_month_label} MTD`, 'RR Proj', 'Diff', 'MoM %', 'Monthly Target', 'Vs Target %', `${rrData.comparison_month_label} Same Date`, 'Diff Same', '% Change Same', 'Vs Target Same %'],
       ...rrData.rows.map((r) => [
         `"${r.label}"`,
@@ -237,7 +322,7 @@ export function TargetReportView() {
           showEst={showEst}
           isSkeleton={isLoadingLive}
           filterControls={
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 items-end">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 items-end">
               <div className="flex flex-col gap-1.5">
                 <label className={labelClass}>Select Month (2026)</label>
                 <select
@@ -252,6 +337,7 @@ export function TargetReportView() {
                   ))}
                 </select>
               </div>
+              <ForecastStyleSelect value={tgtMethod} onChange={setTgtMethod} estimates={tgtEstimates} />
               <CutoffSlider
                 month={tgtMonth}
                 day={tgtDay}
@@ -264,6 +350,9 @@ export function TargetReportView() {
             </div>
           }
         />
+        {!isLoadingLive && showEst && (
+          <ForecastImpactTable data={tgtData} estimates={tgtEstimates} selected={tgtActiveMethod} />
+        )}
       </section>
 
       {/* ==================================================================== */}
@@ -301,7 +390,7 @@ export function TargetReportView() {
               </div>
             </div>
           ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-2 border-t border-slate-100">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 pt-2 border-t border-slate-100">
             <div className="flex flex-col gap-1">
               <label className={labelClass}>Current Month (2026)</label>
               <select
@@ -343,6 +432,7 @@ export function TargetReportView() {
                 </optgroup>
               </select>
             </div>
+            <ForecastStyleSelect value={rrMethod} onChange={setRrMethod} estimates={rrEstimates} />
             <CutoffSlider
               month={rrMonth}
               day={rrDay}
