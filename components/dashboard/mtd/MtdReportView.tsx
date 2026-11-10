@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { MtdReportPayload, MtdQuery } from '@/lib/types/mtd.types';
+import { MtdReportPayload, MtdQuery, MtdForecastMethod } from '@/lib/types/mtd.types';
 import { MtdBuyActivitySection } from './MtdBuyActivitySection';
 import { MtdSellActivitySection } from './MtdSellActivitySection';
 import { MtdPlatformSection } from './MtdPlatformSection';
@@ -34,7 +34,7 @@ export function MtdReportView({ initialData, onRefresh, loading = false, error =
   );
   const [asOfDate, setAsOfDate] = useState<string>(initialData.as_of_date || '');
 
-  const [forecastScenario, setForecastScenario] = useState<'standard' | 'conservative' | 'optimistic' | 'payday_surge'>('standard');
+  const [forecastScenario, setForecastScenario] = useState<MtdForecastMethod>('standard');
   const [hasExecuted, setHasExecuted] = useState<boolean>(true);
   const [isExecuting, setIsExecuting] = useState<boolean>(false);
   const [isExporting, setIsExporting] = useState<boolean>(false);
@@ -147,10 +147,7 @@ export function MtdReportView({ initialData, onRefresh, loading = false, error =
     const totalDays = initialData.total_days_current_month || new Date(currYear, currMonth, 0).getDate();
     
     // 100% Real Consolidated Metrics
-    let runRateMultiplier = totalDays / Math.max(1, day);
-    if (forecastScenario === 'conservative') runRateMultiplier *= 0.90;
-    if (forecastScenario === 'optimistic') runRateMultiplier *= 1.10;
-    if (forecastScenario === 'payday_surge') runRateMultiplier *= 1.15; // Lao payday surge (25th-30th)
+    const runRateMultiplier = totalDays / Math.max(1, day);
 
     const updatedMetrics = { ...initialData.metrics };
     Object.keys(updatedMetrics).forEach((key) => {
@@ -161,7 +158,10 @@ export function MtdReportView({ initialData, onRefresh, loading = false, error =
       const compMtd = base.comp_mtd;
       const mtdVar = compMtd > 0 ? Math.round(((currentMtd - compMtd) / compMtd) * 100) : 0;
       
-      const estLanding = Math.round(currentMtd * runRateMultiplier);
+      const linearLanding = Math.round(currentMtd * runRateMultiplier);
+      // Hybrid Trend comes from the server (sql/65); without it, stay on linear.
+      const useHybrid = forecastScenario === 'hybrid' && typeof base.est_month_end_hybrid === 'number';
+      const estLanding = useHybrid ? Math.round(base.est_month_end_hybrid as number) : linearLanding;
       const fullComp = base.full_comp_month;
       const estVar = fullComp > 0 ? Math.round(((estLanding - fullComp) / fullComp) * 100) : 0;
 
@@ -173,6 +173,8 @@ export function MtdReportView({ initialData, onRefresh, loading = false, error =
         est_month_end: estLanding,
         full_comp_month: fullComp,
         forecast_variance_percent: estVar,
+        // The card shows the hybrid breakdown only while Hybrid is selected.
+        hybrid: useHybrid ? base.hybrid : undefined,
       };
     });
 
@@ -206,15 +208,18 @@ export function MtdReportView({ initialData, onRefresh, loading = false, error =
         `EASY GOLD - MTD AND FORECAST PERFORMANCE REPORT`,
         `Report Month: ${selectedReportMonth}, As Of Date: ${displayedData.display_as_of_date}, Comparison Month: ${displayedData.comparison_month_label}`,
         `Elapsed Days: ${displayedData.elapsed_days} / ${displayedData.total_days_current_month} (${Math.round((displayedData.elapsed_days / displayedData.total_days_current_month) * 100)}%)`,
-        `Scenario: ${forecastScenario}`,
+        `Forecast Method: ${forecastScenario === 'hybrid' ? 'Hybrid Trend (EMA x Day-of-Week x Payday)' : 'Linear Run-Rate'}`,
         ``,
-        `Metric Name,Current MTD,Comp MTD,MTD Variance %,Est. Month End,Full Comp Month,Forecast Variance %`,
+        `Metric Name,Current MTD,Comp MTD,MTD Variance %,Est. Month End (Selected),Est. Month End (Linear),Est. Month End (Hybrid),Full Comp Month,Forecast Variance %`,
       ];
 
+      const linearMultiplier = displayedData.total_days_current_month / Math.max(1, displayedData.elapsed_days);
       Object.values(displayedData.metrics).forEach((m) => {
         const cleanName = metricLabelMap[m.id] || m.label;
+        const linear = Math.round(m.current_mtd * linearMultiplier);
+        const hybrid = initialData.metrics[m.id as keyof typeof initialData.metrics]?.est_month_end_hybrid;
         rows.push(
-          `"${cleanName}",${m.current_mtd},${m.comp_mtd},${m.mtd_variance_percent}%,${m.est_month_end},${m.full_comp_month},${m.forecast_variance_percent}%`
+          `"${cleanName}",${m.current_mtd},${m.comp_mtd},${m.mtd_variance_percent}%,${m.est_month_end},${linear},${hybrid ?? ''},${m.full_comp_month},${m.forecast_variance_percent}%`
         );
       });
 
@@ -231,6 +236,10 @@ export function MtdReportView({ initialData, onRefresh, loading = false, error =
       setTimeout(() => setIsExporting(false), 800);
     }
   };
+
+  const hybridAvailable = Object.values(initialData.metrics || {}).some(
+    (m) => typeof m?.est_month_end_hybrid === 'number'
+  );
 
   const elapsedPercent = Math.round((displayedData.elapsed_days / displayedData.total_days_current_month) * 100);
 
@@ -412,14 +421,14 @@ export function MtdReportView({ initialData, onRefresh, loading = false, error =
             <Sparkles className="w-3.5 h-3.5 text-brand-navy absolute left-2.5 pointer-events-none" />
             <select
               value={forecastScenario}
-              onChange={(e) => setForecastScenario(e.target.value as any)}
+              onChange={(e) => setForecastScenario(e.target.value as MtdForecastMethod)}
               className="text-xs font-black text-brand-navy bg-blue-50/60 border border-blue-200 rounded-xl pl-8 pr-3 py-1.5 shadow-xs cursor-pointer focus:ring-1 focus:ring-brand-navy"
-              title="Forecast Model Scenario"
+              title="Linear: MTD x days in month / days elapsed. Hybrid: each remaining day = 14-day EMA base x day-of-week index (60 days) x payday factor (25th-EOM, last 2 months)."
             >
               <option value="standard">Linear Run-Rate (Standard)</option>
-              <option value="payday_surge">Payday Surge (+15%)</option>
-              <option value="conservative">Conservative (-10%)</option>
-              <option value="optimistic">Optimistic (+10%)</option>
+              <option value="hybrid" disabled={!hybridAvailable}>
+                {hybridAvailable ? 'Hybrid Trend (EMA × Day-of-Week × Payday)' : 'Hybrid Trend (not available yet)'}
+              </option>
             </select>
           </div>
 

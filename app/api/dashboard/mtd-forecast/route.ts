@@ -46,6 +46,28 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: data?.error || 'MTD RPC returned no data.' }, { status: 502 });
     }
 
+    // Hybrid Trend forecast (sql/65_mtd_hybrid_forecast.sql), merged into each metric.
+    // Optional: if the function is not deployed yet the page simply stays on Linear.
+    if (data.as_of_date) {
+      const { data: hybrid, error: hybridError } = await supabase.rpc('mtd_hybrid_forecast', {
+        p_as_of: data.as_of_date,
+      });
+      if (hybridError) {
+        console.warn('MTD hybrid forecast unavailable:', hybridError.message);
+      } else if (hybrid && typeof hybrid === 'object') {
+        for (const key of Object.keys(data.metrics)) {
+          const h = (hybrid as Record<string, any>)[key];
+          if (h) {
+            data.metrics[key] = {
+              ...data.metrics[key],
+              est_month_end_hybrid: Number(h.est_month_end_hybrid),
+              hybrid: h,
+            };
+          }
+        }
+      }
+    }
+
     return NextResponse.json(data, {
       status: 200,
       headers: { 'Cache-Control': 'no-store' },

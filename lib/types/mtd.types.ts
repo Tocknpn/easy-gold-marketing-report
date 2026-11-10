@@ -15,6 +15,23 @@ export interface MtdMetricItem {
   target_val?: number;
   target_variance_percent?: number;
   target_est_hit_percent?: number;
+  /** Hybrid Trend month-end estimate (sql/65). Missing when the function is not deployed. */
+  est_month_end_hybrid?: number;
+  hybrid?: MtdHybridDetail;
+}
+
+export type MtdForecastMethod = 'standard' | 'hybrid';
+
+export interface MtdHybridDetail {
+  est_month_end_hybrid: number;
+  base_per_day: number;
+  payday_factor: number;
+  dow_min: number;
+  dow_max: number;
+  remaining_forecast: number;
+  remaining_days: number;
+  history_days: number;
+  fallback: boolean;
 }
 
 export interface MtdReportPayload {
