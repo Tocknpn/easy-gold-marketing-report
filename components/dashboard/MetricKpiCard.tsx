@@ -41,6 +41,25 @@ export function MetricKpiCard({
         : value.toLocaleString()
       : value;
 
+  // Partial week: pace = 7-day run-rate vs last week's full total (last week = point before the selected week)
+  const estimateNum =
+    proratedEstimate === undefined ? undefined : Number(String(proratedEstimate).replace(/,/g, ''));
+  const showRunRate = isPartialWeek && estimateNum !== undefined && Number.isFinite(estimateNum);
+  const selIdx = historyData.findIndex((h) => h.week === selectedWeek);
+  const prevValue = selIdx > 0 ? historyData[selIdx - 1].value : undefined;
+  const pacePct =
+    showRunRate && prevValue && prevValue > 0 ? Math.round(((estimateNum as number) / prevValue - 1) * 100) : undefined;
+  const pace =
+    pacePct === undefined
+      ? null
+      : pacePct >= 5
+      ? { label: 'Fast', arrow: '▲', cls: 'text-emerald-700 bg-emerald-50 border-emerald-200/80' }
+      : pacePct <= -5
+      ? { label: 'Slow', arrow: '▼', cls: 'text-rose-700 bg-rose-50 border-rose-200/80' }
+      : { label: 'Steady', arrow: '●', cls: 'text-slate-700 bg-slate-50 border-slate-200' };
+  const estimateText =
+    typeof proratedEstimate === 'number' ? proratedEstimate.toLocaleString() : proratedEstimate;
+
   // Curated border & indicator styling
   const accentBorderColors: Record<string, string> = {
     blue: 'border-slate-200/90 hover:border-blue-400 focus-within:border-blue-500',
@@ -85,13 +104,13 @@ export function MetricKpiCard({
         </div>
 
         {/* Hero KPI Number + Variance Badge */}
-        <div className="flex items-baseline justify-between gap-2 my-1">
+        <div className={`flex justify-between gap-2 my-1 ${showRunRate ? 'items-start' : 'items-baseline'}`}>
           <div className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight font-mono tabular-nums leading-none">
             {formattedValue}
           </div>
 
-          {/* Variance Badge */}
-          <div className="shrink-0">
+          {/* Step 1: WoW so far. Step 2 (partial week): pace. Step 3: 7-day landing. */}
+          <div className="shrink-0 flex flex-col items-end gap-1">
             {isNeutral && (
               <span className="px-1.5 py-0.5 rounded text-[11px] font-bold font-mono tabular-nums bg-slate-100 text-slate-600 border border-slate-200">
                 0%
@@ -107,18 +126,27 @@ export function MetricKpiCard({
                 {variancePercent}%
               </span>
             )}
+
+            {showRunRate && (
+              <>
+                {pace && (
+                  <span
+                    className={`px-1.5 py-0.5 rounded text-[10px] font-black border tabular-nums whitespace-nowrap ${pace.cls}`}
+                    title="7-day run-rate vs last week's full total"
+                  >
+                    {pace.arrow} {pace.label} {pacePct! > 0 ? `+${pacePct}` : pacePct}%
+                  </span>
+                )}
+                <span
+                  className="text-[10px] font-semibold text-slate-500 whitespace-nowrap"
+                  title="Expected full-week total at the current daily pace"
+                >
+                  Landing <span className="font-black font-mono tabular-nums text-slate-900">{estimateText}</span>
+                </span>
+              </>
+            )}
           </div>
         </div>
-
-        {/* Partial Week 7-Day Run-Rate Context Badge */}
-        {isPartialWeek && proratedEstimate !== undefined && (
-          <div className="flex items-center justify-between text-[11px] font-medium bg-amber-50/90 border border-amber-200/80 rounded-md px-2 py-0.5 mt-1 text-amber-900">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800">7D Run-Rate:</span>
-            <span className="font-bold font-mono tabular-nums text-slate-900">
-              {typeof proratedEstimate === 'number' ? proratedEstimate.toLocaleString() : proratedEstimate}
-            </span>
-          </div>
-        )}
       </div>
 
       {/* Modern High-Clarity Sparkline Chart */}
