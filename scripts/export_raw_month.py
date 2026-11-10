@@ -27,6 +27,7 @@ import gzip
 import hashlib
 import http.client
 import json
+import os
 import pathlib
 import re
 import sys
@@ -56,7 +57,13 @@ def say(message):
 
 
 def load_credentials():
-    """Read only the two values needed from .env, and never print them."""
+    """Read only the two values needed, and never print them.
+    GitHub Actions passes them as environment variables; on this PC they come from .env."""
+    url = os.environ.get("NEXT_PUBLIC_SUPABASE_URL")
+    key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+    if url and key:
+        return url.rstrip("/"), key
+
     wanted = {"NEXT_PUBLIC_SUPABASE_URL": None, "SUPABASE_SERVICE_ROLE_KEY": None}
     for line in (ROOT / ".env").read_text(encoding="utf-8").splitlines():
         match = re.match(r"^(NEXT_PUBLIC_SUPABASE_URL|SUPABASE_SERVICE_ROLE_KEY)=(.*)$", line.strip())

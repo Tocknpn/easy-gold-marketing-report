@@ -29,6 +29,10 @@ import urllib.request
 from export_raw_month import ARCHIVE_DIR, ExportError, load_credentials, request, say
 
 ARCHIVE_BUDGET_BYTES = 20 * 1024 * 1024
+LEGACY_CUT_WEEKS = {
+    ("2026-W14", datetime.date(2026, 4, 1), datetime.date(2026, 4, 5)),
+    ("2026-W27", datetime.date(2026, 6, 29), datetime.date(2026, 6, 30)),
+}
 WORKERS = 3
 SNAPSHOT_WORKERS = 2
 RETRIES = 4
@@ -130,20 +134,25 @@ def rule_type(row):
     return "weight_gte" if "weight" in text.lower() or "g" in label.lower() else "amount_gte"
 
 
-def save_campaign_snapshots(base, key):
-    say("== 2. Updating active campaigns")
-    # The sync can exceed its 60 second limit on the full table. The backward numbers
-    # below do not depend on it, so a timeout here is reported and does not stop the run.
-    try:
-        result = post(base, key, "/rest/v1/rpc/sync_active_campaigns_daily", {"p_target_campaign_id": None})
-        say(f"  {json.dumps(result)}")
-    except ExportError as err:
-        say(f"  Sync did not finish, continuing: {str(err)[:160]}")
+def save_campaign_snapshots(base, key, before=None, run_sync=True, dry_run=False):
+    """Save backward numbers for every remaining day of each active campaign whose
+    backward window starts before `before` (default: the current lock cutoff)."""
+    if run_sync:
+        say("== 2. Updating active campaigns")
+        # The sync can exceed its time limit on the full table. The backward numbers
+        # below do not depend on it, so a timeout here is reported and does not stop the run.
+        try:
+            result = post(base, key, "/rest/v1/rpc/sync_active_campaigns_daily", {"p_target_campaign_id": None})
+            say(f"  {json.dumps(result)}")
+        except ExportError as err:
+            say(f"  Sync did not finish, continuing: {str(err)[:160]}")
     as_of = datetime.date.fromisoformat(post(base, key, "/rest/v1/rpc/get_max_monthly_data_date", {}))
 
-    say("== 3. Saving campaign backward numbers")
-    settings = json.loads(request(f"{base}/rest/v1/raw_retention_settings?select=cutoff_date&id=eq.1", key)[0])
-    cutoff = datetime.date.fromisoformat(settings[0]["cutoff_date"])
+    say("== Saving campaign backward numbers")
+    if before is None:
+        settings = json.loads(request(f"{base}/rest/v1/raw_retention_settings?select=cutoff_date&id=eq.1", key)[0])
+        before = datetime.date.fromisoformat(settings[0]["cutoff_date"])
+    cutoff = before
     campaigns = json.loads(request(
         f"{base}/rest/v1/campaign_setups?select=id,campaign_start_date,campaign_end_date,condition_type,"
         "condition_label,condition_operator,condition_value,condition_max_value,conditions,tx_type,bank,"
@@ -208,6 +217,9 @@ def save_campaign_snapshots(base, key):
         total = len(windows) * len(versions)
         finished = {"count": total - len(todo)}
         say(f"  {finished['count']} of {total} already saved")
+        if dry_run:
+            say(f"  dry run: would save {len(todo)}")
+            continue
 
         def save(args):
             post(base, key, "/rest/v1/rpc/save_campaign_backward_snapshot", args)
@@ -268,7 +280,13 @@ def plan_reports(months):
             week_end = day + datetime.timedelta(days=6)
             start, end = max(day, first), min(week_end, last)
             iso = day.isocalendar()
-            plan.append((f"{iso[0]}-W{iso[1]:02d}", start, end, "all", ""))
+            week_key = f"{iso[0]}-W{iso[1]:02d}"
+            # A week cut by the month edge gets its dates in the key, so the other part of the
+            # same week, saved in a later month, does not overwrite it. The two cut weeks of
+            # the first Apr-Jun run were saved under the plain key and keep it.
+            if (start, end) != (day, week_end) and (week_key, start, end) not in LEGACY_CUT_WEEKS:
+                week_key = f"{week_key}:{start}..{end}"
+            plan.append((week_key, start, end, "all", ""))
             day += datetime.timedelta(days=7)
 
         day = first
@@ -294,8 +312,9 @@ def dimension_reports(base, key, months):
     return plan
 
 
-def save_reports(base, key, months):
-    say("== 4. Saving Dynamic BI reports")
+def save_reports(base, key, months, extra=None, dry_run=False):
+    """Save reports for `months`, plus any `extra` (period, start, end, dimension, value)."""
+    say("== Saving Dynamic BI reports")
     saved = {
         (r["period_key"], r["dimension"], r["filter_value"])
         for r in fetch_all(
@@ -304,9 +323,11 @@ def save_reports(base, key, months):
             "&order=period_key.asc,dimension.asc,filter_value.asc",
         )
     }
-    plan = plan_reports(months) + dimension_reports(base, key, months)
+    plan = (extra or []) + plan_reports(months) + dimension_reports(base, key, months)
     todo = [p for p in plan if (p[0], p[3], p[4]) not in saved]
     say(f"  {len(plan)} reports planned, {len(todo)} still to save")
+    if dry_run:
+        return []
 
     state = {"bytes": 0, "stopped": False}
     failed = []

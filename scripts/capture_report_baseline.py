@@ -142,16 +142,21 @@ def compare_reports(old_reports, new_reports, latest):
     return problems
 
 
-def compare(base, key):
+def find_differences(base, key):
+    """Returns the list of differences against the saved baseline (empty = none)."""
     if not BASELINE.exists():
-        sys.exit(f"{BASELINE.name} is missing. Run 'capture' before the delete.")
+        raise ExportError(f"{BASELINE.name} is missing. Run 'capture' before the delete.")
     old = json.loads(BASELINE.read_text(encoding="utf-8"), parse_float=decimal.Decimal)
     new_tables = json.loads(json.dumps(read_tables(base, key), default=str), parse_float=decimal.Decimal)
     new_reports = json.loads(json.dumps(read_reports(base, key), default=str), parse_float=decimal.Decimal)
 
     problems = compare_tables(old["tables"], new_tables, old["latest_date"])
     problems += compare_reports(old["reports"], new_reports, old["latest_date"])
+    return old, problems
 
+
+def compare(base, key):
+    old, problems = find_differences(base, key)
     print(f"Baseline from {old['captured_at']} (latest date {old['latest_date']})")
     if problems:
         print(f"{len(problems)} DIFFERENCES:")

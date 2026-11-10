@@ -44,7 +44,29 @@ const APPS_SCRIPT_URL = process.env.GOOGLE_APPS_SCRIPT_URL || process.env.GMAIL_
 const WORKER_API_URL = process.env.WORKER_API_URL || 'https://easy-gold-marketing-report.tockppd.workers.dev';
 const TARGET_URL = process.env.TARGET_REPORT_URL || 'http://127.0.0.1:3000/?pdf_modal=1&tab=preview';
 
-function buildEmailHtml(reportDate, recipientStr, { quickBriefBase64, dailyVelocityBase64, useCid = true } = {}) {
+// Database size for the email footer, with a warning from 400 MB (Supabase Free limit is 500 MB).
+// See sql/64_monthly_rollover_functions.sql. Returns '' if it cannot be read, so the email still goes out.
+async function fetchStorageFooter() {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_raw_storage_status`, {
+      method: 'POST',
+      headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' },
+      body: '{}',
+    });
+    if (!res.ok) return '';
+    const s = await res.json();
+    const text = `Database ${s.database_mb} MB of ${s.limit_mb} MB • Raw data ${s.raw_from} to ${s.raw_to}`;
+    if (Number(s.database_mb) >= 400) {
+      return `<div style="background:#fef2f2;color:#991b1b;padding:10px 32px;font-size:12px;font-weight:600;text-align:center;">` +
+        `Storage warning: ${text}. Check the monthly raw data rollover.</div>`;
+    }
+    return `<div style="padding:8px 32px;font-size:10px;color:#94a3b8;text-align:center;">${text}</div>`;
+  } catch {
+    return '';
+  }
+}
+
+function buildEmailHtml(reportDate, recipientStr, { quickBriefBase64, dailyVelocityBase64, useCid = true, storageFooter = '' } = {}) {
   const qbSrc = quickBriefBase64
     ? (useCid ? 'cid:quick_brief' : `data:image/jpeg;base64,${quickBriefBase64}`)
     : 'cid:quick_brief';
@@ -80,6 +102,7 @@ function buildEmailHtml(reportDate, recipientStr, { quickBriefBase64, dailyVeloc
     <div style="background: #f8fafc; padding: 14px 32px; border-top: 1px solid #e2e8f0; font-size: 11px; color: #64748b; text-align: center;">
       Easy Gold Marketing &amp; Financial Reporting • Dispatched to ${recipientStr}
     </div>
+    ${storageFooter}
   </div>
 </body>
 </html>`;
@@ -96,7 +119,8 @@ async function sendViaTransports({ recipientList, reportDate, displayDate, pdfBa
   const subject = `Daily Easy Gold Marketing BI report - ${displayDate}`;
   const safeDate = String(displayDate || 'Daily').replace(/\//g, '-');
   const pdfFilename = `Easy_Gold_Executive_Report_${safeDate}.pdf`;
-  const emailHtml = buildEmailHtml(displayDate, recipientStr, { quickBriefBase64, dailyVelocityBase64, useCid: true });
+  const storageFooter = await fetchStorageFooter();
+  const emailHtml = buildEmailHtml(displayDate, recipientStr, { quickBriefBase64, dailyVelocityBase64, useCid: true, storageFooter });
   const errors = [];
 
   // Transport 1: Direct Google Apps Script Web App Gateway

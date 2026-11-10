@@ -1,0 +1,52 @@
+name: Monthly Raw Data Rollover
+
+# Keeps 5 calendar months of raw rows in monthly_data. Runs every day; on most days
+# it finds nothing to do and ends in seconds. Once a new month starts and the previous
+# month is fully uploaded, it saves and locks the oldest month's numbers, deletes that
+# month's raw rows and emails the result. See scripts/roll_raw_month.py.
+
+on:
+  schedule:
+    - cron: '30 21 * * *' # 04:30 Asia/Vientiane, after the 03:00 campaign and cache jobs
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run: only report what would happen, change nothing'
+        required: false
+        default: 'false'
+        type: boolean
+
+concurrency:
+  group: raw-rollover
+  cancel-in-progress: false
+
+jobs:
+  rollover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install psql
+        run: sudo apt-get update -q && sudo apt-get install -y -q postgresql-client
+
+      - name: Run rollover
+        working-directory: scripts
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          GOOGLE_APPS_SCRIPT_URL: ${{ secrets.GOOGLE_APPS_SCRIPT_URL }}
+          PYTHONIOENCODING: utf-8
+        run: |
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            python roll_raw_month.py --dry-run
+          else
+            python roll_raw_month.py
+          fi
