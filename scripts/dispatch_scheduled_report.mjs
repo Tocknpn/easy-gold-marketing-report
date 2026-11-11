@@ -91,9 +91,9 @@ function buildEmailHtml(reportDate, recipientStr, { quickBriefBase64, dailyVeloc
       </p>
 
       <div style="margin: 20px 0 0 0;">
-        <div style="margin-bottom: 20px; border-radius: 12px; overflow: hidden; border: 1px solid #e2e8f0; background: #ffffff;">
+        ${quickBriefBase64 ? `<div style="margin-bottom: 20px; border-radius: 12px; overflow: hidden; border: 1px solid #e2e8f0; background: #ffffff;">
           <img src="${qbSrc}" alt="Quick Brief Top Line Performance" style="width: 100%; height: auto; display: block; border: 0;" />
-        </div>
+        </div>` : ''}
         <div style="margin-bottom: 12px; border-radius: 12px; overflow: hidden; border: 1px solid #e2e8f0; background: #ffffff;">
           <img src="${dvSrc}" alt="Easy Gold Marketing Daily Performance - Daily Velocity" style="width: 100%; height: auto; display: block; border: 0;" />
         </div>
@@ -476,10 +476,15 @@ async function main() {
       pdfBase64 = Buffer.from(pdfBuffer).toString('base64');
     }
 
-    // The Quick Brief shows skeletons until live data arrives; wait so the snapshot has real numbers
-    await page.waitForSelector('#email-snap-quick-brief[data-ready="true"]', { timeout: 30000 }).catch(() => {
-      console.warn('[!] Quick Brief data-ready timeout, capturing current state...');
-    });
+    // The Quick Brief shows skeletons until live data arrives; wait so the snapshot has real numbers.
+    // If it never becomes ready, leave it out of the email rather than sending grey skeleton bars.
+    const qbReady = await page
+      .waitForSelector('#email-snap-quick-brief[data-ready="true"]', { timeout: 45000 })
+      .then(() => true)
+      .catch(() => {
+        console.warn('[!] Quick Brief data never loaded (still skeletons) - it will be left out of the email.');
+        return false;
+      });
 
     try {
       console.log('[*] Capturing Quick Brief & Daily Velocity inline email snapshots...');
@@ -493,8 +498,10 @@ async function main() {
       console.warn('[!] Could not capture inline snapshots via hook:', snapErr.message);
     }
 
+    if (!snapshots) snapshots = { quickBriefBase64: null, dailyVelocityBase64: null };
+
     // Fallback direct selector snapshot if hook returned empty
-    if (!snapshots?.quickBriefBase64) {
+    if (qbReady && !snapshots.quickBriefBase64) {
       try {
         // Unpin the sticky header so it cannot cover the element screenshots
         await page.addStyleTag({ content: '#app-sticky-header{position:static !important}' });
@@ -505,7 +512,8 @@ async function main() {
         }
       } catch {}
     }
-    if (!snapshots?.dailyVelocityBase64) {
+    if (!qbReady) snapshots.quickBriefBase64 = null;
+    if (!snapshots.dailyVelocityBase64) {
       try {
         const p2Handle = await page.$('#pdf-page-2');
         if (p2Handle) {

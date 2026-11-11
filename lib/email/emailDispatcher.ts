@@ -186,9 +186,9 @@ export function buildReportEmailHtml(
       </p>
 
       <div style="margin: 20px 0 0 0;">
-        <div style="margin-bottom: 20px; border-radius: 12px; overflow: hidden; border: 1px solid #e2e8f0; background: #ffffff;">
+        ${options?.quickBriefBase64 ? `<div style="margin-bottom: 20px; border-radius: 12px; overflow: hidden; border: 1px solid #e2e8f0; background: #ffffff;">
           <img src="${qbSrc}" alt="Quick Brief Top Line Performance" style="width: 100%; height: auto; display: block; border: 0;" />
-        </div>
+        </div>` : ''}
         <div style="margin-bottom: 12px; border-radius: 12px; overflow: hidden; border: 1px solid #e2e8f0; background: #ffffff;">
           <img src="${dvSrc}" alt="Easy Gold Marketing Daily Performance - Daily Velocity" style="width: 100%; height: auto; display: block; border: 0;" />
         </div>

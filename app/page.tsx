@@ -25,6 +25,8 @@ import { ExecutiveDashboardData, WeeklyMetricRow, MetricVariances } from '@/lib/
 import { MtdReportPayload, MtdQuery } from '@/lib/types/mtd.types';
 import { UserProfile } from '@/lib/types/auth.types';
 import { getCurrentUser, DEFAULT_DEMO_USER } from '@/lib/supabase/authHelper';
+import { createClient } from '@/lib/supabase/client';
+import { mergeExtraForecasts } from '@/lib/utils/mtdForecastMerge';
 import { 
   Calendar, 
   RefreshCw, 
@@ -164,34 +166,89 @@ export default function DashboardPage() {
   }, []);
 
   // Fetch weekly summary with cache-busting & resilient status/content-type checks
+  // Direct Supabase RPC fallback for the weekly summary. The static export used by the daily
+  // email job has no /api routes, so without this the Quick Brief stays in skeleton state.
+  // Same enrichment as app/api/dashboard/summary/route.ts.
+  const fetchWeeklySummaryViaRpc = async (): Promise<ExecutiveDashboardData | null> => {
+    try {
+      const supabase = createClient();
+      const { data, error } = await supabase.rpc('get_executive_weekly_dashboard', { p_limit: 52 });
+      if (error || !data?.current_week) return null;
+      try {
+        const { data: daily } = await supabase
+          .from('summary_daily_metrics')
+          .select('date_id, buy_value_mil_lak, sell_value_mil_lak');
+        if (Array.isArray(daily)) {
+          const enrichWeek = (w: any) => {
+            if (!w || !w.start_date || !w.end_date) return;
+            const days = daily.filter((d: any) => d.date_id >= w.start_date && d.date_id <= w.end_date);
+            if (days.length > 0) {
+              const sumBuy = days.reduce((acc: number, d: any) => acc + (Number(d.buy_value_mil_lak) || 0), 0);
+              const sumSell = days.reduce((acc: number, d: any) => acc + (Number(d.sell_value_mil_lak) || 0), 0);
+              w.buy_value_mil_lak = Math.round(sumBuy * 10) / 10;
+              w.sell_value_mil_lak = Math.round(sumSell * 10) / 10;
+            }
+          };
+          enrichWeek(data.current_week);
+          if (data.previous_week) enrichWeek(data.previous_week);
+          if (Array.isArray(data.history)) data.history.forEach(enrichWeek);
+          if (data.previous_week && data.variances) {
+            const prevBuy = data.previous_week.buy_value_mil_lak;
+            const curBuy = data.current_week.buy_value_mil_lak;
+            if (prevBuy && prevBuy > 0 && curBuy !== undefined) {
+              data.variances.buy_value_mil_lak = Math.round(((curBuy - prevBuy) / prevBuy) * 100);
+            }
+            const prevSell = data.previous_week.sell_value_mil_lak;
+            const curSell = data.current_week.sell_value_mil_lak;
+            if (prevSell && prevSell > 0 && curSell !== undefined) {
+              data.variances.sell_value_mil_lak = Math.round(((curSell - prevSell) / prevSell) * 100);
+            }
+          }
+        }
+      } catch (enrichErr) {
+        console.warn('Could not enrich weekly metrics with financial values:', enrichErr);
+      }
+      return data as ExecutiveDashboardData;
+    } catch (err) {
+      console.warn('Direct Supabase RPC get_executive_weekly_dashboard fallback failed:', err);
+      return null;
+    }
+  };
+
   const fetchWeeklySummary = async () => {
     setWeeklyLoading(true);
     setWeeklyError(null);
+    let json: ExecutiveDashboardData | null = null;
+    let apiError: string | null = null;
     try {
       const res = await fetch(`/api/dashboard/summary?refresh=true&t=${Date.now()}`, { cache: 'no-store' });
+      const contentType = res.headers.get('content-type') || '';
       if (!res.ok) {
         const errorText = await res.text().catch(() => '');
-        let msg = `Weekly summary failed (HTTP ${res.status})`;
+        apiError = `Weekly summary failed (HTTP ${res.status})`;
         try {
           const parsed = JSON.parse(errorText);
-          if (parsed?.error) msg = parsed.error;
+          if (parsed?.error) apiError = parsed.error;
         } catch {
           if (res.status === 502 || res.status === 504) {
-            msg = 'Supabase gateway timeout loading weekly summary. Click retry.';
+            apiError = 'Supabase gateway timeout loading weekly summary. Click retry.';
           }
         }
-        setWeeklyError(msg);
-        return;
+      } else if (!contentType.includes('application/json')) {
+        apiError = 'Weekly summary service returned an invalid response format.';
+      } else {
+        const parsed: ExecutiveDashboardData = await res.json();
+        if (parsed?.current_week) json = parsed;
+        else apiError = 'Incomplete weekly summary data received.';
       }
+    } catch (err: any) {
+      console.error('Failed to load weekly summary', err);
+      apiError = err?.message || 'Network error connecting to weekly summary service.';
+    }
 
-      const contentType = res.headers.get('content-type') || '';
-      if (!contentType.includes('application/json')) {
-        setWeeklyError('Weekly summary service returned an invalid response format.');
-        return;
-      }
-
-      const json: ExecutiveDashboardData = await res.json();
-      if (json && json.current_week) {
+    try {
+      if (!json) json = await fetchWeeklySummaryViaRpc();
+      if (json) {
         setWeeklyData(json);
         setWeeklyReady(true);
         setWeeklyError(null);
@@ -199,11 +256,8 @@ export default function DashboardPage() {
           setSelectedWeekLabel(json.current_week.week_label);
         }
       } else {
-        setWeeklyError('Incomplete weekly summary data received.');
+        setWeeklyError(apiError || 'Incomplete weekly summary data received.');
       }
-    } catch (err: any) {
-      console.error('Failed to load weekly summary', err);
-      setWeeklyError(err?.message || 'Network error connecting to weekly summary service.');
     } finally {
       setWeeklyLoading(false);
     }
@@ -224,40 +278,67 @@ export default function DashboardPage() {
     params.set('t', String(Date.now()));
 
     setMtdLoading(true);
+    let json: MtdReportPayload | null = null;
+    let apiError: string | null = null;
     try {
       const res = await fetch(`/api/dashboard/mtd-forecast?${params.toString()}`, { cache: 'no-store' });
+      const contentType = res.headers.get('content-type') || '';
       if (!res.ok) {
         const errorText = await res.text().catch(() => '');
-        let parsedMessage = `MTD report failed (HTTP ${res.status})`;
+        apiError = `MTD report failed (HTTP ${res.status})`;
         try {
           const parsed = JSON.parse(errorText);
-          if (parsed?.error) parsedMessage = parsed.error;
+          if (parsed?.error) apiError = parsed.error;
         } catch {
           if (res.status === 502 || res.status === 504) {
-            parsedMessage = 'Gateway timeout / Supabase connection unavailable. Please retry in a few moments.';
+            apiError = 'Gateway timeout / Supabase connection unavailable. Please retry in a few moments.';
           }
         }
-        setMtdError(parsedMessage);
-        return;
-      }
-
-      const contentType = res.headers.get('content-type') || '';
-      if (!contentType.includes('application/json')) {
-        setMtdError('Received non-JSON response from MTD forecast service.');
-        return;
-      }
-
-      const json = await res.json();
-      if (json?.metrics) {
-        setMtdData(json as MtdReportPayload);
-        setMtdReady(true);
-        setMtdError(null);
+      } else if (!contentType.includes('application/json')) {
+        apiError = 'Received non-JSON response from MTD forecast service.';
       } else {
-        setMtdError(json?.error || `MTD report failed (HTTP ${res.status})`);
+        const parsed = await res.json();
+        if (parsed?.metrics) json = parsed as MtdReportPayload;
+        else apiError = parsed?.error || `MTD report failed (HTTP ${res.status})`;
       }
     } catch (err: any) {
       console.error('Failed to load MTD forecast report', err);
-      setMtdError(err?.message || 'Network error connecting to MTD forecast service.');
+      apiError = err?.message || 'Network error connecting to MTD forecast service.';
+    }
+
+    try {
+      // Direct Supabase RPC fallback (the static export used by the daily email has no /api routes).
+      if (!json) {
+        try {
+          const supabase = createClient();
+          const { data, error } = await supabase.rpc('get_mtd_forecast_report', {
+            p_as_of_date: q.asOfDate || null,
+            p_comp_year: q.compYear && q.compMonth ? q.compYear : null,
+            p_comp_month: q.compYear && q.compMonth ? q.compMonth : null,
+            p_mode: q.mode === 'working_days' ? 'working_days' : 'calendar_days',
+          });
+          if (!error && data?.metrics) {
+            if (data.as_of_date) {
+              const [hybridRes, etsRes] = await Promise.all([
+                supabase.rpc('mtd_hybrid_forecast', { p_as_of: data.as_of_date }),
+                supabase.rpc('mtd_ets_forecast', { p_as_of: data.as_of_date }),
+              ]);
+              mergeExtraForecasts(data, hybridRes.error ? null : hybridRes.data, etsRes.error ? null : etsRes.data);
+            }
+            json = data as MtdReportPayload;
+          }
+        } catch (rpcErr) {
+          console.warn('Direct Supabase RPC get_mtd_forecast_report fallback failed:', rpcErr);
+        }
+      }
+
+      if (json) {
+        setMtdData(json);
+        setMtdReady(true);
+        setMtdError(null);
+      } else {
+        setMtdError(apiError || 'MTD report failed.');
+      }
     } finally {
       setMtdLoading(false);
     }

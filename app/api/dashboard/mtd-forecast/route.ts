@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { mergeExtraForecasts } from '@/lib/utils/mtdForecastMerge';
 
 export const runtime = 'edge';
 
@@ -55,21 +56,7 @@ export async function GET(request: NextRequest) {
       ]);
       if (hybridRes.error) console.warn('MTD hybrid forecast unavailable:', hybridRes.error.message);
       if (etsRes.error) console.warn('MTD ETS forecast unavailable:', etsRes.error.message);
-      const hybrid = (!hybridRes.error && hybridRes.data && typeof hybridRes.data === 'object'
-        ? hybridRes.data : {}) as Record<string, any>;
-      const ets = (!etsRes.error && etsRes.data && typeof etsRes.data === 'object'
-        ? etsRes.data : {}) as Record<string, any>;
-      const num = (v: unknown) => (v != null && Number.isFinite(Number(v)) ? Number(v) : undefined);
-
-      for (const key of Object.keys(data.metrics)) {
-        const h = hybrid[key];
-        const e = ets[key];
-        data.metrics[key] = {
-          ...data.metrics[key],
-          ...(h ? { est_month_end_hybrid: num(h.est_month_end_hybrid), est_month_end_ma28: num(h.est_month_end_ma28), hybrid: h } : {}),
-          ...(e ? { est_month_end_ets: num(e.est_month_end_ets), ets: e } : {}),
-        };
-      }
+      mergeExtraForecasts(data, hybridRes.error ? null : hybridRes.data, etsRes.error ? null : etsRes.data);
     }
 
     return NextResponse.json(data, {

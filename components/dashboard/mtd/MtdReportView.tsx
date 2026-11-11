@@ -354,10 +354,10 @@ export function MtdReportView({ initialData, onRefresh, loading = false, error =
       )}
 
       {/* 1. Header Row matching screenshot */}
-      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 pb-2 border-b border-slate-200/80">
-        <div>
-          {/* Main Title */}
-          <h1 className="text-2xl sm:text-3xl lg:text-[34px] font-black text-brand-navy tracking-tight flex items-center gap-2 flex-wrap">
+      <div className="flex flex-col gap-3 pb-3 border-b border-slate-200/80">
+        <div className="flex flex-wrap items-baseline gap-x-6 gap-y-1">
+          {/* Main Title: one line on desktop */}
+          <h1 className="text-2xl sm:text-[26px] xl:text-[28px] leading-tight font-black text-brand-navy tracking-tight flex items-baseline gap-x-2 flex-wrap lg:flex-nowrap lg:whitespace-nowrap">
             <span>
               Overall performance MTD {selectedReportMonth !== initialData.current_month_label ? `(${selectedReportMonth})` : ''} and Forecast vs
             </span>
@@ -367,7 +367,7 @@ export function MtdReportView({ initialData, onRefresh, loading = false, error =
           </h1>
 
           {/* Subtitle & Date Meta */}
-          <div className="mt-1 flex items-center gap-2 sm:gap-3 flex-wrap">
+          <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
             <span className="text-xs sm:text-sm font-bold text-brand-navyLight underline underline-offset-2">
               Data up to date {displayedData.display_as_of_date}
             </span>
@@ -392,7 +392,7 @@ export function MtdReportView({ initialData, onRefresh, loading = false, error =
         </div>
 
         {/* Interactive Controls Bar */}
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap xl:flex-nowrap [&_select]:h-8 [&_input]:h-8 [&>button]:h-8">
           {/* 1. MTD Target Month Dropdown */}
           <div className="relative flex items-center">
             <Calendar className="w-3.5 h-3.5 text-brand-navy absolute left-2.5 pointer-events-none" />
@@ -461,7 +461,7 @@ export function MtdReportView({ initialData, onRefresh, loading = false, error =
           <button
             onClick={() => handleExecuteMtd()}
             disabled={isExecuting || loading}
-            className="flex items-center gap-2 px-4 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-500 hover:to-teal-600 text-white text-xs font-black shadow-sm hover:shadow-md ring-1 ring-emerald-400/30 transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
+            className="flex items-center gap-2 px-4 py-1.5 rounded-xl whitespace-nowrap bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-500 hover:to-teal-600 text-white text-xs font-black shadow-sm hover:shadow-md ring-1 ring-emerald-400/30 transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
             title="Execute MTD report calculation"
           >
             {isExecuting || loading ? (
@@ -476,7 +476,7 @@ export function MtdReportView({ initialData, onRefresh, loading = false, error =
           <button
             onClick={handleExportCsv}
             disabled={isExporting}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-brand-gold hover:bg-brand-goldDark text-slate-950 text-xs font-black shadow-xs transition-all cursor-pointer"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl whitespace-nowrap bg-brand-gold hover:bg-brand-goldDark text-slate-950 text-xs font-black shadow-xs transition-all cursor-pointer"
             title="Export MTD report to Excel/CSV"
           >
             <FileSpreadsheet className="w-3.5 h-3.5 text-slate-950" />
@@ -489,7 +489,7 @@ export function MtdReportView({ initialData, onRefresh, loading = false, error =
               if (onRefresh) onRefresh();
             }}
             disabled={loading || isRefreshing}
-            className="p-1.5 rounded-xl bg-white border border-slate-300/80 text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-colors disabled:opacity-50 shadow-xs cursor-pointer"
+            className="w-8 flex items-center justify-center rounded-xl bg-white border border-slate-300/80 text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-colors disabled:opacity-50 shadow-xs cursor-pointer"
             title="Refresh MTD & Forecast"
           >
             <RefreshCw className={`w-4 h-4 ${loading || isRefreshing ? 'animate-spin' : ''}`} />
