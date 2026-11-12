@@ -3,6 +3,7 @@
 import React, { useMemo } from 'react';
 import { CampaignSetupConfig } from '@/lib/types/campaign.types';
 import { computeCampaignAnalytics } from '@/lib/campaign/campaignEngine';
+import { campaignHasNcTarget, campaignHasBuyTarget } from '@/lib/campaign/campaignSql';
 import { 
   Calendar, 
   BarChart3, 
@@ -171,7 +172,7 @@ export function CampaignCardItem({
   const ncHitPct = targetAchievement.nc_pct_hit_mtd;
 
   // NC-only campaign: no Buy Trans target configured, so headline NC instead of trans
-  const isNcOnlyCard = Boolean(campaign.target_types?.includes('nc')) && !Boolean(campaign.target_types?.includes('ec'));
+  const isNcOnlyCard = campaignHasNcTarget(campaign) && !campaignHasBuyTarget(campaign);
   const actNcBuyValue = targetAchievement.nc_mtd_buy_value_mil_lak;
   const actNcBuyWeight = targetAchievement.nc_mtd_buy_weight_g;
 
@@ -184,7 +185,10 @@ export function CampaignCardItem({
   const actRevenue = targetAchievement.mtd_buy_value_mil_lak;
   const hasRevenueTarget = (tgtRevenue !== undefined && tgtRevenue > 0) && (campaign.target_types ? campaign.target_types.includes('revenue') : true);
 
-  const rrProjected = targetAchievement.ec_rr_projected;
+  // RR projection follows the headline metric: NC for NC-only cards, buy trans otherwise
+  const rrProjected = isNcOnlyCard ? targetAchievement.nc_rr_projected : targetAchievement.ec_rr_projected;
+  const rrTarget = isNcOnlyCard ? tgtNc : tgtEc;
+  const rrPacePct = rrTarget > 0 ? Math.round((rrProjected / rrTarget) * 100) : 0;
 
   return (
     <div 
@@ -316,7 +320,7 @@ export function CampaignCardItem({
                   {`${actNcBuyValue.toLocaleString()} mil`}
                 </div>
                 <span className="block text-[9px] font-bold text-slate-500 truncate">
-                  1st Buy MTD
+                  {`NC buys MTD (${targetAchievement.nc_mtd_buy_trans.toLocaleString()} trans)`}
                 </span>
               </>
             ) : hasNcTarget ? (
@@ -355,7 +359,7 @@ export function CampaignCardItem({
               {formatWeightShort(isNcOnlyCard ? actNcBuyWeight : actWeight)}
             </div>
             <span className="block text-[9px] font-bold text-slate-500 truncate">
-              {isNcOnlyCard ? '1st Buy MTD' : hasWeightTarget ? `${formatWeightShort(tgtWeight)} tgt (${weightHitPct}%)` : hasRevenueTarget ? formatTargetRevenue(actRevenue) : 'Volume basis'}
+              {isNcOnlyCard ? 'NC buys MTD' : hasWeightTarget ? `${formatWeightShort(tgtWeight)} tgt (${weightHitPct}%)` : hasRevenueTarget ? formatTargetRevenue(actRevenue) : 'Volume basis'}
             </span>
           </div>
 
@@ -367,8 +371,8 @@ export function CampaignCardItem({
             <div className={`text-[11px] font-black font-mono text-slate-900 truncate ${isRecording ? 'opacity-80' : ''}`}>
               {rrProjected.toLocaleString()}
             </div>
-            <span className="block text-[9px] font-bold text-emerald-600 truncate">
-              {tgtEc > 0 ? `${Math.round((rrProjected / tgtEc) * 100)}% pace` : 'Healthy pace'}
+            <span className={`block text-[9px] font-bold truncate ${rrTarget > 0 && rrPacePct < 100 ? 'text-amber-600' : 'text-emerald-600'}`}>
+              {rrTarget > 0 ? `${rrPacePct}% pace${isNcOnlyCard ? ' (NC)' : ''}` : 'No target'}
             </span>
           </div>
         </div>

@@ -12,6 +12,7 @@ import {
   INITIAL_PRESET_CAMPAIGNS 
 } from '@/lib/storage/campaignStorage';
 import { computeCampaignAnalytics, computeBackwardDates, calculateDateDiffDays } from '@/lib/campaign/campaignEngine';
+import { buildCampaignSql, buildCampaignRpcParams, hasCampaignResult } from '@/lib/campaign/campaignSql';
 import { createClient } from '@/lib/supabase/client';
 import { 
   CampaignCardItem, 
@@ -306,7 +307,10 @@ export function CampaignTrackingView({
           const contentType = res.headers.get('content-type') || '';
           if (contentType.includes('application/json')) {
             const data = await res.json();
-            if (data && data.targetAchievement && data.targetAchievement.ec_actual_mtd > 0) {
+            if (data && data.live_metrics && hasCampaignResult(data.live_metrics)) {
+              // Raw RPC numbers from the worker / route (same definition as the nightly batch)
+              payload = { ...data.live_metrics, sql_script: data.sql_script || data.live_metrics.sql_script };
+            } else if (data && data.targetAchievement && hasCampaignResult(data.targetAchievement)) {
               payload = {
                 ec_actual_mtd: data.targetAchievement.ec_actual_mtd,
                 nc_actual_mtd: data.targetAchievement.nc_actual_mtd,
@@ -331,131 +335,46 @@ export function CampaignTrackingView({
       if (!payload) {
         try {
           const supabase = createClient();
-          const rules = Array.isArray(targetCamp.conditions) && targetCamp.conditions.length > 0
-            ? targetCamp.conditions
-            : [{
-                metric: ((targetCamp.condition_type || '').includes('weight') || (targetCamp.condition_label || '').toLowerCase().includes('g')) ? ('weight' as const) : ('amount' as const),
-                operator: targetCamp.condition_operator || '>=',
-                value: Number(targetCamp.condition_value) || 0,
-                max_value: targetCamp.condition_max_value ? Number(targetCamp.condition_max_value) : undefined,
-              }];
-          const firstRule = rules[0];
-          const isWeight = firstRule ? firstRule.metric === 'weight' : false;
-          const condOp = firstRule ? firstRule.operator : '>=';
-          const condVal = firstRule ? Number(firstRule.value) : 0;
-          const condMax = firstRule && firstRule.max_value ? Number(firstRule.max_value) : null;
           const asOf = effectiveAsOfDate;
           const totalDays = calculateDateDiffDays(targetCamp.campaign_date_start, targetCamp.campaign_date_end);
           const isEnded = new Date(asOf).getTime() >= new Date(targetCamp.campaign_date_end).getTime();
           const effectiveCutoff = isEnded ? targetCamp.campaign_date_end : asOf;
           const elapsedDays = isEnded ? totalDays : calculateDateDiffDays(targetCamp.campaign_date_start, effectiveCutoff);
           const backwardWindow = computeBackwardDates(targetCamp.campaign_date_start, elapsedDays, totalDays);
+          const campaignWindow = {
+            start: targetCamp.campaign_date_start,
+            cutoff: effectiveCutoff,
+            backStart: backwardWindow.start,
+            backEnd: backwardWindow.end,
+            backDays: elapsedDays || totalDays,
+          };
 
-          const { data: rpcData } = await supabase.rpc('get_campaign_actual_metrics', {
-            p_start_date: targetCamp.campaign_date_start,
-            p_as_of_date: effectiveCutoff,
-            p_backward_start: backwardWindow.start,
-            p_backward_end: backwardWindow.end,
-            p_cond_type: isWeight ? 'weight_gte' : 'amount_gte',
-            p_cond_op: condOp,
-            p_cond_val: condVal > 0 ? condVal : (rules.length === 0 ? 0 : 100000),
-            p_cond_max: condMax,
-            p_tx_type: targetCamp.tx_type || 'BUY_GOLD',
-            p_bank: targetCamp.bank || 'all',
-          });
-
-          // Exact NC Query (OPEN_ACCOUNT in period, pure registrations)
-          let ncCount: number | null = null;
-          if (!rpcData?.mtd_new_customers) {
-            try {
-              let ncQ = supabase
-                .from('monthly_data')
-                .select('*', { count: 'exact', head: true })
-                .gte('created_at', targetCamp.campaign_date_start)
-                .lte('created_at', `${effectiveCutoff} 23:59:59`)
-                .eq('transaction_type', 'OPEN_ACCOUNT');
-
-              if (targetCamp.bank && targetCamp.bank.toLowerCase() !== 'all') {
-                const bList = targetCamp.bank.split(',').map((b: string) => b.trim()).filter(Boolean);
-                if (bList.length === 1) {
-                  ncQ = ncQ.ilike('bank', `%${bList[0]}%`);
-                } else if (bList.length > 1) {
-                  ncQ = ncQ.or(bList.map((b: string) => `bank.ilike.%${b}%`).join(','));
-                }
-              }
-
-              const { count } = await ncQ;
-              ncCount = count;
-            } catch (err) {
-              console.warn('NC count direct error:', err);
-            }
-          }
+          // Same 14-argument RPC as the worker and the nightly batch
+          const { data: rpcData } = await supabase.rpc(
+            'get_campaign_actual_metrics',
+            buildCampaignRpcParams(targetCamp, campaignWindow)
+          );
 
           if (rpcData && rpcData.mtd_transac !== undefined) {
-            const finalNc = Number(rpcData.mtd_new_customers) > 0 
-              ? Number(rpcData.mtd_new_customers) 
-              : ((ncCount !== null && ncCount !== undefined && ncCount > 0) ? ncCount : 0);
-
-            // Construct dynamic SQL script for Supabase query bridge
-            const bList = targetCamp.bank && targetCamp.bank !== 'all' ? targetCamp.bank.split(',').map((b: string) => b.trim()).filter(Boolean) : [];
-            const bankSql = bList.length === 1 
-              ? `\n  AND bank ILIKE '%${bList[0]}%'` 
-              : bList.length > 1 
-              ? `\n  AND (${bList.map((b: string) => `bank ILIKE '%${b}%'`).join(' OR ')})` 
-              : '';
-            let condSql = '';
-            for (const r of rules) {
-              const col = r.metric === 'weight' ? 'gold_weight' : 'total_amount';
-              if (r.operator === 'between') {
-                condSql += `\n  AND ${col} >= ${r.value} AND ${col} <= ${r.max_value || r.value}`;
-              } else if (r.operator === '<=') {
-                condSql += `\n  AND ${col} <= ${r.value}`;
-              } else if (r.operator === '==') {
-                condSql += `\n  AND ${col} = ${r.value}`;
-              } else {
-                condSql += `\n  AND ${col} >= ${r.value}`;
-              }
-            }
-            const dynamicScript = `-- ============================================================================
--- CAMPAIGN INTELLIGENCE: ${targetCamp.campaign_name || 'Campaign Target'}
--- Rule: ${targetCamp.condition_label || 'Buy trans'} | Bank: ${(targetCamp.bank || 'ALL').toUpperCase()}
--- ============================================================================
-
--- 1. Actual MTD Performance (${targetCamp.campaign_date_start} to ${effectiveCutoff})
-SELECT 
-    COUNT(*) AS ec_actual_mtd,
-    COUNT(DISTINCT phone) AS unique_customers_mtd,
-    ROUND(COALESCE(SUM(gold_weight), 0)::numeric, 1) AS mtd_buy_weight_g,
-    ROUND(COALESCE(SUM(total_amount), 0)::numeric / 1000000.0, 1) AS mtd_buy_value_mil_lak
-FROM public.monthly_data
-WHERE created_at >= '${targetCamp.campaign_date_start}'
-  AND created_at <= '${effectiveCutoff} 23:59:59'
-  AND status IN ('ສໍາເລັດ', 'ສຳເລັດ')
-  AND transaction_type = '${targetCamp.tx_type || 'BUY_GOLD'}'${bankSql}${condSql};
-
--- 2. Equal Backward Benchmark Baseline (${backwardWindow.start} to ${backwardWindow.end}, ${elapsedDays} days)
-SELECT 
-    COUNT(*) AS buy_trans_backward,
-    ROUND(COALESCE(SUM(gold_weight), 0)::numeric, 1) AS buy_weight_g_backward,
-    ROUND(COALESCE(SUM(total_amount), 0)::numeric / 1000000.0, 1) AS buy_value_lak_backward
-FROM public.monthly_data
-WHERE created_at >= '${backwardWindow.start}'
-  AND created_at <= '${backwardWindow.end} 23:59:59'
-  AND status IN ('ສໍາເລັດ', 'ສຳເລັດ')
-  AND transaction_type = '${targetCamp.tx_type || 'BUY_GOLD'}'${bankSql}${condSql};`;
-
             payload = {
               ec_actual_mtd: Number(rpcData.mtd_transac) || 0,
-              nc_actual_mtd: finalNc,
+              unique_users_actual_mtd: Number(rpcData.mtd_unique_users) || 0,
+              nc_actual_mtd: Number(rpcData.mtd_new_customers) || 0,
               mtd_buy_weight_g: Number(rpcData.mtd_gold_weight_g) || 0,
               mtd_buy_value_mil_lak: Number(rpcData.mtd_revenue_mil_lak) || 0,
+              nc_mtd_buy_trans: Number(rpcData.mtd_nc_buy_trans) || 0,
+              nc_mtd_buy_value_mil_lak: Number(rpcData.mtd_nc_buy_value_mil_lak) || 0,
+              nc_mtd_buy_weight_g: Number(rpcData.mtd_nc_buy_weight_g) || 0,
+              nc_backward_buy_value_mil_lak: Number(rpcData.backward_nc_buy_value_mil_lak) || 0,
+              nc_backward_buy_weight_g: Number(rpcData.backward_nc_buy_weight_g) || 0,
               backward_trans: Number(rpcData.backward_transac) || 0,
+              backward_unique_users: Number(rpcData.backward_unique_users) || 0,
               backward_val_mil: Number(rpcData.backward_revenue_mil_lak) || 0,
               backward_weight_g: Number(rpcData.backward_gold_weight_g) || 0,
               backward_ticket: Number(rpcData.backward_transac) > 0 ? Number((Number(rpcData.backward_gold_weight_g) / Number(rpcData.backward_transac)).toFixed(1)) : 2.8,
               backward_nc: Number(rpcData.backward_new_customers) || 0,
               max_db_date: asOf,
-              sql_script: dynamicScript,
+              sql_script: buildCampaignSql(targetCamp, campaignWindow),
             };
           }
         } catch (dbErr) {
@@ -470,7 +389,7 @@ WHERE created_at >= '${backwardWindow.start}'
   const handleExecuteCalculate = useCallback(async (targetCamp: CampaignSetupConfig, overrideAsOfDate?: string, forceRecalc: boolean = false) => {
     // 0ms Instant Recall: If campaign has pre-computed result_json or is frozen, load JSON immediately without querying Supabase!
     const precomputed = targetCamp.result_json || (targetCamp.is_frozen ? targetCamp.frozen_analytics : null);
-    if (!forceRecalc && precomputed && precomputed.ec_actual_mtd > 0) {
+    if (!forceRecalc && precomputed && hasCampaignResult(precomputed)) {
       setLiveDataMap((prev) => {
         const next = { ...prev, [targetCamp.id]: precomputed };
         saveLiveDataMapCache(next);
@@ -506,7 +425,7 @@ WHERE created_at >= '${backwardWindow.start}'
         }
 
         // Persist full actuals snapshot back to Supabase and in-memory list
-        if (payload.ec_actual_mtd > 0) {
+        if (hasCampaignResult(payload)) {
           const isCampaignEnded = Boolean(
             targetCamp.campaign_date_end && effectiveAsOfDate >= targetCamp.campaign_date_end
           );
@@ -515,6 +434,9 @@ WHERE created_at >= '${backwardWindow.start}'
             ...targetCamp,
             customers_actual: payload.ec_actual_mtd,
             new_cust_actual: payload.nc_actual_mtd,
+            unique_users_actual: payload.unique_users_actual_mtd ?? targetCamp.unique_users_actual,
+            nc_actual_buy_value_mil_lak: payload.nc_mtd_buy_value_mil_lak ?? targetCamp.nc_actual_buy_value_mil_lak,
+            nc_actual_buy_weight_g: payload.nc_mtd_buy_weight_g ?? targetCamp.nc_actual_buy_weight_g,
             actual_gold_weight_g: payload.mtd_buy_weight_g,
             actual_revenue_mil: payload.mtd_buy_value_mil_lak,
             backward_trans: payload.backward_trans,
@@ -559,7 +481,7 @@ WHERE created_at >= '${backwardWindow.start}'
     // Campaign ended on or before the cut-off: its final saved snapshot is already the as-of result
     if (!force && camp.campaign_date_end && cutoff >= camp.campaign_date_end) {
       const snap = (camp.is_frozen && camp.frozen_analytics) || camp.result_json || liveDataMap[camp.id];
-      if (snap && snap.ec_actual_mtd > 0 && snap.max_db_date && snap.max_db_date >= camp.campaign_date_end) {
+      if (snap && hasCampaignResult(snap) && snap.max_db_date && snap.max_db_date >= camp.campaign_date_end) {
         setAsOfDataMap((prev) => ({ ...prev, [key]: snap }));
         return;
       }
@@ -694,7 +616,7 @@ WHERE created_at >= '${backwardWindow.start}'
         let updated = false;
         const nextMap = { ...prevMap };
         for (const c of list) {
-          if (c.result_json && c.result_json.ec_actual_mtd > 0) {
+          if (c.result_json && hasCampaignResult(c.result_json)) {
             nextMap[c.id] = c.result_json;
             updated = true;
           } else if (!nextMap[c.id] && c.customers_actual && (c.actual_gold_weight_g !== undefined || c.backward_trans !== undefined)) {
@@ -724,7 +646,7 @@ WHERE created_at >= '${backwardWindow.start}'
       const effectiveDbDate = latestDb || dbLatestDate || '2026-10-21';
       const campaignsToSync = list.filter((c: CampaignSetupConfig) => {
         // 1. If campaign has pre-computed result_json from 3:00 AM batch and is frozen or up to date, SKIP!
-        if (c.result_json && c.result_json.ec_actual_mtd > 0) {
+        if (c.result_json && hasCampaignResult(c.result_json)) {
           if (c.is_frozen || c.status === 'completed' || c.result_json.max_db_date === effectiveDbDate) {
             return false;
           }
@@ -739,7 +661,7 @@ WHERE created_at >= '${backwardWindow.start}'
           return false;
         }
         // If active and cache matches latest DB date, it is fresh
-        if (cached && cached.max_db_date === effectiveDbDate && cached.ec_actual_mtd > 0) {
+        if (cached && cached.max_db_date === effectiveDbDate && hasCampaignResult(cached)) {
           return false;
         }
         return true;
@@ -776,6 +698,8 @@ WHERE created_at >= '${backwardWindow.start}'
     if (cached) {
       setLiveData(cached);
     } else {
+      // Clear the previous campaign's numbers so they never show under this campaign
+      setLiveData(null);
       handleExecuteCalculate(camp);
     }
   }, [liveDataMap, handleExecuteCalculate]);
@@ -819,70 +743,16 @@ WHERE created_at >= '${backwardWindow.start}'
     const camp = currentTargetCampaign;
     const isEnded = camp.campaign_date_end && reportDate >= camp.campaign_date_end;
     const effectiveCutoff = isEnded ? camp.campaign_date_end : reportDate;
-    const banks = camp.bank && camp.bank !== 'all' ? camp.bank.split(',').map((b: string) => b.trim()).filter(Boolean) : [];
-    const bankFilter = banks.length === 1 
-      ? `\n  AND bank ILIKE '%${banks[0]}%'` 
-      : banks.length > 1 
-      ? `\n  AND (${banks.map((b: string) => `bank ILIKE '%${b}%'`).join(' OR ')})` 
-      : '';
-
-    const rules = Array.isArray(camp.conditions)
-      ? camp.conditions
-      : (camp.condition_operator !== 'all' && Number(camp.condition_value) > 0 && !camp.condition_label?.toLowerCase().includes('no condition'))
-        ? [{
-            id: '1',
-            metric: ((camp.condition_type || '').includes('weight') || (camp.condition_label || '').toLowerCase().includes('g')) ? ('weight' as const) : ('amount' as const),
-            operator: camp.condition_operator || '>=',
-            value: Number(camp.condition_value) || 0,
-            max_value: camp.condition_max_value,
-          }]
-        : [];
-
-    let condFilter = '';
-    for (const r of rules) {
-      const col = r.metric === 'weight' ? 'gold_weight' : 'total_amount';
-      if (r.operator === 'between') {
-        condFilter += `\n  AND ${col} >= ${r.value} AND ${col} <= ${r.max_value || r.value}`;
-      } else if (r.operator === '<=') {
-        condFilter += `\n  AND ${col} <= ${r.value}`;
-      } else if (r.operator === '==') {
-        condFilter += `\n  AND ${col} = ${r.value}`;
-      } else {
-        condFilter += `\n  AND ${col} >= ${r.value}`;
-      }
-    }
-
     const totalDays = calculateDateDiffDays(camp.campaign_date_start, camp.campaign_date_end);
     const elapsedDays = isEnded ? totalDays : calculateDateDiffDays(camp.campaign_date_start, effectiveCutoff);
     const backwardWindow = computeBackwardDates(camp.campaign_date_start, elapsedDays, totalDays);
-
-    return `-- ============================================================================
--- CAMPAIGN INTELLIGENCE: ${camp.campaign_name || 'Campaign Target'}
--- Rule: ${camp.condition_label || 'Buy trans'} | Bank: ${(camp.bank || 'ALL').toUpperCase()}
--- ============================================================================
-
--- 1. Actual MTD Performance (${camp.campaign_date_start} to ${effectiveCutoff})
-SELECT 
-    COUNT(*) AS ec_actual_mtd,
-    COUNT(DISTINCT phone) AS unique_customers_mtd,
-    ROUND(COALESCE(SUM(gold_weight), 0)::numeric, 1) AS mtd_buy_weight_g,
-    ROUND(COALESCE(SUM(total_amount), 0)::numeric / 1000000.0, 1) AS mtd_buy_value_mil_lak
-FROM public.monthly_data
-WHERE created_at >= '${camp.campaign_date_start}'
-  AND created_at <= '${effectiveCutoff} 23:59:59'
-  AND status IN ('ສໍາເລັດ', 'ສຳເລັດ')
-  AND transaction_type = '${camp.tx_type || 'BUY_GOLD'}'${bankFilter}${condFilter};
-
--- 2. Equal Backward Benchmark Baseline (${backwardWindow.start} to ${backwardWindow.end}, ${elapsedDays} days)
-SELECT 
-    COUNT(*) AS buy_trans_backward,
-    ROUND(COALESCE(SUM(gold_weight), 0)::numeric, 1) AS buy_weight_g_backward,
-    ROUND(COALESCE(SUM(total_amount), 0)::numeric / 1000000.0, 1) AS buy_value_lak_backward
-FROM public.monthly_data
-WHERE created_at >= '${backwardWindow.start}'
-  AND created_at <= '${backwardWindow.end} 23:59:59'
-  AND status IN ('ສໍາເລັດ', 'ສຳເລັດ')
-  AND transaction_type = '${camp.tx_type || 'BUY_GOLD'}'${bankFilter}${condFilter};`;
+    return buildCampaignSql(camp, {
+      start: camp.campaign_date_start,
+      cutoff: effectiveCutoff,
+      backStart: backwardWindow.start,
+      backEnd: backwardWindow.end,
+      backDays: elapsedDays || totalDays,
+    });
   }, [currentTargetCampaign, reportDate]);
 
   // Save (Create / Update) Campaign: Unfreezes campaign to force fresh recalculation

@@ -3,6 +3,8 @@
 // Handles API Edge Caching + Supabase RPC + Worker Static Assets
 // ============================================================================
 
+import { buildCampaignSql, buildCampaignRpcParams } from './lib/campaign/campaignSql.ts';
+
 const DEFAULT_FALLBACK_DATA = {
   current_week: {
     year_week: '2026-W43',
@@ -1792,78 +1794,8 @@ const workerHandlers = {
       const bwdStart = toYMD(bwdStartMs);
       const bwdEnd = toYMD(bwdEndMs);
 
-      const rawBank = config.bank || (config.condition_type === 'bank' ? config.condition_label : 'all');
-      const effectiveBank = (!rawBank || String(rawBank).toLowerCase() === 'all') ? 'all' : String(rawBank);
-      const txType = config.tx_type || config.transaction_type || 'BUY_GOLD';
-      const banks = effectiveBank !== 'all'
-        ? effectiveBank.split(',').map((b) => b.trim()).filter(Boolean)
-        : [];
-      const bankSql = banks.length === 1
-        ? `\n  AND bank ILIKE '%${banks[0]}%'`
-        : banks.length > 1
-        ? `\n  AND (${banks.map((b) => `bank ILIKE '%${b}%'`).join(' OR ')})`
-        : '';
-
-      const rules = Array.isArray(config.conditions)
-        ? config.conditions
-        : (config.condition_operator !== 'all' && Number(config.condition_value) > 0 && !String(config.condition_label || '').toLowerCase().includes('no condition'))
-          ? [{
-              id: 'cond_default',
-              metric: (String(config.condition_type || '').toLowerCase().includes('weight') || String(config.condition_label || '').toLowerCase().includes('g')) ? 'weight' : 'amount',
-              operator: config.condition_operator || '>=',
-              value: Number(config.condition_value) || 0,
-              max_value: config.condition_max_value ? Number(config.condition_max_value) : undefined,
-            }]
-          : [];
-
-      const firstRule = rules[0];
-      const condOp = firstRule ? firstRule.operator : (config.condition_operator || '>=');
-      const condVal = firstRule ? Number(firstRule.value) : (Number(config.condition_value) || 0);
-      const isWeight = firstRule ? firstRule.metric === 'weight' : ((String(config.condition_type || '').includes('weight')) || String(config.condition_label || '').includes('g'));
-
-      let condSql = '';
-      for (const r of rules) {
-        const col = r.metric === 'weight' ? 'gold_weight' : 'total_amount';
-        const val = Number(r.value) || 0;
-        if (r.operator === 'between') {
-          const maxV = r.max_value !== undefined ? Number(r.max_value) : val;
-          condSql += `\n  AND ${col} >= ${val} AND ${col} <= ${maxV}`;
-        } else if (r.operator === '<=') {
-          condSql += `\n  AND ${col} <= ${val}`;
-        } else if (r.operator === '==') {
-          condSql += `\n  AND ${col} = ${val}`;
-        } else {
-          condSql += `\n  AND ${col} >= ${val}`;
-        }
-      }
-
-      const sqlScript = `-- ============================================================================
--- CAMPAIGN INTELLIGENCE: ${config.campaign_name || 'Campaign Target'}
--- Rule: ${config.condition_label || 'Buy trans'} | Bank: ${effectiveBank.toUpperCase()}
--- ============================================================================
-
--- 1. Actual MTD Performance (${startDate} to ${effectiveCutoffDate})
-SELECT 
-    COUNT(*) AS ec_actual_mtd,
-    COUNT(DISTINCT phone) AS unique_customers_mtd,
-    ROUND(COALESCE(SUM(gold_weight), 0)::numeric, 1) AS mtd_buy_weight_g,
-    ROUND(COALESCE(SUM(total_amount), 0)::numeric / 1000000.0, 1) AS mtd_buy_value_mil_lak
-FROM public.monthly_data
-WHERE created_at >= '${startDate}'
-  AND created_at <= '${effectiveCutoffDate} 23:59:59'
-  AND status IN ('ສໍາເລັດ', 'ສຳເລັດ')
-  AND transaction_type = '${txType}'${bankSql}${condSql};
-
--- 2. Equal Backward Benchmark Baseline (${bwdStart} to ${bwdEnd}, ${effectiveDays} days)
-SELECT 
-    COUNT(*) AS buy_trans_backward,
-    ROUND(COALESCE(SUM(gold_weight), 0)::numeric, 1) AS buy_weight_g_backward,
-    ROUND(COALESCE(SUM(total_amount), 0)::numeric / 1000000.0, 1) AS buy_value_lak_backward
-FROM public.monthly_data
-WHERE created_at >= '${bwdStart}'
-  AND created_at <= '${bwdEnd} 23:59:59'
-  AND status IN ('ສໍາເລັດ', 'ສຳເລັດ')
-  AND transaction_type = '${txType}'${bankSql}${condSql};`;
+      const campaignWindow = { start: startDate, cutoff: effectiveCutoffDate, backStart: bwdStart, backEnd: bwdEnd, backDays: effectiveDays };
+      const sqlScript = buildCampaignSql(config, campaignWindow);
 
       let mtdTransac = 0;
       let mtdWeightG = 0;
@@ -1874,24 +1806,14 @@ WHERE created_at >= '${bwdStart}'
       let bwdRevMil = 0;
       let bwdNc = 0;
 
+      let rpcRaw = null;
       let rpcDebug = null;
       let queryCatchErr = null;
 
       if (supabaseUrl && supabaseKey && !supabaseUrl.includes('placeholder')) {
         try {
-          // Direct, ultra-fast exact aggregation via Supabase RPC
-          const rpcPayload = {
-            p_start_date: startDate,
-            p_as_of_date: effectiveCutoffDate,
-            p_backward_start: bwdStart,
-            p_backward_end: bwdEnd,
-            p_cond_type: isWeight ? 'weight_gte' : 'amount_gte',
-            p_cond_op: condOp,
-            p_cond_val: condVal > 0 ? condVal : (rules.length === 0 ? 0 : 100000),
-            p_cond_max: config.condition_max_value ? Number(config.condition_max_value) : null,
-            p_tx_type: txType || 'BUY_GOLD',
-            p_bank: effectiveBank || 'all',
-          };
+          // Same 14-argument RPC as the nightly batch, so NC follows the campaign's NC mode
+          const rpcPayload = buildCampaignRpcParams(config, campaignWindow);
 
           const rpcRes = await fetch(`${supabaseUrl}/rest/v1/rpc/get_campaign_actual_metrics`, {
             method: 'POST',
@@ -1907,6 +1829,7 @@ WHERE created_at >= '${bwdStart}'
             const rpcData = await rpcRes.json();
             rpcDebug = { status: rpcRes.status, data: rpcData };
             if (rpcData && rpcData.mtd_transac !== undefined) {
+              rpcRaw = rpcData;
               mtdTransac = Number(rpcData.mtd_transac) || 0;
               mtdNc = Number(rpcData.mtd_new_customers) || 0;
               mtdWeightG = Number(rpcData.mtd_gold_weight_g) || 0;
@@ -1919,54 +1842,13 @@ WHERE created_at >= '${bwdStart}'
             }
           }
 
-          // Fallback New Customer Query (OPEN_ACCOUNT in period, pure registration count)
-          if (!mtdNc || !bwdNc) {
-            try {
-              const fetchHeaders = {
-                apikey: supabaseKey,
-                Authorization: `Bearer ${supabaseKey}`,
-                'Range-Unit': 'items',
-                Prefer: 'count=exact',
-              };
-              let bankFilter = '';
-              if (banks.length === 1) {
-                bankFilter = `&bank=ilike.*${encodeURIComponent(banks[0])}*`;
-              } else if (banks.length > 1) {
-                bankFilter = `&or=(${banks.map(b => `bank.ilike.*${encodeURIComponent(b)}*`).join(',')})`;
-              }
-              let ncUrl = `${supabaseUrl}/rest/v1/monthly_data?select=id&transaction_type=eq.OPEN_ACCOUNT${bankFilter}&created_at=gte.${startDate}&created_at=lte.${effectiveCutoffDate}%2023:59:59&limit=1`;
-              let bwdNcUrl = `${supabaseUrl}/rest/v1/monthly_data?select=id&transaction_type=eq.OPEN_ACCOUNT${bankFilter}&created_at=gte.${bwdStart}&created_at=lte.${bwdEnd}%2023:59:59&limit=1`;
-
-              const [ncRes, bwdNcRes] = await Promise.all([
-                (!isUpcoming && !mtdNc) ? fetch(ncUrl, { headers: fetchHeaders }) : Promise.resolve(null),
-                !bwdNc ? fetch(bwdNcUrl, { headers: fetchHeaders }) : Promise.resolve(null),
-              ]);
-
-              if (ncRes && ncRes.ok) {
-                const cr = ncRes.headers.get('Content-Range');
-                if (cr && cr.includes('/')) {
-                  const count = parseInt(cr.split('/')[1], 10);
-                  if (!isNaN(count) && count > 0) mtdNc = count;
-                }
-              }
-              if (bwdNcRes && bwdNcRes.ok) {
-                const cr = bwdNcRes.headers.get('Content-Range');
-                if (cr && cr.includes('/')) {
-                  const count = parseInt(cr.split('/')[1], 10);
-                  if (!isNaN(count) && count > 0) bwdNc = count;
-                }
-              }
-            } catch (ncErr) {
-              console.warn('Worker NC query fallback warning:', ncErr);
-            }
-          }
         } catch (err) {
           queryCatchErr = err.message || String(err);
           console.error('Worker live campaign query error:', err);
         }
       }
 
-      const ecTarget = Number(config.ec_target) || 62400;
+      const ecTarget = Number(config.ec_target) || 0;
       const ncTarget = Number(config.nc_target) || 0;
       const pctTimeGone = Math.min(100, Math.round((elapsedDays / totalDays) * 100));
       const dailyActualRate = elapsedDays > 0 ? mtdTransac / elapsedDays : 0;
@@ -2026,6 +1908,27 @@ WHERE created_at >= '${bwdStart}'
           nc_pct_compare: bwdNc > 0 ? Math.round(((mtdNc - bwdNc) / bwdNc) * 100) : 0,
           growth_percent_vs_backward: bwdTransac > 0 ? Math.round(((mtdTransac - bwdTransac) / bwdTransac) * 100) : 0,
         },
+        // Raw RPC numbers in the client's live-data shape (null when the RPC failed)
+        live_metrics: rpcRaw ? {
+          ec_actual_mtd: mtdTransac,
+          unique_users_actual_mtd: Number(rpcRaw.mtd_unique_users) || 0,
+          nc_actual_mtd: mtdNc,
+          mtd_buy_weight_g: mtdWeightG,
+          mtd_buy_value_mil_lak: mtdRevMil,
+          nc_mtd_buy_trans: Number(rpcRaw.mtd_nc_buy_trans) || 0,
+          nc_mtd_buy_value_mil_lak: Number(rpcRaw.mtd_nc_buy_value_mil_lak) || 0,
+          nc_mtd_buy_weight_g: Number(rpcRaw.mtd_nc_buy_weight_g) || 0,
+          nc_backward_buy_value_mil_lak: Number(rpcRaw.backward_nc_buy_value_mil_lak) || 0,
+          nc_backward_buy_weight_g: Number(rpcRaw.backward_nc_buy_weight_g) || 0,
+          backward_trans: bwdTransac,
+          backward_unique_users: Number(rpcRaw.backward_unique_users) || 0,
+          backward_val_mil: bwdRevMil,
+          backward_weight_g: bwdWeightG,
+          backward_ticket: bwdTransac > 0 ? Number((bwdWeightG / bwdTransac).toFixed(1)) : 2.8,
+          backward_nc: bwdNc,
+          max_db_date: effectiveCutoffDate,
+          sql_script: sqlScript,
+        } : null,
         sql_script: sqlScript,
         dataSource: 'live_supabase_worker',
         cached_at: new Date().toISOString(),

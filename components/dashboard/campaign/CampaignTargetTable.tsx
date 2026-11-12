@@ -21,7 +21,22 @@ export function CampaignTargetTable({ data, asOfDate, isLoading = false }: Campa
 
   const isEcBehind = data.ec_pct_hit_rr < 100;
   const isNcBehind = data.nc_pct_hit_rr < 100;
-  const isDailyBehind = data.daily_compare_pct < 0;
+  // Buy-trans target rows only make sense when a buy target is set
+  const hasEcTarget = data.ec_target > 0;
+  // Daily pace follows the headline target: buy trans, or NC for NC-only campaigns
+  const paceOnNc = !hasEcTarget && data.nc_target > 0;
+  const paceUnit = paceOnNc ? 'nc/d' : 't/d';
+  const paceTargetPerDay = paceOnNc
+    ? (data.total_days > 0 ? data.nc_target / data.total_days : 0)
+    : data.avg_buy_trans_target_per_day;
+  const paceActualPerDay = paceOnNc
+    ? (data.elapsed_days > 0 ? data.nc_actual_mtd / data.elapsed_days : 0)
+    : data.act_buy_trans_per_day;
+  const paceComparePct = paceOnNc
+    ? (paceTargetPerDay > 0 ? Math.round(((paceActualPerDay - paceTargetPerDay) / paceTargetPerDay) * 100) : 0)
+    : data.daily_compare_pct;
+  const hasPaceTarget = paceTargetPerDay > 0;
+  const isDailyBehind = paceComparePct < 0;
   const ecPaceDelta = data.pct_time_gone > 0 ? data.ec_pct_hit_mtd - data.pct_time_gone : 0;
   const ncPaceDelta = data.pct_time_gone > 0 ? data.nc_pct_hit_mtd - data.pct_time_gone : 0;
 
@@ -126,7 +141,7 @@ export function CampaignTargetTable({ data, asOfDate, isLoading = false }: Campa
               <td colSpan={3} className="py-1 px-3 font-sans font-black text-[10px] text-[#0c4ca3] uppercase tracking-wider">
                 <div className="flex items-center gap-1.5">
                   <span className="w-1.5 h-1.5 rounded-full bg-[#0c4ca3]" />
-                  <span>Condition Buy Transactions Target</span>
+                  <span>{hasEcTarget ? 'Condition Buy Transactions Target' : 'Buy Transactions (No Target)'}</span>
                 </div>
               </td>
             </tr>
@@ -144,7 +159,8 @@ export function CampaignTargetTable({ data, asOfDate, isLoading = false }: Campa
               </td>
             </tr>
 
-            {/* Buy Trans Target - Clean with subtitle text removed */}
+            {/* Buy Trans Target + % hit: only when a buy target is set */}
+            {hasEcTarget && (<>
             <tr className="hover:bg-slate-50/80 transition-colors">
               <td className="py-1.5 px-3 border-r border-slate-200 font-sans font-medium text-slate-700">
                 Campaign Target (Buy Trans)
@@ -192,6 +208,7 @@ export function CampaignTargetTable({ data, asOfDate, isLoading = false }: Campa
                 </span>
               </td>
             </tr>
+            </>)}
 
             {/* 2.5 Unique Users Target Group (Requirement #1 & #2) */}
             <tr className="bg-cyan-50/50 border-t border-b border-cyan-100">
@@ -296,6 +313,39 @@ export function CampaignTargetTable({ data, asOfDate, isLoading = false }: Campa
                   </td>
                 </tr>
 
+                {/* What the new customers bought in the campaign window */}
+                <tr className="hover:bg-slate-50/80 transition-colors">
+                  <td className="py-1.5 px-3 border-r border-slate-200 font-sans font-medium text-slate-700">
+                    NC Buys (trans)
+                  </td>
+                  <td className="py-1.5 px-3 border-r border-slate-200 text-right font-bold text-slate-900">
+                    {formatNum(data.nc_mtd_buy_trans)}
+                  </td>
+                  <td className="py-1.5 px-3 text-right font-medium text-slate-400">-</td>
+                </tr>
+                <tr className="hover:bg-slate-50/80 transition-colors">
+                  <td className="py-1.5 px-3 border-r border-slate-200 font-sans font-medium text-slate-700">
+                    NC Buy Weight (g)
+                  </td>
+                  <td className="py-1.5 px-3 border-r border-slate-200 text-right font-bold text-slate-900">
+                    {formatNum(data.nc_mtd_buy_weight_g, 1)}
+                  </td>
+                  <td className="py-1.5 px-3 text-right font-bold text-slate-900">
+                    {formatNum(data.nc_rr_buy_weight_g, 1)}
+                  </td>
+                </tr>
+                <tr className="hover:bg-slate-50/80 transition-colors">
+                  <td className="py-1.5 px-3 border-r border-slate-200 font-sans font-medium text-slate-700">
+                    NC Buy Value (mil LAK)
+                  </td>
+                  <td className="py-1.5 px-3 border-r border-slate-200 text-right font-bold text-slate-900">
+                    {formatNum(data.nc_mtd_buy_value_mil_lak, 1)}
+                  </td>
+                  <td className="py-1.5 px-3 text-right font-bold text-slate-900">
+                    {formatNum(data.nc_rr_buy_value_mil_lak, 1)}
+                  </td>
+                </tr>
+
                 {/* NC Target - Clean with subtitle removed */}
                 <tr className="hover:bg-slate-50/80 transition-colors">
                   <td className="py-1.5 px-3 border-r border-slate-200 font-sans font-medium text-slate-700">
@@ -396,12 +446,13 @@ export function CampaignTargetTable({ data, asOfDate, isLoading = false }: Campa
               </td>
             </tr>
 
-            {/* 5. Daily Velocity Header */}
+            {/* 5. Daily Velocity (only when there is a target to pace against) */}
+            {hasPaceTarget && (<>
             <tr className="bg-slate-100 border-t border-b border-slate-200">
               <td colSpan={3} className="py-1 px-3 font-sans font-black text-[10px] text-slate-800 uppercase tracking-wider">
                 <div className="flex items-center gap-1.5">
                   <span className="w-1.5 h-1.5 rounded-full bg-slate-600" />
-                  <span>Daily Run-Rate Pace vs Daily Quota</span>
+                  <span>{paceOnNc ? 'Daily NC Pace vs Daily NC Quota' : 'Daily Run-Rate Pace vs Daily Quota'}</span>
                 </div>
               </td>
             </tr>
@@ -415,7 +466,7 @@ export function CampaignTargetTable({ data, asOfDate, isLoading = false }: Campa
                 -
               </td>
               <td className="py-1.5 px-3 text-right font-bold text-slate-800">
-                {formatNum(data.avg_buy_trans_target_per_day, 1)} <span className="text-[10px] text-slate-500 font-sans font-normal">t/d</span>
+                {formatNum(paceTargetPerDay, 1)} <span className="text-[10px] text-slate-500 font-sans font-normal">{paceUnit}</span>
               </td>
             </tr>
 
@@ -427,7 +478,7 @@ export function CampaignTargetTable({ data, asOfDate, isLoading = false }: Campa
                 -
               </td>
               <td className="py-1.5 px-3 text-right font-bold text-blue-900">
-                {formatNum(data.act_buy_trans_per_day, 1)} <span className="text-[10px] text-blue-600 font-sans font-normal">t/d</span>
+                {formatNum(paceActualPerDay, 1)} <span className="text-[10px] text-blue-600 font-sans font-normal">{paceUnit}</span>
               </td>
             </tr>
 
@@ -446,13 +497,14 @@ export function CampaignTargetTable({ data, asOfDate, isLoading = false }: Campa
                 <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-mono font-black shadow-2xs ${
                   isDailyBehind ? 'bg-rose-600 text-white' : 'bg-emerald-600 text-white'
                 }`}>
-                  {data.daily_compare_pct > 0 ? `+${data.daily_compare_pct}%` : `${data.daily_compare_pct}%`}
+                  {paceComparePct > 0 ? `+${paceComparePct}%` : `${paceComparePct}%`}
                   <span className="text-[9px] font-sans font-normal opacity-90">
-                    {data.daily_compare_pct >= 0 ? 'Ahead' : 'Behind'}
+                    {paceComparePct >= 0 ? 'Ahead' : 'Behind'}
                   </span>
                 </span>
               </td>
             </tr>
+            </>)}
           </tbody>
         </table>
       </div>

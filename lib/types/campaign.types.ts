@@ -63,8 +63,8 @@ export interface CampaignSetupConfig {
   new_cust_target?: number;           // Target New Customers
   actual_gold_weight_g?: number;      // Actual MTD Gold Weight (Grams)
   actual_revenue_mil?: number;        // Actual MTD Revenue (Mil LAK)
-  nc_actual_buy_value_mil_lak?: number; // Actual MTD Buy Value from NC's first purchase only (Mil LAK)
-  nc_actual_buy_weight_g?: number;      // Actual MTD Buy Weight from NC's first purchase only (Grams)
+  nc_actual_buy_value_mil_lak?: number; // Actual MTD Buy Value of all NC cohort buys in the window (Mil LAK)
+  nc_actual_buy_weight_g?: number;      // Actual MTD Buy Weight of all NC cohort buys in the window (Grams)
   nc_backward_buy_value_mil_lak?: number; // Backward benchmark: NC first-purchase buy value (Mil LAK)
   nc_backward_buy_weight_g?: number;      // Backward benchmark: NC first-purchase buy weight (Grams)
   backward_trans?: number;            // Backward benchmark transactions
@@ -118,7 +118,8 @@ export interface CampaignTargetAchievementPayload {
   nc_pct_hit_rr: number;              // e.g. 34%
   nc_mode_label: string;
 
-  // NC-scoped Buy Value/Weight (from NC's first purchase only, not overall MTD)
+  // NC cohort buys: every completed BUY_GOLD the new customers made in the campaign window
+  nc_mtd_buy_trans: number;
   nc_mtd_buy_value_mil_lak: number;
   nc_rr_buy_value_mil_lak: number;
   nc_mtd_buy_weight_g: number;

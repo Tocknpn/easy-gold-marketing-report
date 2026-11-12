@@ -233,6 +233,7 @@ export function computeCampaignAnalytics(
   let mtd_buy_value_mil_lak: number;
   let nc_mtd_buy_value_mil_lak: number;
   let nc_mtd_buy_weight_g: number;
+  let nc_mtd_buy_trans = 0;
 
   let backward_trans: number;
   let backward_unique_users: number;
@@ -266,7 +267,9 @@ export function computeCampaignAnalytics(
     max_db_date: config.cached_as_of_date || config.data_update_on,
   } : undefined);
 
-  const hasLiveEc = effectiveLive?.ec_actual_mtd !== undefined && (effectiveLive.ec_actual_mtd > 0 || !hasValidCustomActual);
+  // NC-only campaigns count as live too: their result may carry NC but no buy transactions
+  const hasLiveEc = effectiveLive?.ec_actual_mtd !== undefined
+    && (effectiveLive.ec_actual_mtd > 0 || Number(effectiveLive.nc_actual_mtd) > 0 || !hasValidCustomActual);
 
   if (hasLiveEc) {
     // Priority 1: Supabase Live Database Aggregation or Persisted Snapshot
@@ -278,8 +281,10 @@ export function computeCampaignAnalytics(
     nc_actual_mtd = effectiveLive!.nc_actual_mtd ?? Math.round(ec_actual_mtd * 0.055);
     mtd_buy_weight_g = effectiveLive!.mtd_buy_weight_g ?? Number((ec_actual_mtd * avgTicketWeightG).toFixed(1));
     mtd_buy_value_mil_lak = effectiveLive!.mtd_buy_value_mil_lak ?? Number(((ec_actual_mtd * avgTicketValueLak) / 1000000).toFixed(1));
-    nc_mtd_buy_value_mil_lak = effectiveLive!.nc_mtd_buy_value_mil_lak ?? Number(((nc_actual_mtd * avgTicketValueLak) / 1000000).toFixed(1));
-    nc_mtd_buy_weight_g = effectiveLive!.nc_mtd_buy_weight_g ?? Number((nc_actual_mtd * avgTicketWeightG).toFixed(1));
+    // Real cohort buys only: never estimate NC buys when live data exists
+    nc_mtd_buy_trans = Number((effectiveLive as any)!.nc_mtd_buy_trans) || 0;
+    nc_mtd_buy_value_mil_lak = Number(effectiveLive!.nc_mtd_buy_value_mil_lak) || 0;
+    nc_mtd_buy_weight_g = Number(effectiveLive!.nc_mtd_buy_weight_g) || 0;
 
     backward_trans = (effectiveLive!.backward_trans && effectiveLive!.backward_trans > 0)
       ? effectiveLive!.backward_trans 
@@ -518,6 +523,7 @@ export function computeCampaignAnalytics(
     nc_rr_buy_value_mil_lak,
     nc_mtd_buy_weight_g,
     nc_rr_buy_weight_g,
+    nc_mtd_buy_trans,
     revenue_target_mil: revenue_target,
     mtd_buy_value_mil_lak,
     rr_buy_value_mil_lak,

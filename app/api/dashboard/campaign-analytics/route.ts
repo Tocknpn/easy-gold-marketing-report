@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { CampaignSetupConfig } from '@/lib/types/campaign.types';
 import { computeCampaignAnalytics, calculateDateDiffDays, computeBackwardDates } from '@/lib/campaign/campaignEngine';
+import { buildCampaignSql, buildCampaignRpcParams, resolveCampaignRules, campaignBankList, campaignTxType } from '@/lib/campaign/campaignSql';
 
 export const runtime = 'edge';
 
@@ -108,164 +109,28 @@ export async function POST(req: NextRequest) {
     // 3. Reverse Backward Dates (supports full planned horizon for upcoming campaigns)
     const backwardWindow = computeBackwardDates(config.campaign_date_start, elapsedDays, totalDays);
 
-    // 4. Run Live Campaign Aggregation Query directly in parallel for blazing speed
-    const rawBank = config.bank || (config.condition_type === 'bank' ? config.condition_label : 'all');
-    const effectiveBank = (!rawBank || String(rawBank).toLowerCase() === 'all') ? 'all' : String(rawBank);
-    const txType = config.tx_type || (config as any).transaction_type || 'BUY_GOLD';
-
-    // Support multiple banks
-    const banks = effectiveBank !== 'all' 
-      ? effectiveBank.split(',').map((b: string) => b.trim()).filter(Boolean)
-      : [];
-    const bankSql = banks.length === 1 
-      ? `\n  AND bank ILIKE '%${banks[0]}%'` 
-      : banks.length > 1 
-      ? `\n  AND (${banks.map((b: string) => `bank ILIKE '%${b}%'`).join(' OR ')})` 
-      : '';
-
-    // Support multiple condition rules or zero conditions
-    const rules = Array.isArray(config.conditions)
-      ? config.conditions
-      : (config.condition_operator !== 'all' && Number(config.condition_value) > 0 && !config.condition_label?.toLowerCase().includes('no condition'))
-        ? [{
-            id: 'cond_default',
-            metric: ((config.condition_type || '').toLowerCase().includes('weight') || (config.condition_label || '').toLowerCase().includes('g')) ? ('weight' as const) : ('amount' as const),
-            operator: config.condition_operator || '>=',
-            value: Number(config.condition_value) || 0,
-            max_value: config.condition_max_value ? Number(config.condition_max_value) : undefined,
-          }]
-        : [];
-
-    let condSql = '';
-    for (const r of rules) {
-      const col = r.metric === 'weight' ? 'gold_weight' : 'total_amount';
-      const val = Number(r.value) || 0;
-      if (r.operator === 'between') {
-        const maxV = r.max_value !== undefined ? Number(r.max_value) : val;
-        condSql += `\n  AND ${col} >= ${val} AND ${col} <= ${maxV}`;
-      } else if (r.operator === '<=') {
-        condSql += `\n  AND ${col} <= ${val}`;
-      } else if (r.operator === '==') {
-        condSql += `\n  AND ${col} = ${val}`;
-      } else {
-        condSql += `\n  AND ${col} >= ${val}`;
-      }
-    }
-
-    const uniqueUsersMode = config.unique_users_filter_mode || (rules.length === 0 ? 'time_only' : 'condition_tier');
-    const ncMode = config.nc_qualification_mode || 'all_registers';
-    const ncUseMainCond = config.nc_first_purchase_use_main_condition ?? true;
-    // Raw override only — the RPC now owns the fallback to the main condition when this is empty.
-    const effectiveNcRules = (ncMode === 'first_purchase_tier' && !ncUseMainCond && Array.isArray(config.nc_conditions) && config.nc_conditions.length > 0)
-      ? config.nc_conditions
-      : [];
-    const ncDisplayRules = effectiveNcRules.length > 0 ? effectiveNcRules : rules;
-
-    let ncCondSql = '';
-    for (const r of ncDisplayRules) {
-      const col = r.metric === 'weight' ? 'fb.gold_weight' : 'fb.total_amount';
-      const val = Number(r.value) || 0;
-      if (r.operator === 'between') {
-        const maxV = r.max_value !== undefined ? Number(r.max_value) : val;
-        ncCondSql += `\n  AND ${col} >= ${val} AND ${col} <= ${maxV}`;
-      } else if (r.operator === '<=') {
-        ncCondSql += `\n  AND ${col} <= ${val}`;
-      } else if (r.operator === '==') {
-        ncCondSql += `\n  AND ${col} = ${val}`;
-      } else {
-        ncCondSql += `\n  AND ${col} >= ${val}`;
-      }
-    }
-
-    const ncQuerySnippet = ncMode === 'first_purchase_tier'
-      ? `-- NC First Purchase Mode (customer's chronologically first-ever BUY_GOLD,
--- bounded to the campaign window, meeting tier)
-WITH first_buy AS (
-  SELECT DISTINCT ON (phone) phone, created_at AS first_buy_at, gold_weight, total_amount
-  FROM public.monthly_data
-  WHERE transaction_type = 'BUY_GOLD'
-    AND status IN ('ສໍາເລັດ', 'ສຳເລັດ')
-    AND created_at <= '${effectiveCutoffDate} 23:59:59'${bankSql}
-  ORDER BY phone, created_at ASC
-)
-SELECT COUNT(DISTINCT o.phone) AS nc_actual_mtd
-FROM public.monthly_data o
-INNER JOIN first_buy fb
-   ON fb.phone = o.phone
-  AND fb.first_buy_at >= '${config.campaign_date_start}'
-  AND fb.first_buy_at <= '${effectiveCutoffDate} 23:59:59'
-WHERE o.created_at >= '${config.campaign_date_start}'
-  AND o.created_at <= '${effectiveCutoffDate} 23:59:59'
-  AND o.status IN ('ສໍາເລັດ', 'ສຳເລັດ')
-  AND o.transaction_type = 'OPEN_ACCOUNT'${ncCondSql};`
-      : `-- Standard NC Mode (All OPEN_ACCOUNT in period)
-SELECT COUNT(*) AS nc_actual_mtd
-FROM public.monthly_data
-WHERE created_at >= '${config.campaign_date_start}'
-  AND created_at <= '${effectiveCutoffDate} 23:59:59'
-  AND status IN ('ສໍາເລັດ', 'ສຳເລັດ')
-  AND transaction_type = 'OPEN_ACCOUNT'${bankSql};`;
-
-    const sqlScript = `-- ============================================================================
--- CAMPAIGN INTELLIGENCE: ${config.campaign_name || 'Campaign Target'}
--- Rule: ${config.condition_label || (rules.length === 0 ? 'No Condition (All Trans)' : 'Custom Filter')} | Bank: ${effectiveBank.toUpperCase()}
--- Unique Users Mode: ${uniqueUsersMode.toUpperCase()} | NC Mode: ${ncMode.toUpperCase()}
--- ============================================================================
-
--- 1. Actual MTD Performance (${config.campaign_date_start} to ${effectiveCutoffDate})
-SELECT 
-    COUNT(*) AS ec_actual_mtd,
-    COUNT(DISTINCT phone) AS unique_customers_mtd,
-    ROUND(COALESCE(SUM(gold_weight), 0)::numeric, 1) AS mtd_buy_weight_g,
-    ROUND(COALESCE(SUM(total_amount), 0)::numeric / 1000000.0, 1) AS mtd_buy_value_mil_lak
-FROM public.monthly_data
-WHERE created_at >= '${config.campaign_date_start}'
-  AND created_at <= '${effectiveCutoffDate} 23:59:59'
-  AND status IN ('ສໍາເລັດ', 'ສຳເລັດ')
-  AND transaction_type = '${txType}'${bankSql}${condSql};
-
--- 2. New Customer Acquisition (NC)
-${ncQuerySnippet}
-
--- 3. Equal Backward Benchmark Baseline (${backwardWindow.start} to ${backwardWindow.end}, ${elapsedDays || totalDays} days)
-SELECT 
-    COUNT(*) AS buy_trans_backward,
-    COUNT(DISTINCT phone) AS unique_users_backward,
-    ROUND(COALESCE(SUM(gold_weight), 0)::numeric, 1) AS buy_weight_g_backward,
-    ROUND(COALESCE(SUM(total_amount), 0)::numeric / 1000000.0, 1) AS buy_value_lak_backward
-FROM public.monthly_data
-WHERE created_at >= '${backwardWindow.start}'
-  AND created_at <= '${backwardWindow.end} 23:59:59'
-  AND status IN ('ສໍາເລັດ', 'ສຳເລັດ')
-  AND transaction_type = '${txType}'${bankSql}${condSql};`;
+    // 4. Shared query helpers (same as the worker): SQL script + RPC params follow the campaign's targets and NC mode
+    const txType = campaignTxType(config);
+    const banks = campaignBankList(config);
+    const rules = resolveCampaignRules(config);
+    const campaignWindow = {
+      start: config.campaign_date_start,
+      cutoff: effectiveCutoffDate,
+      backStart: backwardWindow.start,
+      backEnd: backwardWindow.end,
+      backDays: elapsedDays || totalDays,
+    };
+    const sqlScript = buildCampaignSql(config, campaignWindow);
 
     let liveAgg: any = null;
 
     // Use RPC only for 0 conditions (op='all') or single condition
     if (rules.length <= 1) {
       try {
-        const singleRule = rules[0];
-        const rpcCondType = singleRule ? (singleRule.metric === 'weight' ? 'weight_gte' : 'amount_gte') : 'amount_gte';
-        const rpcCondOp = singleRule ? singleRule.operator : 'all';
-        const rpcCondVal = singleRule ? Number(singleRule.value) : 0;
-        const rpcCondMax = singleRule && singleRule.max_value ? Number(singleRule.max_value) : null;
-
-        const { data: rpcData, error: rpcError } = await supabase.rpc('get_campaign_actual_metrics', {
-          p_start_date: config.campaign_date_start,
-          p_as_of_date: effectiveCutoffDate,
-          p_backward_start: backwardWindow.start,
-          p_backward_end: backwardWindow.end,
-          p_cond_type: rpcCondType,
-          p_cond_op: rpcCondOp,
-          p_cond_val: rpcCondVal,
-          p_cond_max: rpcCondMax,
-          p_tx_type: txType,
-          p_bank: effectiveBank || 'all',
-          p_conditions: rules.length > 0 ? rules : null,
-          p_unique_users_mode: uniqueUsersMode,
-          p_nc_mode: ncMode,
-          p_nc_conditions: effectiveNcRules.length > 0 ? effectiveNcRules : null,
-        });
+        const { data: rpcData, error: rpcError } = await supabase.rpc(
+          'get_campaign_actual_metrics',
+          buildCampaignRpcParams(config, campaignWindow)
+        );
 
         if (!rpcError && rpcData && rpcData.mtd_transac !== undefined) {
           liveAgg = rpcData;
@@ -381,48 +246,9 @@ WHERE created_at >= '${backwardWindow.start}'
       }
     }
 
-    // Exact NC Query (OPEN_ACCOUNT in period, user registrations only without status/condition filter)
-    let exactNc = Number(liveAgg?.mtd_new_customers) || 0;
-    let exactBwdNc = Number(liveAgg?.backward_new_customers) || 0;
-    if (!exactNc || !exactBwdNc) {
-      try {
-        let ncQuery = supabase
-          .from('monthly_data')
-          .select('*', { count: 'exact', head: true })
-          .gte('created_at', config.campaign_date_start)
-          .lte('created_at', `${asOfDate} 23:59:59`)
-          .eq('transaction_type', 'OPEN_ACCOUNT');
-
-        let bwdNcQuery = supabase
-          .from('monthly_data')
-          .select('*', { count: 'exact', head: true })
-          .gte('created_at', backwardWindow.start)
-          .lte('created_at', `${backwardWindow.end} 23:59:59`)
-          .eq('transaction_type', 'OPEN_ACCOUNT');
-
-        if (banks.length === 1) {
-          ncQuery = ncQuery.ilike('bank', `%${banks[0]}%`);
-          bwdNcQuery = bwdNcQuery.ilike('bank', `%${banks[0]}%`);
-        } else if (banks.length > 1) {
-          ncQuery = ncQuery.or(banks.map((b: string) => `bank.ilike.%${b}%`).join(','));
-          bwdNcQuery = bwdNcQuery.or(banks.map((b: string) => `bank.ilike.%${b}%`).join(','));
-        }
-
-        const [ncRes, bwdNcRes] = await Promise.all([
-          (!isUpcoming && !exactNc) ? ncQuery : Promise.resolve({ count: null }),
-          !exactBwdNc ? bwdNcQuery : Promise.resolve({ count: null }),
-        ]);
-
-        if (ncRes && ncRes.count !== null && ncRes.count !== undefined && ncRes.count > 0) {
-          exactNc = ncRes.count;
-        }
-        if (bwdNcRes && bwdNcRes.count !== null && bwdNcRes.count !== undefined && bwdNcRes.count > 0) {
-          exactBwdNc = bwdNcRes.count;
-        }
-      } catch (e) {
-        console.warn('Exact NC query error:', e);
-      }
-    }
+    // NC comes only from the RPC, so it always matches the nightly batch definition
+    const exactNc = Number(liveAgg?.mtd_new_customers) || 0;
+    const exactBwdNc = Number(liveAgg?.backward_new_customers) || 0;
 
     // Pass live aggregation results (if any) to analytics engine
     const liveDataPayload = liveAgg
@@ -432,6 +258,7 @@ WHERE created_at >= '${backwardWindow.start}'
           nc_actual_mtd: exactNc,
           mtd_buy_weight_g: Number(liveAgg.mtd_gold_weight_g) || 0,
           mtd_buy_value_mil_lak: Number(liveAgg.mtd_revenue_mil_lak) || 0,
+          nc_mtd_buy_trans: Number(liveAgg.mtd_nc_buy_trans) || 0,
           nc_mtd_buy_value_mil_lak: Number(liveAgg.mtd_nc_buy_value_mil_lak) || 0,
           nc_mtd_buy_weight_g: Number(liveAgg.mtd_nc_buy_weight_g) || 0,
           nc_backward_buy_value_mil_lak: Number(liveAgg.backward_nc_buy_value_mil_lak) || 0,
@@ -459,6 +286,7 @@ WHERE created_at >= '${backwardWindow.start}'
 
     return NextResponse.json({
       ...finalAnalytics,
+      live_metrics: liveAgg ? { ...liveDataPayload, sql_script: sqlScript } : null,
       sql_script: sqlScript,
       dataSource: liveAgg ? 'supabase_live' : 'computed_cache',
       evaluated_at: new Date().toISOString(),
